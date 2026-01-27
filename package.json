@@ -1,0 +1,11 @@
+{
+  "name": "stickrnet-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "hardhat": "yarn workspace @stickrnet/hardhat",
+    "subgraph": "yarn workspace @stickrnet/subgraph"
+  }
+}

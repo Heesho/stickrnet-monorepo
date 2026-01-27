@@ -1,0 +1,213 @@
+# Global platform stats (singleton)
+type Directory @entity(immutable: false) {
+  id: ID!
+  channelCount: BigInt!
+  contentCount: BigInt!
+  collectCount: BigInt!
+  collectVolume: BigDecimal!
+  totalStaked: BigDecimal!
+  totalMinted: BigDecimal!
+  # Fee revenue totals
+  creatorRevenue: BigDecimal!
+  ownerRevenue: BigDecimal!
+  treasuryRevenue: BigDecimal!
+  teamRevenue: BigDecimal!
+  protocolRevenue: BigDecimal!
+}
+
+# User account
+type Account @entity(immutable: false) {
+  id: ID! # address
+  txCount: BigInt!
+
+  # Relationships
+  channelsLaunched: [Channel!]! @derivedFrom(field: "launcher")
+  channelAccounts: [ChannelAccount!]! @derivedFrom(field: "account")
+  moderatorRoles: [Moderator!]! @derivedFrom(field: "account")
+  contentCreated: [ContentPosition!]! @derivedFrom(field: "creator")
+  contentOwned: [ContentPosition!]! @derivedFrom(field: "owner")
+  collects: [Collect!]! @derivedFrom(field: "collector")
+}
+
+# A content channel instance deployed via Core
+type Channel @entity(immutable: false) {
+  id: ID! # Content contract address
+  index: BigInt!
+  launcher: Account!
+
+  # Contract addresses
+  unit: Bytes!
+  minter: Bytes!
+  rewarder: Bytes!
+  auction: Bytes!
+  lpToken: Bytes!
+  treasury: Bytes!
+  team: Bytes!
+
+  # Metadata
+  name: String!
+  symbol: String!
+  uri: String!
+
+  # Launch parameters
+  donutAmount: BigDecimal!
+  unitAmount: BigDecimal!
+  initialUps: BigInt!
+  tailUps: BigInt!
+  halvingPeriod: BigInt!
+  minInitPrice: BigDecimal!
+
+  # Auction parameters
+  auctionInitPrice: BigDecimal!
+  auctionEpochPeriod: BigInt!
+  auctionPriceMultiplier: BigDecimal!
+  auctionMinInitPrice: BigDecimal!
+
+  # Moderation
+  isModerated: Boolean!
+  moderators: [Moderator!]! @derivedFrom(field: "channel")
+
+  # Stats
+  txCount: BigInt!
+  contentCount: BigInt!
+  collectCount: BigInt!
+  collectVolume: BigDecimal!
+  totalStaked: BigDecimal!
+  totalMinted: BigDecimal!
+
+  # Minter state
+  minterActivePeriod: BigInt!
+  minterLastMintedAt: BigInt!
+
+  # Fee revenue
+  creatorRevenue: BigDecimal!
+  ownerRevenue: BigDecimal!
+  treasuryRevenue: BigDecimal!
+  teamRevenue: BigDecimal!
+  protocolRevenue: BigDecimal!
+
+  # Timestamps
+  createdAt: BigInt!
+  createdAtBlock: BigInt!
+
+  # Relationships
+  channelAccounts: [ChannelAccount!]! @derivedFrom(field: "channel")
+  contents: [ContentPosition!]! @derivedFrom(field: "channel")
+  collects: [Collect!]! @derivedFrom(field: "channel")
+}
+
+# User participation in a specific content channel
+type ChannelAccount @entity(immutable: false) {
+  id: ID! # {channel}-{account}
+  channel: Channel!
+  account: Account!
+
+  # As collector
+  collectCount: BigInt!
+  collectSpent: BigDecimal!
+
+  # As content owner (earned from being collected)
+  ownerEarned: BigDecimal!
+
+  # As content creator
+  contentCreated: BigInt!
+  creatorEarned: BigDecimal!
+
+  # Staking
+  staked: BigDecimal!
+  rewardsClaimed: BigDecimal!
+}
+
+# Moderator assignment
+type Moderator @entity(immutable: false) {
+  id: ID! # {channel}-{account}
+  channel: Channel!
+  account: Account!
+  isModerator: Boolean!
+  assignedAt: BigInt!
+}
+
+# Individual content NFT
+type ContentPosition @entity(immutable: false) {
+  id: ID! # {channel}-{tokenId}
+  channel: Channel!
+  tokenId: BigInt!
+  creator: Account!
+  owner: Account!
+  uri: String!
+  isApproved: Boolean!
+
+  # Epoch/pricing state
+  epochId: BigInt!
+  startTime: BigInt!
+  initPrice: BigDecimal!
+  stake: BigDecimal!
+
+  # Stats
+  collectCount: BigInt!
+  collectVolume: BigDecimal!
+
+  # Timestamps
+  createdAt: BigInt!
+  createdAtBlock: BigInt!
+
+  # Relationships
+  collects: [Collect!]! @derivedFrom(field: "content")
+}
+
+# Lookup: maps rewarder/minter address to content channel
+type ContractToChannel @entity(immutable: true) {
+  id: ID! # contract address (rewarder or minter)
+  channel: Channel!
+}
+
+# Time-series data for tracking volume
+type ChannelDayData @entity(immutable: false) {
+  id: ID! # {channel}-{dayTimestamp}
+  channel: Channel!
+  timestamp: BigInt!
+  collectCount: BigInt!
+  collectVolume: BigDecimal!
+}
+
+type ChannelHourData @entity(immutable: false) {
+  id: ID! # {channel}-{hourTimestamp}
+  channel: Channel!
+  timestamp: BigInt!
+  collectCount: BigInt!
+  collectVolume: BigDecimal!
+}
+
+type ChannelMinuteData @entity(immutable: false) {
+  id: ID! # {channel}-{minuteTimestamp}
+  channel: Channel!
+  timestamp: BigInt!
+  collectCount: BigInt!
+  collectVolume: BigDecimal!
+}
+
+# Collection transaction (immutable history)
+type Collect @entity(immutable: true) {
+  id: ID! # {channel}-{tokenId}-{epochId}
+  channel: Channel!
+  content: ContentPosition!
+  collector: Account!
+  prevOwner: Account!
+  creator: Account!
+
+  tokenId: BigInt!
+  epochId: BigInt!
+  price: BigDecimal!
+
+  # Fee breakdown
+  ownerFee: BigDecimal!
+  creatorFee: BigDecimal!
+  treasuryFee: BigDecimal!
+  teamFee: BigDecimal!
+  protocolFee: BigDecimal!
+
+  # Timestamps
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+}

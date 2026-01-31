@@ -18,17 +18,17 @@ import {IUniswapV2Factory, IUniswapV2Router} from "./interfaces/IUniswapV2.sol";
  * @title Core
  * @author heesho
  * @notice The main launchpad contract for deploying new Stickr Channel instances.
- *         Users provide DONUT tokens to launch a new content platform. The Core contract:
+ *         Users provide quote tokens (e.g. USDC) to launch a new content platform. The Core contract:
  *         1. Deploys a new Unit token via UnitFactory
  *         2. Mints initial Unit tokens for liquidity
- *         3. Creates a Unit/DONUT liquidity pool on Uniswap V2
+ *         3. Creates a Unit/quote liquidity pool on Uniswap V2
  *         4. Burns the initial LP tokens
  *         5. Deploys an Auction contract to collect and auction treasury fees
  *         6. Deploys a Content NFT collection via ContentFactory (creates Rewarder)
  *         7. Deploys a Minter contract via MinterFactory
  *         8. Transfers Unit minting rights to the Minter (permanently locked)
  *         9. Transfers ownership of Content and Minter to the launcher
- * @dev Fee-on-transfer and rebase tokens are NOT supported. The DONUT token must be a
+ * @dev Fee-on-transfer and rebase tokens are NOT supported. The quote token must be a
  *      standard ERC20 token without transfer fees or rebasing mechanics.
  */
 contract Core is Ownable, ReentrancyGuard {
@@ -39,22 +39,9 @@ contract Core is Ownable, ReentrancyGuard {
     address public constant DEAD_ADDRESS = 0x000000000000000000000000000000000000dEaD;
     uint256 public constant LP_DEADLINE_BUFFER = 20 minutes;
 
-    // Minter validation constants (mirror Minter.sol)
-    uint256 public constant MINTER_MIN_HALVING_PERIOD = 7 days;
-    uint256 public constant MINTER_MAX_INITIAL_UPS = 1e24;
-
-    // Auction validation constants (mirror Auction.sol)
-    uint256 public constant AUCTION_MIN_EPOCH_PERIOD = 1 hours;
-    uint256 public constant AUCTION_MAX_EPOCH_PERIOD = 365 days;
-    uint256 public constant AUCTION_MIN_PRICE_MULTIPLIER = 1.1e18;
-    uint256 public constant AUCTION_MAX_PRICE_MULTIPLIER = 3e18;
-    uint256 public constant AUCTION_ABS_MIN_INIT_PRICE = 1e6;
-    uint256 public constant AUCTION_ABS_MAX_INIT_PRICE = type(uint192).max;
-
     /*----------  IMMUTABLES  -------------------------------------------*/
 
     address public immutable quote; // quote token for content collections (e.g. USDC)
-    address public immutable donutToken; // token required to launch
     address public immutable uniswapV2Factory; // Uniswap V2 factory
     address public immutable uniswapV2Router; // Uniswap V2 router
     address public immutable unitFactory; // factory for deploying Unit tokens
@@ -66,7 +53,7 @@ contract Core is Ownable, ReentrancyGuard {
     /*----------  STATE  ------------------------------------------------*/
 
     address public protocolFeeAddress; // receives protocol fees from content collections
-    uint256 public minDonutForLaunch; // minimum DONUT required to launch
+    uint256 public minQuoteForLaunch; // minimum quote required to launch
 
     address[] public deployedContents; // array of all deployed content contracts
     mapping(address => bool) public isDeployedContent; // content => is valid
@@ -88,7 +75,7 @@ contract Core is Ownable, ReentrancyGuard {
         string tokenName; // Unit token name
         string tokenSymbol; // Unit token symbol
         string uri; // metadata URI for the content
-        uint256 donutAmount; // DONUT to provide for LP
+        uint256 quoteAmount; // quote to provide for LP
         uint256 unitAmount; // Unit tokens minted for initial LP
         uint256 initialUps; // starting units per second
         uint256 tailUps; // minimum units per second
@@ -103,23 +90,12 @@ contract Core is Ownable, ReentrancyGuard {
 
     /*----------  ERRORS  -----------------------------------------------*/
 
-    error Core__InsufficientDonut();
+    error Core__InsufficientQuote();
     error Core__InvalidLauncher();
     error Core__EmptyTokenName();
     error Core__EmptyTokenSymbol();
     error Core__InvalidUnitAmount();
     error Core__ZeroAddress();
-    // Minter validation errors
-    error Core__InvalidInitialUps();
-    error Core__InvalidTailUps();
-    error Core__InvalidHalvingPeriod();
-    // Auction validation errors
-    error Core__InvalidAuctionInitPrice();
-    error Core__InvalidAuctionEpochPeriod();
-    error Core__InvalidAuctionPriceMultiplier();
-    error Core__InvalidAuctionMinInitPrice();
-    // Content validation errors
-    error Core__InvalidContentMinInitPrice();
 
     /*----------  EVENTS  -----------------------------------------------*/
 
@@ -134,7 +110,7 @@ contract Core is Ownable, ReentrancyGuard {
         string tokenName,
         string tokenSymbol,
         string uri,
-        uint256 donutAmount,
+        uint256 quoteAmount,
         uint256 unitAmount,
         uint256 initialUps,
         uint256 tailUps,
@@ -147,14 +123,13 @@ contract Core is Ownable, ReentrancyGuard {
         uint256 auctionMinInitPrice
     );
     event Core__ProtocolFeeAddressSet(address protocolFeeAddress);
-    event Core__MinDonutForLaunchSet(uint256 minDonutForLaunch);
+    event Core__MinQuoteForLaunchSet(uint256 minQuoteForLaunch);
 
     /*----------  CONSTRUCTOR  ------------------------------------------*/
 
     /**
      * @notice Deploy the Core launchpad contract.
      * @param _quote Quote token address (e.g. USDC)
-     * @param _donutToken DONUT token address
      * @param _uniswapV2Factory Uniswap V2 factory address
      * @param _uniswapV2Router Uniswap V2 router address
      * @param _unitFactory UnitFactory contract address
@@ -163,11 +138,10 @@ contract Core is Ownable, ReentrancyGuard {
      * @param _auctionFactory AuctionFactory contract address
      * @param _rewarderFactory RewarderFactory contract address
      * @param _protocolFeeAddress Address to receive protocol fees
-     * @param _minDonutForLaunch Minimum DONUT required to launch
+     * @param _minQuoteForLaunch Minimum quote required to launch
      */
     constructor(
         address _quote,
-        address _donutToken,
         address _uniswapV2Factory,
         address _uniswapV2Router,
         address _unitFactory,
@@ -176,10 +150,10 @@ contract Core is Ownable, ReentrancyGuard {
         address _auctionFactory,
         address _rewarderFactory,
         address _protocolFeeAddress,
-        uint256 _minDonutForLaunch
+        uint256 _minQuoteForLaunch
     ) {
         if (
-            _quote == address(0) || _donutToken == address(0) || _uniswapV2Factory == address(0)
+            _quote == address(0) || _uniswapV2Factory == address(0)
                 || _uniswapV2Router == address(0) || _unitFactory == address(0) || _contentFactory == address(0)
                 || _minterFactory == address(0) || _auctionFactory == address(0) || _rewarderFactory == address(0)
         ) {
@@ -187,7 +161,6 @@ contract Core is Ownable, ReentrancyGuard {
         }
 
         quote = _quote;
-        donutToken = _donutToken;
         uniswapV2Factory = _uniswapV2Factory;
         uniswapV2Router = _uniswapV2Router;
         unitFactory = _unitFactory;
@@ -196,21 +169,21 @@ contract Core is Ownable, ReentrancyGuard {
         auctionFactory = _auctionFactory;
         rewarderFactory = _rewarderFactory;
         protocolFeeAddress = _protocolFeeAddress;
-        minDonutForLaunch = _minDonutForLaunch;
+        minQuoteForLaunch = _minQuoteForLaunch;
     }
 
     /*----------  EXTERNAL FUNCTIONS  -----------------------------------*/
 
     /**
      * @notice Launch a new Stickr Channel with associated Unit token, LP, Content, Minter, and Auction.
-     * @dev Caller must approve DONUT tokens before calling.
+     * @dev Caller must approve quote tokens before calling.
      * @param params Launch parameters struct
      * @return unit Address of deployed Unit token
      * @return content Address of deployed Content NFT contract
      * @return minter Address of deployed Minter contract
      * @return rewarder Address of deployed Rewarder contract
      * @return auction Address of deployed Auction contract
-     * @return lpToken Address of Unit/DONUT LP token
+     * @return lpToken Address of Unit/quote LP token
      */
     function launch(LaunchParams calldata params)
         external
@@ -226,41 +199,13 @@ contract Core is Ownable, ReentrancyGuard {
     {
         // Validate basic inputs
         if (params.launcher == address(0)) revert Core__InvalidLauncher();
-        if (params.donutAmount < minDonutForLaunch) revert Core__InsufficientDonut();
+        if (params.quoteAmount < minQuoteForLaunch) revert Core__InsufficientQuote();
         if (bytes(params.tokenName).length == 0) revert Core__EmptyTokenName();
         if (bytes(params.tokenSymbol).length == 0) revert Core__EmptyTokenSymbol();
         if (params.unitAmount == 0) revert Core__InvalidUnitAmount();
 
-        // Validate Minter parameters (fail fast before any state changes)
-        if (params.initialUps == 0 || params.initialUps > MINTER_MAX_INITIAL_UPS) revert Core__InvalidInitialUps();
-        if (params.tailUps == 0 || params.tailUps > params.initialUps) revert Core__InvalidTailUps();
-        if (params.halvingPeriod == 0 || params.halvingPeriod < MINTER_MIN_HALVING_PERIOD) {
-            revert Core__InvalidHalvingPeriod();
-        }
-
-        // Validate Auction parameters
-        if (
-            params.auctionEpochPeriod < AUCTION_MIN_EPOCH_PERIOD
-                || params.auctionEpochPeriod > AUCTION_MAX_EPOCH_PERIOD
-        ) revert Core__InvalidAuctionEpochPeriod();
-        if (
-            params.auctionPriceMultiplier < AUCTION_MIN_PRICE_MULTIPLIER
-                || params.auctionPriceMultiplier > AUCTION_MAX_PRICE_MULTIPLIER
-        ) revert Core__InvalidAuctionPriceMultiplier();
-        if (
-            params.auctionMinInitPrice < AUCTION_ABS_MIN_INIT_PRICE
-                || params.auctionMinInitPrice > AUCTION_ABS_MAX_INIT_PRICE
-        ) revert Core__InvalidAuctionMinInitPrice();
-        if (
-            params.auctionInitPrice < params.auctionMinInitPrice
-                || params.auctionInitPrice > AUCTION_ABS_MAX_INIT_PRICE
-        ) revert Core__InvalidAuctionInitPrice();
-
-        // Validate Content parameters
-        if (params.contentMinInitPrice == 0) revert Core__InvalidContentMinInitPrice();
-
-        // Transfer DONUT from launcher
-        IERC20(donutToken).safeTransferFrom(msg.sender, address(this), params.donutAmount);
+        // Transfer quote from launcher
+        IERC20(quote).safeTransferFrom(msg.sender, address(this), params.quoteAmount);
 
         // Deploy Unit token via factory (Core becomes initial minter)
         unit = IUnitFactory(unitFactory).deploy(params.tokenName, params.tokenSymbol);
@@ -268,25 +213,25 @@ contract Core is Ownable, ReentrancyGuard {
         // Mint initial Unit tokens for LP seeding
         IUnit(unit).mint(address(this), params.unitAmount);
 
-        // Create Unit/DONUT LP via Uniswap V2
+        // Create Unit/quote LP via Uniswap V2
         IERC20(unit).safeApprove(uniswapV2Router, 0);
         IERC20(unit).safeApprove(uniswapV2Router, params.unitAmount);
-        IERC20(donutToken).safeApprove(uniswapV2Router, 0);
-        IERC20(donutToken).safeApprove(uniswapV2Router, params.donutAmount);
+        IERC20(quote).safeApprove(uniswapV2Router, 0);
+        IERC20(quote).safeApprove(uniswapV2Router, params.quoteAmount);
 
         (,, uint256 liquidity) = IUniswapV2Router(uniswapV2Router).addLiquidity(
             unit,
-            donutToken,
+            quote,
             params.unitAmount,
-            params.donutAmount,
+            params.quoteAmount,
             params.unitAmount,
-            params.donutAmount,
+            params.quoteAmount,
             address(this),
             block.timestamp + LP_DEADLINE_BUFFER
         );
 
         // Get LP token address and burn initial liquidity
-        lpToken = IUniswapV2Factory(uniswapV2Factory).getPair(unit, donutToken);
+        lpToken = IUniswapV2Factory(uniswapV2Factory).getPair(unit, quote);
         IERC20(lpToken).safeTransfer(DEAD_ADDRESS, liquidity);
 
         // Deploy Auction with LP as payment token (receives treasury fees, burns LP)
@@ -354,7 +299,7 @@ contract Core is Ownable, ReentrancyGuard {
             params.tokenName,
             params.tokenSymbol,
             params.uri,
-            params.donutAmount,
+            params.quoteAmount,
             params.unitAmount,
             params.initialUps,
             params.tailUps,
@@ -383,12 +328,12 @@ contract Core is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Update the minimum DONUT required to launch.
-     * @param _minDonutForLaunch New minimum amount
+     * @notice Update the minimum quote required to launch.
+     * @param _minQuoteForLaunch New minimum amount
      */
-    function setMinDonutForLaunch(uint256 _minDonutForLaunch) external onlyOwner {
-        minDonutForLaunch = _minDonutForLaunch;
-        emit Core__MinDonutForLaunchSet(_minDonutForLaunch);
+    function setMinQuoteForLaunch(uint256 _minQuoteForLaunch) external onlyOwner {
+        minQuoteForLaunch = _minQuoteForLaunch;
+        emit Core__MinQuoteForLaunchSet(_minQuoteForLaunch);
     }
 
     /*----------  VIEW FUNCTIONS  ---------------------------------------*/

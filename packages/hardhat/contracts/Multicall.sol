@@ -24,7 +24,6 @@ contract Multicall {
 
     address public immutable core;
     address public immutable quote;
-    address public immutable donut;
 
     /*----------  STRUCTS  ----------------------------------------------*/
 
@@ -43,9 +42,9 @@ contract Multicall {
         string uri;
         bool isModerated;
         uint256 totalSupply;
-        uint256 marketCapInDonut;
-        uint256 liquidityInDonut;
-        uint256 priceInDonut;
+        uint256 marketCapInQuote;
+        uint256 liquidityInQuote;
+        uint256 priceInQuote;
         uint256 contentRewardForDuration;
         uint256 accountQuoteBalance;
         uint256 accountUnitBalance;
@@ -94,13 +93,11 @@ contract Multicall {
      * @notice Deploy the Multicall helper contract.
      * @param _core Core contract address
      * @param _quote Quote token address (e.g. USDC)
-     * @param _donut DONUT token address
      */
-    constructor(address _core, address _quote, address _donut) {
-        if (_core == address(0) || _quote == address(0) || _donut == address(0)) revert Multicall__ZeroAddress();
+    constructor(address _core, address _quote) {
+        if (_core == address(0) || _quote == address(0)) revert Multicall__ZeroAddress();
         core = _core;
         quote = _quote;
-        donut = _donut;
     }
 
     /*----------  EXTERNAL FUNCTIONS  -----------------------------------*/
@@ -163,7 +160,7 @@ contract Multicall {
 
     /**
      * @notice Launch a new Stickr Channel via Core.
-     * @dev Transfers DONUT from caller, approves Core, and calls launch with caller as launcher.
+     * @dev Transfers quote from caller, approves Core, and calls launch with caller as launcher.
      * @param params Launch parameters (launcher field is overwritten with msg.sender)
      */
     function launch(ICore.LaunchParams calldata params)
@@ -177,10 +174,10 @@ contract Multicall {
             address lpToken
         )
     {
-        // Transfer DONUT from user
-        IERC20(donut).safeTransferFrom(msg.sender, address(this), params.donutAmount);
-        IERC20(donut).safeApprove(core, 0);
-        IERC20(donut).safeApprove(core, params.donutAmount);
+        // Transfer quote from user
+        IERC20(quote).safeTransferFrom(msg.sender, address(this), params.quoteAmount);
+        IERC20(quote).safeApprove(core, 0);
+        IERC20(quote).safeApprove(core, params.quoteAmount);
 
         // Build params with msg.sender as launcher
         ICore.LaunchParams memory launchParams = ICore.LaunchParams({
@@ -188,7 +185,7 @@ contract Multicall {
             tokenName: params.tokenName,
             tokenSymbol: params.tokenSymbol,
             uri: params.uri,
-            donutAmount: params.donutAmount,
+            quoteAmount: params.quoteAmount,
             unitAmount: params.unitAmount,
             initialUps: params.initialUps,
             tailUps: params.tailUps,
@@ -247,16 +244,16 @@ contract Multicall {
         state.isModerated = IContent(content).isModerated();
         state.totalSupply = IContent(content).totalSupply();
 
-        // Calculate Unit price, market cap, and liquidity in DONUT from LP reserves
+        // Calculate Unit price, market cap, and liquidity in quote from LP reserves
         if (state.lp != address(0)) {
-            uint256 donutInLP = IERC20(donut).balanceOf(state.lp);
+            uint256 quoteInLP = IERC20(quote).balanceOf(state.lp);
             uint256 unitInLP = IERC20(state.unit).balanceOf(state.lp);
-            state.priceInDonut = unitInLP == 0 ? 0 : donutInLP * 1e18 / unitInLP;
-            state.liquidityInDonut = donutInLP * 2;
+            state.priceInQuote = unitInLP == 0 ? 0 : quoteInLP * 1e18 / unitInLP;
+            state.liquidityInQuote = quoteInLP * 2;
 
-            // Market cap = total unit supply * unit price in DONUT
+            // Market cap = total unit supply * unit price in quote
             uint256 unitTotalSupply = IERC20(state.unit).totalSupply();
-            state.marketCapInDonut = unitTotalSupply * state.priceInDonut / 1e18;
+            state.marketCapInQuote = unitTotalSupply * state.priceInQuote / 1e18;
         }
 
         // Content reward for duration (weekly Unit emissions to content stakers)
@@ -321,10 +318,10 @@ contract Multicall {
         state.paymentToken = IAuction(auction).paymentToken();
         state.price = IAuction(auction).getPrice();
 
-        // LP price in DONUT = (DONUT in LP * 2) / LP total supply
+        // LP price in quote = (quote in LP * 2) / LP total supply
         uint256 lpTotalSupply = IERC20(state.paymentToken).totalSupply();
         state.paymentTokenPrice =
-            lpTotalSupply == 0 ? 0 : IERC20(donut).balanceOf(state.paymentToken) * 2e18 / lpTotalSupply;
+            lpTotalSupply == 0 ? 0 : IERC20(quote).balanceOf(state.paymentToken) * 2e18 / lpTotalSupply;
 
         state.quoteAccumulated = IERC20(quote).balanceOf(auction);
         state.accountQuoteBalance = account == address(0) ? 0 : IERC20(quote).balanceOf(account);

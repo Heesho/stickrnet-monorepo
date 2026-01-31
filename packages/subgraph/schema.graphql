@@ -50,7 +50,7 @@ type Channel @entity(immutable: false) {
   uri: String!
 
   # Launch parameters
-  donutAmount: BigDecimal!
+  quoteAmount: BigDecimal!
   unitAmount: BigDecimal!
   initialUps: BigInt!
   tailUps: BigInt!

@@ -12,7 +12,7 @@ interface ICore {
         string tokenName;
         string tokenSymbol;
         string uri;
-        uint256 donutAmount;
+        uint256 quoteAmount;
         uint256 unitAmount;
         uint256 initialUps;
         uint256 tailUps;
@@ -37,10 +37,9 @@ interface ICore {
         );
     function protocolFeeAddress() external view returns (address);
     function quote() external view returns (address);
-    function donutToken() external view returns (address);
     function uniswapV2Factory() external view returns (address);
     function uniswapV2Router() external view returns (address);
-    function minDonutForLaunch() external view returns (uint256);
+    function minQuoteForLaunch() external view returns (uint256);
     function isDeployedContent(address content) external view returns (bool);
     function contentToIndex(address content) external view returns (uint256);
     function contentToLauncher(address content) external view returns (address);

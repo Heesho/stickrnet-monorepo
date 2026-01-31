@@ -53,7 +53,7 @@ export function handleCoreLaunched(event: CoreLaunchedEvent): void {
   channel.uri = event.params.uri;
 
   // Launch parameters
-  channel.donutAmount = convertTokenToDecimal(event.params.donutAmount, BI_18);
+  channel.quoteAmount = convertTokenToDecimal(event.params.quoteAmount, BI_6);
   channel.unitAmount = convertTokenToDecimal(event.params.unitAmount, BI_18);
   channel.initialUps = event.params.initialUps;
   channel.tailUps = event.params.tailUps;

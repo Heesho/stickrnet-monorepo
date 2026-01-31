@@ -8,11 +8,6 @@
       },
       {
         "internalType": "address",
-        "name": "_donutToken",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
         "name": "_uniswapV2Factory",
         "type": "address"
       },
@@ -53,7 +48,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "_minDonutForLaunch",
+        "name": "_minQuoteForLaunch",
         "type": "uint256"
       }
     ],
@@ -72,7 +67,7 @@
   },
   {
     "inputs": [],
-    "name": "Core__InsufficientDonut",
+    "name": "Core__InsufficientQuote",
     "type": "error"
   },
   {
@@ -196,7 +191,7 @@
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "donutAmount",
+        "name": "quoteAmount",
         "type": "uint256"
       },
       {
@@ -269,11 +264,11 @@
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "minDonutForLaunch",
+        "name": "minQuoteForLaunch",
         "type": "uint256"
       }
     ],
-    "name": "Core__MinDonutForLaunchSet",
+    "name": "Core__MinQuoteForLaunchSet",
     "type": "event"
   },
   {
@@ -630,19 +625,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "donutToken",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "address",
@@ -687,7 +669,7 @@
           },
           {
             "internalType": "uint256",
-            "name": "donutAmount",
+            "name": "quoteAmount",
             "type": "uint256"
           },
           {
@@ -784,7 +766,7 @@
   },
   {
     "inputs": [],
-    "name": "minDonutForLaunch",
+    "name": "minQuoteForLaunch",
     "outputs": [
       {
         "internalType": "uint256",
@@ -871,11 +853,11 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "_minDonutForLaunch",
+        "name": "_minQuoteForLaunch",
         "type": "uint256"
       }
     ],
-    "name": "setMinDonutForLaunch",
+    "name": "setMinQuoteForLaunch",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

@@ -29,6 +29,8 @@ dataSources:
           file: ./abis/Minter.json
         - name: Rewarder
           file: ./abis/Rewarder.json
+        - name: UniswapV2Pair
+          file: ./abis/UniswapV2Pair.json
       eventHandlers:
         - event: Core__Launched(indexed address,indexed address,indexed address,address,address,address,address,string,string,string,uint256,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)
           handler: handleCoreLaunched
@@ -123,3 +125,29 @@ templates:
         - event: Minter__Minted(indexed address,uint256)
           handler: handleMinterMinted
       file: ./src/minter.ts
+  - kind: ethereum
+    name: UniswapV2Pair
+    network: base
+    source:
+      abi: UniswapV2Pair
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - Channel
+        - ContractToChannel
+        - Swap
+        - Account
+        - ChannelDayData
+        - ChannelHourData
+        - ChannelMinuteData
+      abis:
+        - name: UniswapV2Pair
+          file: ./abis/UniswapV2Pair.json
+      eventHandlers:
+        - event: Sync(uint112,uint112)
+          handler: handleSync
+        - event: Swap(indexed address,uint256,uint256,uint256,uint256,indexed address)
+          handler: handleSwap
+      file: ./src/pair.ts

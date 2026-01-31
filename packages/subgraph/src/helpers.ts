@@ -1,5 +1,5 @@
 import { BigInt, BigDecimal } from "@graphprotocol/graph-ts";
-import { ZERO_BI, ONE_BI, ZERO_BD, DIVISOR } from "./constants";
+import { ZERO_BI, ONE_BI, ZERO_BD, DIVISOR, SECONDS_PER_HOUR, SECONDS_PER_DAY, SECONDS_PER_MINUTE } from "./constants";
 
 export function exponentToBigDecimal(decimals: BigInt): BigDecimal {
   let bd = BigDecimal.fromString("1");
@@ -65,4 +65,16 @@ export function getChannelHourDataId(channelAddress: string, hourTimestamp: BigI
 
 export function getChannelMinuteDataId(channelAddress: string, minuteTimestamp: BigInt): string {
   return channelAddress + "-" + minuteTimestamp.toString();
+}
+
+export function getHourIndex(timestamp: BigInt): i32 {
+  return timestamp.toI32() / SECONDS_PER_HOUR;
+}
+
+export function getDayIndex(timestamp: BigInt): i32 {
+  return timestamp.toI32() / SECONDS_PER_DAY;
+}
+
+export function getMinuteIndex(timestamp: BigInt): i32 {
+  return timestamp.toI32() / SECONDS_PER_MINUTE;
 }

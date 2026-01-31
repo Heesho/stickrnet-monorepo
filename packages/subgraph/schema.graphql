@@ -86,6 +86,18 @@ type Channel @entity(immutable: false) {
   teamRevenue: BigDecimal!
   protocolRevenue: BigDecimal!
 
+  # Price data (from LP Sync events)
+  price: BigDecimal!                   # Current price in USDC (reserveQuote / reserveUnit)
+  reserveUnit: BigDecimal!             # Unit tokens in LP
+  reserveQuote: BigDecimal!            # USDC in LP
+  liquidity: BigDecimal!               # USDC liquidity in LP
+
+  # Volume data (from LP Swap events)
+  volumeUnit: BigDecimal!              # All-time Unit volume traded
+  volumeQuote: BigDecimal!             # All-time USDC volume traded
+  swapTxCount: BigInt!                 # Total swap transactions
+  lastSwapAt: BigInt!                  # Last swap timestamp
+
   # Timestamps
   createdAt: BigInt!
   createdAtBlock: BigInt!
@@ -94,6 +106,7 @@ type Channel @entity(immutable: false) {
   channelAccounts: [ChannelAccount!]! @derivedFrom(field: "channel")
   contents: [ContentPosition!]! @derivedFrom(field: "channel")
   collects: [Collect!]! @derivedFrom(field: "channel")
+  swaps: [Swap!]! @derivedFrom(field: "channel")
 }
 
 # User participation in a specific content channel
@@ -168,6 +181,16 @@ type ChannelDayData @entity(immutable: false) {
   timestamp: BigInt!
   collectCount: BigInt!
   collectVolume: BigDecimal!
+
+  # OHLCV price data
+  open: BigDecimal!
+  high: BigDecimal!
+  low: BigDecimal!
+  close: BigDecimal!
+  volumeUnit: BigDecimal!
+  volumeQuote: BigDecimal!
+  swapTxCount: BigInt!
+  liquidity: BigDecimal!
 }
 
 type ChannelHourData @entity(immutable: false) {
@@ -176,6 +199,16 @@ type ChannelHourData @entity(immutable: false) {
   timestamp: BigInt!
   collectCount: BigInt!
   collectVolume: BigDecimal!
+
+  # OHLCV price data
+  open: BigDecimal!
+  high: BigDecimal!
+  low: BigDecimal!
+  close: BigDecimal!
+  volumeUnit: BigDecimal!
+  volumeQuote: BigDecimal!
+  swapTxCount: BigInt!
+  liquidity: BigDecimal!
 }
 
 type ChannelMinuteData @entity(immutable: false) {
@@ -184,6 +217,16 @@ type ChannelMinuteData @entity(immutable: false) {
   timestamp: BigInt!
   collectCount: BigInt!
   collectVolume: BigDecimal!
+
+  # OHLCV price data
+  open: BigDecimal!
+  high: BigDecimal!
+  low: BigDecimal!
+  close: BigDecimal!
+  volumeUnit: BigDecimal!
+  volumeQuote: BigDecimal!
+  swapTxCount: BigInt!
+  liquidity: BigDecimal!
 }
 
 # Collection transaction (immutable history)
@@ -210,4 +253,23 @@ type Collect @entity(immutable: true) {
   timestamp: BigInt!
   blockNumber: BigInt!
   txHash: Bytes!
+}
+
+# LP swap transaction (immutable history)
+type Swap @entity(immutable: true) {
+  id: ID!                              # {txHash}-{logIndex}
+  channel: Channel!
+  account: Account!
+
+  # Swap details
+  type: String!                        # "buy" or "sell"
+  amountUnit: BigDecimal!              # Unit tokens swapped
+  amountQuote: BigDecimal!             # USDC swapped
+  price: BigDecimal!                   # Execution price (quote/unit)
+
+  # Transaction
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+  logIndex: BigInt!
 }

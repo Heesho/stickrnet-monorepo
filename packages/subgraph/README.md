@@ -1,1 +1,1 @@
-# donut-miner-subgraph
+# stickrnet-subgraph

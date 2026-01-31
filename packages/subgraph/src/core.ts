@@ -1,6 +1,6 @@
 import { BigInt } from "@graphprotocol/graph-ts";
 import { Core__Launched as CoreLaunchedEvent } from "../generated/Core/Core";
-import { Content as ContentTemplate, Rewarder as RewarderTemplate, Minter as MinterTemplate } from "../generated/templates";
+import { Content as ContentTemplate, Rewarder as RewarderTemplate, Minter as MinterTemplate, UniswapV2Pair as UniswapV2PairTemplate } from "../generated/templates";
 import { Directory, Channel, Account, ContractToChannel } from "../generated/schema";
 import { ZERO_BD, ZERO_BI, ONE_BI, DIRECTORY_ID, BI_18, BI_6 } from "./constants";
 import { convertTokenToDecimal } from "./helpers";
@@ -88,6 +88,16 @@ export function handleCoreLaunched(event: CoreLaunchedEvent): void {
   channel.teamRevenue = ZERO_BD;
   channel.protocolRevenue = ZERO_BD;
 
+  // Price/volume data
+  channel.price = ZERO_BD;
+  channel.reserveUnit = ZERO_BD;
+  channel.reserveQuote = ZERO_BD;
+  channel.liquidity = ZERO_BD;
+  channel.volumeUnit = ZERO_BD;
+  channel.volumeQuote = ZERO_BD;
+  channel.swapTxCount = ZERO_BI;
+  channel.lastSwapAt = ZERO_BI;
+
   // Timestamps
   channel.createdAt = event.block.timestamp;
   channel.createdAtBlock = event.block.number;
@@ -102,8 +112,13 @@ export function handleCoreLaunched(event: CoreLaunchedEvent): void {
   minterLookup.channel = event.params.content.toHexString();
   minterLookup.save();
 
+  let lpLookup = new ContractToChannel(event.params.lpToken.toHexString());
+  lpLookup.channel = event.params.content.toHexString();
+  lpLookup.save();
+
   // Start indexing events from the new contracts
   ContentTemplate.create(event.params.content);
   RewarderTemplate.create(event.params.rewarder);
   MinterTemplate.create(event.params.minter);
+  UniswapV2PairTemplate.create(event.params.lpToken);
 }

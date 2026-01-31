@@ -11,6 +11,10 @@ export const ONE_BD = BigDecimal.fromString("1");
 export const BI_18 = BigInt.fromI32(18);
 export const BI_6 = BigInt.fromI32(6);
 
+export const SECONDS_PER_HOUR: i32 = 3600;
+export const SECONDS_PER_DAY: i32 = 86400;
+export const SECONDS_PER_MINUTE: i32 = 60;
+
 // Fee constants (basis points)
 export const OWNER_FEE = BigInt.fromI32(8000); // 80%
 export const CREATOR_FEE = BigInt.fromI32(300); // 3%

@@ -8,9 +8,9 @@ dataSources:
     name: Core
     network: base
     source:
-      address: "0xb18239c80DB00213fA760Becb9892ff36CB9c7E1"
+      address: "0xe156BDf15A836048EbBae13e3aC29096eDF32ef2"
       abi: Core
-      startBlock: 41380358
+      startBlock: 41644100
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.9

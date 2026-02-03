@@ -56,7 +56,6 @@ describe("STRESS TESTS - Professional Audit", function () {
     // Deploy Core
     core = await (await ethers.getContractFactory("Core")).deploy(
       usdc.address,
-      donut.address,
       uniswapFactory.address,
       uniswapRouter.address,
       unitFactory.address,
@@ -65,18 +64,17 @@ describe("STRESS TESTS - Professional Audit", function () {
       auctionFactory.address,
       rewarderFactory.address,
       protocol.address,
-      convert("100", 18)
+      convert("100", 6)
     );
 
     // Deploy Multicall
     multicall = await (await ethers.getContractFactory("Multicall")).deploy(
       core.address,
-      usdc.address,
-      donut.address
+      usdc.address
     );
 
     // Fund users
-    await donut.connect(launcher).deposit({ value: convert("10000", 18) });
+    await usdc.mint(launcher.address, convert("10000", 6));
     await usdc.mint(user1.address, convert("1000000", 6)); // 1M USDC
     await usdc.mint(user2.address, convert("1000000", 6));
     await usdc.mint(user3.address, convert("1000000", 6));
@@ -89,7 +87,7 @@ describe("STRESS TESTS - Professional Audit", function () {
       tokenName: "Stress Unit",
       tokenSymbol: "SUNIT",
       uri: "https://stress.test",
-      donutAmount: convert("500", 18),
+      quoteAmount: convert("500", 6),
       unitAmount: convert("1000000", 18),
       initialUps: convert("4", 18),
       tailUps: convert("0.01", 18),
@@ -102,7 +100,7 @@ describe("STRESS TESTS - Professional Audit", function () {
       auctionMinInitPrice: convert("1", 6),
     };
 
-    await donut.connect(launcher).approve(core.address, launchParams.donutAmount);
+    await usdc.connect(launcher).approve(core.address, launchParams.quoteAmount);
     const tx = await core.connect(launcher).launch(launchParams);
     const receipt = await tx.wait();
 
@@ -149,6 +147,7 @@ describe("STRESS TESTS - Professional Audit", function () {
 
       // Execute collection
       const creatorBalBefore = await usdc.balanceOf(creator1.address);
+      const creatorClaimableBefore = await content.accountToClaimable(creator1.address);
       const auctionBalBefore = await usdc.balanceOf(auction.address);
       const protocolBalBefore = await usdc.balanceOf(protocol.address);
       const teamAddress = await content.team();
@@ -160,20 +159,20 @@ describe("STRESS TESTS - Professional Audit", function () {
       await content.connect(user1).collect(user1.address, tokenId, auctionData.epochId, block.timestamp + 3600, price);
 
       // Verify actual distribution
-      // Note: prevOwner fee (80%) now goes to claimable, creator fee (3%) is direct transfer
-      const creatorReceived = (await usdc.balanceOf(creator1.address)).sub(creatorBalBefore);
-      const creatorClaimable = await content.accountToClaimable(creator1.address);
+      // Note: prevOwner fee (80%) goes to claimable, creator fee (3%) may also go to claimable
+      // when creator == prevOwner (H-01 audit fix: pull-based fees)
+      const creatorDirectReceived = (await usdc.balanceOf(creator1.address)).sub(creatorBalBefore);
+      const creatorClaimableReceived = (await content.accountToClaimable(creator1.address)).sub(creatorClaimableBefore);
+      const creatorTotalReceived = creatorDirectReceived.add(creatorClaimableReceived);
       const auctionReceived = (await usdc.balanceOf(auction.address)).sub(auctionBalBefore);
       const protocolReceived = (await usdc.balanceOf(protocol.address)).sub(protocolBalBefore);
       const teamReceived = (await usdc.balanceOf(teamAddress)).sub(teamBalBefore);
 
-      // Creator gets: 3% direct + 80% claimable = 83% total
-      const expectedCreatorDirect = price.mul(300).div(10000);
-      const expectedCreatorClaimable = price.mul(8000).div(10000);
+      // Creator (who is also prevOwner) gets 80% + 3% = 83% total (direct + claimable)
+      const expectedCreatorTotal = price.mul(8300).div(10000);
 
       // Allow small tolerance for price decay during transaction (1-day epoch = fast decay)
-      expect(creatorReceived).to.be.closeTo(expectedCreatorDirect, 100);
-      expect(creatorClaimable).to.be.closeTo(expectedCreatorClaimable, 100);
+      expect(creatorTotalReceived).to.be.closeTo(expectedCreatorTotal, 100);
       expect(auctionReceived).to.be.closeTo(expectedTreasury, 100);
       expect(protocolReceived).to.be.closeTo(expectedProtocol, 100);
       expect(teamReceived).to.be.closeTo(expectedTeam, 100);
@@ -744,7 +743,7 @@ describe("STRESS TESTS - Professional Audit", function () {
         const earned = await rewarder.earned(user.address, unit.address);
         if (earned.gt(0)) {
           const balBefore = await unit.balanceOf(user.address);
-          await rewarder.getReward(user.address);
+          await rewarder['getReward(address)'](user.address);
           const balAfter = await unit.balanceOf(user.address);
           console.log(`${user.address.slice(0, 8)}... claimed ${divDec(balAfter.sub(balBefore))} UNIT`);
         }

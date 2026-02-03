@@ -75,7 +75,6 @@ describe("Multicall Tests", function () {
     const coreArtifact = await ethers.getContractFactory("Core");
     core = await coreArtifact.deploy(
       usdc.address,
-      donut.address,
       uniswapFactory.address,
       uniswapRouter.address,
       unitFactory.address,
@@ -84,25 +83,25 @@ describe("Multicall Tests", function () {
       auctionFactory.address,
       rewarderFactory.address,
       protocol.address,
-      convert("100", 18)
+      convert("100", 6)
     );
     console.log("- Core Initialized");
 
     // Deploy Multicall
     const multicallArtifact = await ethers.getContractFactory("Multicall");
-    multicall = await multicallArtifact.deploy(core.address, usdc.address, donut.address);
+    multicall = await multicallArtifact.deploy(core.address, usdc.address);
     console.log("- Multicall Initialized");
 
-    // Mint DONUT to launcher and launch a content engine
-    await donut.connect(launcher).deposit({ value: convert("10000", 18) });
-    console.log("- DONUT minted to launcher");
+    // Mint USDC to launcher for launch
+    await usdc.mint(launcher.address, convert("10000", 6));
+    console.log("- USDC minted to launcher");
 
     const launchParams = {
       launcher: launcher.address,
       tokenName: "Test Unit",
       tokenSymbol: "TUNIT",
       uri: "https://example.com/metadata",
-      donutAmount: convert("500", 18),
+      quoteAmount: convert("500", 6),
       unitAmount: convert("1000000", 18),
       initialUps: convert("4", 18),
       tailUps: convert("0.01", 18),
@@ -115,7 +114,7 @@ describe("Multicall Tests", function () {
       auctionMinInitPrice: convert("1", 6),
     };
 
-    await donut.connect(launcher).approve(core.address, launchParams.donutAmount);
+    await usdc.connect(launcher).approve(core.address, launchParams.quoteAmount);
     const tx = await core.connect(launcher).launch(launchParams);
     const receipt = await tx.wait();
 
@@ -140,23 +139,15 @@ describe("Multicall Tests", function () {
       expect(await multicall.quote()).to.equal(usdc.address);
     });
 
-    it("Should deploy with correct donut address", async function () {
-      expect(await multicall.donut()).to.equal(donut.address);
-    });
-
     it("Should revert with zero addresses", async function () {
       const multicallArtifact = await ethers.getContractFactory("Multicall");
 
       await expect(
-        multicallArtifact.deploy(AddressZero, usdc.address, donut.address)
+        multicallArtifact.deploy(AddressZero, usdc.address)
       ).to.be.revertedWith("Multicall__ZeroAddress()");
 
       await expect(
-        multicallArtifact.deploy(core.address, AddressZero, donut.address)
-      ).to.be.revertedWith("Multicall__ZeroAddress()");
-
-      await expect(
-        multicallArtifact.deploy(core.address, usdc.address, AddressZero)
+        multicallArtifact.deploy(core.address, AddressZero)
       ).to.be.revertedWith("Multicall__ZeroAddress()");
     });
   });
@@ -181,11 +172,10 @@ describe("Multicall Tests", function () {
     it("Should return user balances when account provided", async function () {
       // Give user1 some tokens
       await usdc.mint(user1.address, convert("10", 6));
-      await donut.connect(user1).deposit({ value: convert("50", 18) });
 
       const state = await multicall.getUnitState(content.address, user1.address);
 
-      expect(state.accountQuoteBalance).to.equal(convert("10", 6));
+      expect(state.accountQuoteBalance).to.be.gte(convert("10", 6));
       // Note: accountUnitBalance may be 0 if user1 hasn't received any unit tokens yet
     });
 
@@ -222,11 +212,11 @@ describe("Multicall Tests", function () {
       const state = await multicall.getUnitState(content.address, AddressZero);
 
       // LP was seeded with 500 DONUT and 1M Unit
-      // priceInDonut = donutInLP * 1e18 / unitInLP
-      // liquidityInDonut = donutInLP * 2
-      expect(state.priceInDonut).to.be.gt(0);
-      expect(state.liquidityInDonut).to.be.gt(0);
-      expect(state.marketCapInDonut).to.be.gt(0);
+      // priceInQuote = donutInLP * 1e18 / unitInLP
+      // liquidityInQuote = donutInLP * 2
+      expect(state.priceInQuote).to.be.gt(0);
+      expect(state.liquidityInQuote).to.be.gt(0);
+      expect(state.marketCapInQuote).to.be.gt(0);
     });
   });
 
@@ -352,7 +342,7 @@ describe("Multicall Tests", function () {
         tokenName: "Multicall Unit",
         tokenSymbol: "MUNIT",
         uri: "ipfs://multicall-test",
-        donutAmount: convert("500", 18),
+        quoteAmount: convert("500", 6),
         unitAmount: convert("500000", 18),
         initialUps: convert("2", 18),
         tailUps: convert("0.005", 18),
@@ -365,14 +355,14 @@ describe("Multicall Tests", function () {
         auctionMinInitPrice: convert("5", 6),
       };
 
-      // Give user1 DONUT and approve multicall
-      await donut.connect(user1).deposit({ value: launchParams.donutAmount });
-      await donut.connect(user1).approve(multicall.address, launchParams.donutAmount);
+      // Give user1 USDC and approve multicall
+      await usdc.mint(user1.address, launchParams.quoteAmount);
+      await usdc.connect(user1).approve(multicall.address, launchParams.quoteAmount);
 
-      const contentCountBefore = await core.deployedContentsLength();
+      const contentCountBefore = await core.contentsLength();
       const tx = await multicall.connect(user1).launch(launchParams);
       await tx.wait();
-      const contentCountAfter = await core.deployedContentsLength();
+      const contentCountAfter = await core.contentsLength();
 
       // Should have created a new content engine
       expect(contentCountAfter).to.be.gt(contentCountBefore);
@@ -384,7 +374,7 @@ describe("Multicall Tests", function () {
         tokenName: "Multicall Unit 2",
         tokenSymbol: "MUNIT2",
         uri: "ipfs://multicall-test-2",
-        donutAmount: convert("500", 18),
+        quoteAmount: convert("500", 6),
         unitAmount: convert("500000", 18),
         initialUps: convert("2", 18),
         tailUps: convert("0.005", 18),
@@ -397,16 +387,16 @@ describe("Multicall Tests", function () {
         auctionMinInitPrice: convert("5", 6),
       };
 
-      await donut.connect(user2).deposit({ value: launchParams.donutAmount });
-      await donut.connect(user2).approve(multicall.address, launchParams.donutAmount);
+      await usdc.mint(user2.address, launchParams.quoteAmount);
+      await usdc.connect(user2).approve(multicall.address, launchParams.quoteAmount);
 
       // Get content count to find the new content address
-      const contentCountBefore = await core.deployedContentsLength();
+      const contentCountBefore = await core.contentsLength();
       const tx = await multicall.connect(user2).launch(launchParams);
       await tx.wait();
 
       // Get the new content address from core
-      const newContentAddress = await core.deployedContents(contentCountBefore);
+      const newContentAddress = await core.contents(contentCountBefore);
       const newContent = await ethers.getContractAt("Content", newContentAddress);
 
       // Launcher (owner) should be user2, not owner

@@ -75,7 +75,6 @@ describe("Rewarder Tests", function () {
     const coreArtifact = await ethers.getContractFactory("Core");
     core = await coreArtifact.deploy(
       usdc.address,
-      donut.address,
       uniswapFactory.address,
       uniswapRouter.address,
       unitFactory.address,
@@ -84,25 +83,25 @@ describe("Rewarder Tests", function () {
       auctionFactory.address,
       rewarderFactory.address,
       protocol.address,
-      convert("100", 18)
+      convert("100", 6)
     );
     console.log("- Core Initialized");
 
     // Deploy Multicall
     const multicallArtifact = await ethers.getContractFactory("Multicall");
-    multicall = await multicallArtifact.deploy(core.address, usdc.address, donut.address);
+    multicall = await multicallArtifact.deploy(core.address, usdc.address);
     console.log("- Multicall Initialized");
 
-    // Mint DONUT to launcher and launch a content engine
-    await donut.connect(launcher).deposit({ value: convert("10000", 18) });
-    console.log("- DONUT minted to launcher");
+    // Mint USDC to launcher for launch
+    await usdc.mint(launcher.address, convert("10000", 6));
+    console.log("- USDC minted to launcher");
 
     const launchParams = {
       launcher: launcher.address,
       tokenName: "Test Unit",
       tokenSymbol: "TUNIT",
       uri: "https://example.com/metadata",
-      donutAmount: convert("500", 18),
+      quoteAmount: convert("500", 6),
       unitAmount: convert("1000000", 18),
       initialUps: convert("4", 18),
       tailUps: convert("0.01", 18),
@@ -115,7 +114,7 @@ describe("Rewarder Tests", function () {
       auctionMinInitPrice: convert("1", 6),
     };
 
-    await donut.connect(launcher).approve(core.address, launchParams.donutAmount);
+    await usdc.connect(launcher).approve(core.address, launchParams.quoteAmount);
     const tx = await core.connect(launcher).launch(launchParams);
     const receipt = await tx.wait();
 
@@ -238,7 +237,7 @@ describe("Rewarder Tests", function () {
       expect(earned).to.be.gt(0);
 
       const balanceBefore = await unit.balanceOf(user2.address);
-      await rewarder.getReward(user2.address);
+      await rewarder['getReward(address)'](user2.address);
       const balanceAfter = await unit.balanceOf(user2.address);
 
       expect(balanceAfter.sub(balanceBefore)).to.be.closeTo(earned, earned.div(100));
@@ -254,7 +253,7 @@ describe("Rewarder Tests", function () {
       await ethers.provider.send("evm_increaseTime", [DAY]);
       await ethers.provider.send("evm_mine");
 
-      await expect(rewarder.getReward(user2.address)).to.emit(rewarder, "Rewarder__RewardPaid");
+      await expect(rewarder['getReward(address)'](user2.address)).to.emit(rewarder, "Rewarder__RewardPaid");
     });
   });
 
@@ -346,7 +345,7 @@ describe("Rewarder Tests", function () {
     it("Should handle claiming with no earned rewards", async function () {
       // User1 has no stake, claiming should succeed but transfer nothing
       const balanceBefore = await unit.balanceOf(user1.address);
-      await rewarder.getReward(user1.address);
+      await rewarder['getReward(address)'](user1.address);
       const balanceAfter = await unit.balanceOf(user1.address);
 
       expect(balanceAfter).to.equal(balanceBefore);

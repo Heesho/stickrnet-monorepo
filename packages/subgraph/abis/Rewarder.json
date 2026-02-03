@@ -42,6 +42,11 @@
   },
   {
     "inputs": [],
+    "name": "Rewarder__ZeroAddress",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "Rewarder__ZeroAmount",
     "type": "error"
   },
@@ -312,6 +317,24 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "getReward",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

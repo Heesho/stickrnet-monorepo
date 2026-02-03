@@ -42,12 +42,8 @@ interface ICore {
     function minQuoteForLaunch() external view returns (uint256);
     function isDeployedContent(address content) external view returns (bool);
     function contentToIndex(address content) external view returns (uint256);
-    function contentToLauncher(address content) external view returns (address);
-    function contentToUnit(address content) external view returns (address);
     function contentToAuction(address content) external view returns (address);
-    function contentToMinter(address content) external view returns (address);
-    function contentToRewarder(address content) external view returns (address);
     function contentToLP(address content) external view returns (address);
-    function deployedContentsLength() external view returns (uint256);
-    function deployedContents(uint256 index) external view returns (address);
+    function contentsLength() external view returns (uint256);
+    function contents(uint256 index) external view returns (address);
 }

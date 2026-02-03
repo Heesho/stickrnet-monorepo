@@ -49,7 +49,6 @@ describe("Invariant Tests", function () {
 
     core = await (await ethers.getContractFactory("Core")).deploy(
       usdc.address,
-      donut.address,
       uniswapFactory.address,
       uniswapRouter.address,
       unitFactory.address,
@@ -58,21 +57,20 @@ describe("Invariant Tests", function () {
       auctionFactory.address,
       rewarderFactory.address,
       owner.address,
-      convert("100", 18)
+      convert("100", 6)
     );
 
     for (const user of [owner, user1, user2, user3, user4, user5]) {
-      await donut.connect(user).deposit({ value: convert("1000", 18) });
-      await usdc.mint(user.address, convert("1000", 6));
+      await usdc.mint(user.address, convert("10000", 6));
     }
 
-    await donut.connect(owner).approve(core.address, convert("1000", 18));
+    await usdc.connect(owner).approve(core.address, convert("1000", 6));
     const tx = await core.connect(owner).launch({
       launcher: owner.address,
       tokenName: "Invariant Test",
       tokenSymbol: "ITEST",
       uri: "https://test.com",
-      donutAmount: convert("1000", 18),
+      quoteAmount: convert("1000", 6),
       unitAmount: convert("1000000", 18),
       initialUps: convert("1", 18),
       tailUps: convert("0.01", 18),
@@ -510,13 +508,11 @@ describe("Invariant Tests", function () {
       const isDeployed = await core.isDeployedContent(content.address);
       expect(isDeployed).to.be.true;
 
-      const contentUnit = await core.contentToUnit(content.address);
+      // Verify child contracts are accessible from Content
+      const contentUnit = await content.unit();
       expect(contentUnit).to.equal(unit.address);
 
-      const contentMinter = await core.contentToMinter(content.address);
-      expect(contentMinter).to.equal(minter.address);
-
-      const contentRewarder = await core.contentToRewarder(content.address);
+      const contentRewarder = await content.rewarder();
       expect(contentRewarder).to.equal(rewarder.address);
 
       const contentAuction = await core.contentToAuction(content.address);
@@ -529,29 +525,29 @@ describe("Invariant Tests", function () {
       expect(isDeployed).to.be.false;
     });
 
-    it("INVARIANT: DeployedContents length matches array", async function () {
-      const length = await core.deployedContentsLength();
+    it("INVARIANT: Contents length matches array", async function () {
+      const length = await core.contentsLength();
       expect(length).to.be.gte(1);
 
       // Can access all elements
       for (let i = 0; i < length.toNumber(); i++) {
-        const contentAddr = await core.deployedContents(i);
+        const contentAddr = await core.contents(i);
         expect(contentAddr).to.not.equal(AddressZero);
       }
     });
   });
 
   describe("Cross-Contract Invariants", function () {
-    it("INVARIANT: Content.rewarder matches Core.contentToRewarder", async function () {
+    it("INVARIANT: Content.rewarder is not zero address", async function () {
       const contentRewarder = await content.rewarder();
-      const coreRewarder = await core.contentToRewarder(content.address);
-      expect(contentRewarder).to.equal(coreRewarder);
+      expect(contentRewarder).to.not.equal(AddressZero);
+      expect(contentRewarder).to.equal(rewarder.address);
     });
 
-    it("INVARIANT: Content.unit matches Core.contentToUnit", async function () {
+    it("INVARIANT: Content.unit is not zero address", async function () {
       const contentUnit = await content.unit();
-      const coreUnit = await core.contentToUnit(content.address);
-      expect(contentUnit).to.equal(coreUnit);
+      expect(contentUnit).to.not.equal(AddressZero);
+      expect(contentUnit).to.equal(unit.address);
     });
 
     it("INVARIANT: Minter.unit matches Content.unit", async function () {

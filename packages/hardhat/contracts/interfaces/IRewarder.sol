@@ -15,6 +15,7 @@ interface IRewarder {
     }
 
     function getReward(address account) external;
+    function getReward(address account, address token) external;
     function notifyRewardAmount(address token, uint256 amount) external;
     function deposit(address account, uint256 amount) external;
     function withdraw(address account, uint256 amount) external;

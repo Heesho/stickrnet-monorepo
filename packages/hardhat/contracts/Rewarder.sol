@@ -57,6 +57,7 @@ contract Rewarder is ReentrancyGuard {
     error Rewarder__NotRewardToken();
     error Rewarder__RewardTokenAlreadyAdded();
     error Rewarder__ZeroAmount();
+    error Rewarder__ZeroAddress();
     error Rewarder__MaxRewardTokensReached();
 
     /*----------  EVENTS  -----------------------------------------------*/
@@ -117,6 +118,22 @@ contract Rewarder is ReentrancyGuard {
                 emit Rewarder__RewardPaid(account, token, amount);
                 IERC20(token).safeTransfer(account, amount);
             }
+        }
+    }
+
+    /**
+     * @notice Claim pending rewards for a single token.
+     * @dev Use this if getReward(account) reverts due to a bad reward token.
+     * @param account Address to claim rewards for
+     * @param token Reward token address to claim
+     */
+    function getReward(address account, address token) external nonReentrant updateReward(account) {
+        if (!tokenToIsReward[token]) revert Rewarder__NotRewardToken();
+        uint256 amount = accountToTokenToReward[account][token];
+        if (amount > 0) {
+            accountToTokenToReward[account][token] = 0;
+            emit Rewarder__RewardPaid(account, token, amount);
+            IERC20(token).safeTransfer(account, amount);
         }
     }
 
@@ -187,6 +204,7 @@ contract Rewarder is ReentrancyGuard {
      * @param token Reward token address to add
      */
     function addReward(address token) external onlyContent {
+        if (token == address(0)) revert Rewarder__ZeroAddress();
         if (rewardTokens.length >= MAX_REWARD_TOKENS) revert Rewarder__MaxRewardTokensReached();
         if (tokenToIsReward[token]) revert Rewarder__RewardTokenAlreadyAdded();
         tokenToIsReward[token] = true;

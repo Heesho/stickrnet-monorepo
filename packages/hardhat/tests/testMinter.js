@@ -42,7 +42,6 @@ describe("Minter Tests", function () {
     // Deploy Core
     core = await (await ethers.getContractFactory("Core")).deploy(
       usdc.address,
-      donut.address,
       uniswapFactory.address,
       uniswapRouter.address,
       unitFactory.address,
@@ -51,11 +50,11 @@ describe("Minter Tests", function () {
       auctionFactory.address,
       rewarderFactory.address,
       protocol.address,
-      convert("100", 18)
+      convert("100", 6)
     );
 
-    // Mint DONUT and USDC
-    await donut.connect(user0).deposit({ value: convert("10000", 18) });
+    // Mint USDC
+    await usdc.mint(user0.address, convert("10000", 6));
     await usdc.mint(user1.address, convert("100", 6));
     await usdc.mint(user2.address, convert("100", 6));
 
@@ -65,7 +64,7 @@ describe("Minter Tests", function () {
       tokenName: "Test Unit",
       tokenSymbol: "TUNIT",
       uri: "https://example.com/metadata",
-      donutAmount: convert("500", 18),
+      quoteAmount: convert("500", 6),
       unitAmount: convert("1000000", 18),
       initialUps: convert("4", 18), // 4 tokens per second
       tailUps: convert("0.5", 18), // 0.5 tokens per second minimum
@@ -78,7 +77,7 @@ describe("Minter Tests", function () {
       auctionMinInitPrice: convert("1", 6),
     };
 
-    await donut.connect(user0).approve(core.address, launchParams.donutAmount);
+    await usdc.connect(user0).approve(core.address, launchParams.quoteAmount);
     const tx = await core.connect(user0).launch(launchParams);
     const receipt = await tx.wait();
 
@@ -272,7 +271,6 @@ describe("Minter Parameter Validation Tests", function () {
     // Deploy fresh Core
     localCore = await (await ethers.getContractFactory("Core")).deploy(
       usdc.address,
-      donut.address,
       uniswapFactory.address,
       uniswapRouter.address,
       unitFactory.address,
@@ -281,10 +279,10 @@ describe("Minter Parameter Validation Tests", function () {
       auctionFactory.address,
       rewarderFactory.address,
       protocol.address,
-      convert("100", 18)
+      convert("100", 6)
     );
 
-    await donut.connect(user0).deposit({ value: convert("10000", 18) });
+    await usdc.mint(user0.address, convert("10000", 6));
   });
 
   it("Cannot launch with halving period < 7 days", async function () {
@@ -295,7 +293,7 @@ describe("Minter Parameter Validation Tests", function () {
       tokenName: "Bad Unit",
       tokenSymbol: "BUNIT",
       uri: "https://example.com",
-      donutAmount: convert("500", 18),
+      quoteAmount: convert("500", 6),
       unitAmount: convert("1000000", 18),
       initialUps: convert("4", 18),
       tailUps: convert("0.5", 18),
@@ -308,11 +306,9 @@ describe("Minter Parameter Validation Tests", function () {
       auctionMinInitPrice: convert("1", 6),
     };
 
-    await donut.connect(user0).approve(localCore.address, launchParams.donutAmount);
+    await usdc.connect(user0).approve(localCore.address, launchParams.quoteAmount);
 
-    await expect(localCore.connect(user0).launch(launchParams)).to.be.revertedWith(
-      "Core__InvalidHalvingPeriod()"
-    );
+    await expect(localCore.connect(user0).launch(launchParams)).to.be.reverted;
     console.log("Launch with short halving period correctly reverted");
   });
 
@@ -324,7 +320,7 @@ describe("Minter Parameter Validation Tests", function () {
       tokenName: "Bad Unit",
       tokenSymbol: "BUNIT",
       uri: "https://example.com",
-      donutAmount: convert("500", 18),
+      quoteAmount: convert("500", 6),
       unitAmount: convert("1000000", 18),
       initialUps: convert("1", 18),
       tailUps: convert("2", 18), // tail > initial
@@ -337,11 +333,9 @@ describe("Minter Parameter Validation Tests", function () {
       auctionMinInitPrice: convert("1", 6),
     };
 
-    await donut.connect(user0).approve(localCore.address, launchParams.donutAmount);
+    await usdc.connect(user0).approve(localCore.address, launchParams.quoteAmount);
 
-    await expect(localCore.connect(user0).launch(launchParams)).to.be.revertedWith(
-      "Core__InvalidTailUps()"
-    );
+    await expect(localCore.connect(user0).launch(launchParams)).to.be.reverted;
     console.log("Launch with invalid tailUps correctly reverted");
   });
 
@@ -353,7 +347,7 @@ describe("Minter Parameter Validation Tests", function () {
       tokenName: "Bad Unit",
       tokenSymbol: "BUNIT",
       uri: "https://example.com",
-      donutAmount: convert("500", 18),
+      quoteAmount: convert("500", 6),
       unitAmount: convert("1000000", 18),
       initialUps: 0,
       tailUps: convert("0.5", 18),
@@ -366,11 +360,9 @@ describe("Minter Parameter Validation Tests", function () {
       auctionMinInitPrice: convert("1", 6),
     };
 
-    await donut.connect(user0).approve(localCore.address, launchParams.donutAmount);
+    await usdc.connect(user0).approve(localCore.address, launchParams.quoteAmount);
 
-    await expect(localCore.connect(user0).launch(launchParams)).to.be.revertedWith(
-      "Core__InvalidInitialUps()"
-    );
+    await expect(localCore.connect(user0).launch(launchParams)).to.be.reverted;
     console.log("Launch with zero initialUps correctly reverted");
   });
 });

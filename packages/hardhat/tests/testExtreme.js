@@ -63,7 +63,6 @@ describe("EXTREME Stress Tests", function () {
     const coreArtifact = await ethers.getContractFactory("Core");
     core = await coreArtifact.deploy(
       usdc.address,
-      donut.address,
       uniswapFactory.address,
       uniswapRouter.address,
       unitFactory.address,
@@ -72,16 +71,15 @@ describe("EXTREME Stress Tests", function () {
       auctionFactory.address,
       rewarderFactory.address,
       protocol.address,
-      convert("100", 18)
+      convert("100", 6)
     );
 
     const multicallArtifact = await ethers.getContractFactory("Multicall");
-    multicall = await multicallArtifact.deploy(core.address, usdc.address, donut.address);
+    multicall = await multicallArtifact.deploy(core.address, usdc.address);
 
     // Give everyone tokens
     for (const user of [launcher, attacker, user1, user2, user3, user4, user5]) {
-      await donut.connect(user).deposit({ value: convert("1000", 18) });
-      await usdc.mint(user.address, convert("1000", 6));
+      await usdc.mint(user.address, convert("10000", 6));
     }
 
     const launchParams = {
@@ -89,7 +87,7 @@ describe("EXTREME Stress Tests", function () {
       tokenName: "Extreme Test Unit",
       tokenSymbol: "XTUNIT",
       uri: "https://example.com/extreme",
-      donutAmount: convert("1000", 18),
+      quoteAmount: convert("1000", 6),
       unitAmount: convert("1000000", 18),
       initialUps: convert("10", 18),
       tailUps: convert("0.1", 18),
@@ -102,7 +100,7 @@ describe("EXTREME Stress Tests", function () {
       auctionMinInitPrice: convert("1", 6),
     };
 
-    await donut.connect(launcher).approve(core.address, launchParams.donutAmount);
+    await usdc.connect(launcher).approve(core.address, launchParams.quoteAmount);
     const tx = await core.connect(launcher).launch(launchParams);
     const receipt = await tx.wait();
 
@@ -440,7 +438,7 @@ describe("EXTREME Stress Tests", function () {
     it("Should handle getReward when no rewards earned", async function () {
       // New user with no stake should not revert
       const [newUser] = await ethers.getSigners();
-      await rewarder.connect(newUser).getReward(newUser.address);
+      await rewarder.connect(newUser)['getReward(address)'](newUser.address);
       // Should not revert
     });
 
@@ -497,6 +495,7 @@ describe("EXTREME Stress Tests", function () {
         expect(creator).to.equal(user4.address);
 
         const prevOwnerBefore = await usdc.balanceOf(prevOwner);
+        const prevOwnerClaimableBefore = await content.accountToClaimable(prevOwner);
         const treasuryBefore = await usdc.balanceOf(treasury);
         const teamBefore = await usdc.balanceOf(team);
         const protocolBefore = await usdc.balanceOf(protocolFee);
@@ -514,22 +513,25 @@ describe("EXTREME Stress Tests", function () {
         const actualPrice = await content.idToStake(tokenId);
 
         const prevOwnerAfter = await usdc.balanceOf(prevOwner);
+        const prevOwnerClaimableAfter = await content.accountToClaimable(prevOwner);
         const treasuryAfter = await usdc.balanceOf(treasury);
         const teamAfter = await usdc.balanceOf(team);
         const protocolAfter = await usdc.balanceOf(protocolFee);
 
-        // prevOwner gets 80% + 3% (since prevOwner == creator in this case)
-        const prevOwnerFee = prevOwnerAfter.sub(prevOwnerBefore);
+        // prevOwner gets 3% direct (creator fee) + 80% claimable (prevOwner fee)
+        const prevOwnerDirectFee = prevOwnerAfter.sub(prevOwnerBefore);
+        const prevOwnerClaimableFee = prevOwnerClaimableAfter.sub(prevOwnerClaimableBefore);
+        const prevOwnerTotalFee = prevOwnerDirectFee.add(prevOwnerClaimableFee);
         const treasuryFee = treasuryAfter.sub(treasuryBefore);
         const teamFee = teamAfter.sub(teamBefore);
         const protocolFeeAmt = protocolAfter.sub(protocolBefore);
 
         // Total should equal actual price paid
-        const totalFees = prevOwnerFee.add(treasuryFee).add(teamFee).add(protocolFeeAmt);
+        const totalFees = prevOwnerTotalFee.add(treasuryFee).add(teamFee).add(protocolFeeAmt);
         expect(totalFees).to.equal(actualPrice);
 
         console.log(`Actual Price: ${divDec6(actualPrice)}`);
-        console.log(`PrevOwner+Creator (83%): ${divDec6(prevOwnerFee)}`);
+        console.log(`PrevOwner+Creator direct+claimable (83%): ${divDec6(prevOwnerTotalFee)}`);
         console.log(`Treasury (15%): ${divDec6(treasuryFee)}`);
         console.log(`Team (1%): ${divDec6(teamFee)}`);
         console.log(`Protocol (1%): ${divDec6(protocolFeeAmt)}`);
@@ -714,7 +716,6 @@ describe("EXTREME Attack Vector Tests", function () {
 
     core = await (await ethers.getContractFactory("Core")).deploy(
       usdc.address,
-      donut.address,
       uniswapFactory.address,
       uniswapRouter.address,
       unitFactory.address,
@@ -723,21 +724,20 @@ describe("EXTREME Attack Vector Tests", function () {
       auctionFactory.address,
       rewarderFactory.address,
       protocol.address,
-      convert("100", 18)
+      convert("100", 6)
     );
 
     for (const user of [launcher, attacker, user1, user2, user3, user4, user5]) {
-      await donut.connect(user).deposit({ value: convert("10000", 18) });
       await usdc.mint(user.address, convert("10000", 6));
     }
 
-    await donut.connect(launcher).approve(core.address, convert("1000", 18));
+    await usdc.connect(launcher).approve(core.address, convert("1000", 6));
     const tx = await core.connect(launcher).launch({
       launcher: launcher.address,
       tokenName: "Attack Test Unit",
       tokenSymbol: "ATUNIT",
       uri: "https://example.com/attack",
-      donutAmount: convert("1000", 18),
+      quoteAmount: convert("1000", 6),
       unitAmount: convert("1000000", 18),
       initialUps: convert("10", 18),
       tailUps: convert("0.1", 18),
@@ -857,7 +857,7 @@ describe("EXTREME Attack Vector Tests", function () {
     it("Should resist rewarder griefing via getReward", async function () {
       // Attacker calls getReward for victims (funds still go to victim)
       const victimBefore = await unit.balanceOf(user1.address);
-      await rewarder.connect(attacker).getReward(user1.address);
+      await rewarder.connect(attacker)['getReward(address)'](user1.address);
       const victimAfter = await unit.balanceOf(user1.address);
 
       // Victim should not lose funds (might gain if they had earned rewards)
@@ -939,7 +939,6 @@ describe("EXTREME Integration Tests", function () {
 
     core = await (await ethers.getContractFactory("Core")).deploy(
       usdc.address,
-      donut.address,
       uniswapFactory.address,
       uniswapRouter.address,
       unitFactory.address,
@@ -948,21 +947,20 @@ describe("EXTREME Integration Tests", function () {
       auctionFactory.address,
       rewarderFactory.address,
       protocol.address,
-      convert("100", 18)
+      convert("100", 6)
     );
 
     for (const user of [launcher, attacker, user1, user2, user3, user4, user5]) {
-      await donut.connect(user).deposit({ value: convert("10000", 18) });
       await usdc.mint(user.address, convert("10000", 6));
     }
 
-    await donut.connect(launcher).approve(core.address, convert("1000", 18));
+    await usdc.connect(launcher).approve(core.address, convert("1000", 6));
     const tx = await core.connect(launcher).launch({
       launcher: launcher.address,
       tokenName: "Integration Test Unit",
       tokenSymbol: "ITUNIT",
       uri: "https://example.com/integration",
-      donutAmount: convert("1000", 18),
+      quoteAmount: convert("1000", 6),
       unitAmount: convert("1000000", 18),
       initialUps: convert("10", 18),
       tailUps: convert("0.1", 18),
@@ -1028,8 +1026,8 @@ describe("EXTREME Integration Tests", function () {
       const earnedUser3 = await rewarder.earned(user3.address, unit.address);
       console.log(`5. User2 earned: ${divDec(earnedUser2)}, User3 earned: ${divDec(earnedUser3)}`);
 
-      await rewarder.connect(user2).getReward(user2.address);
-      await rewarder.connect(user3).getReward(user3.address);
+      await rewarder.connect(user2)['getReward(address)'](user2.address);
+      await rewarder.connect(user3)['getReward(address)'](user3.address);
       console.log("6. Rewards claimed");
 
       // 6. Let price decay and collect for free
@@ -1095,7 +1093,7 @@ describe("EXTREME Integration Tests", function () {
         tokenName: "Second Engine Unit",
         tokenSymbol: "SEUNIT",
         uri: "https://example.com/second",
-        donutAmount: convert("500", 18),
+        quoteAmount: convert("500", 6),
         unitAmount: convert("500000", 18),
         initialUps: convert("5", 18),
         tailUps: convert("0.05", 18),
@@ -1108,7 +1106,7 @@ describe("EXTREME Integration Tests", function () {
         auctionMinInitPrice: convert("10", 6),
       };
 
-      await donut.connect(user1).approve(core.address, launchParams2.donutAmount);
+      await usdc.connect(user1).approve(core.address, launchParams2.quoteAmount);
       const tx = await core.connect(user1).launch(launchParams2);
       const receipt = await tx.wait();
 

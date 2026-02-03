@@ -23,14 +23,14 @@ const MULTISIG_ADDRESS = "0xeE0CB49D2805DA6bC0A979ddAd87bb793fbB765E";
 const MIN_QUOTE_FOR_LAUNCH = convert("1", 6); // 1 USDC minimum
 
 // Deployed Contract Addresses (paste after deployment)
-const MOCK_USDC = "0xe90495BE187d434e23A9B1FeC0B6Ce039700870e";
-const UNIT_FACTORY = "0xDEE2293F2b16488e766136907bfa458BfeC47356";
-const CONTENT_FACTORY = "0x0531e6dbc59d80642Fa228A291e97d3505C21Bb3";
-const MINTER_FACTORY = "0x1eB02a38042315326553dc5282E8f8CE386767B5";
-const REWARDER_FACTORY = "0xc656E34c0683E33A0abf85EC49D268CB3B46c07d";
-const AUCTION_FACTORY = "0xA9b9b1608E847d47666e6Ffa6CCa837Fe5703EA0";
-const CORE = "0x7BBaFd368ceD20d6E54232AE95f0b76D1421af20";
-const MULTICALL = "0x82a67863CDc66C2Ee9360DB698AfD428BEA1B99e";
+const MOCK_USDC = "0xB7E837e23A6c8D5B34Eb75d3B66742613e684f66";
+const UNIT_FACTORY = "0xC1681338353ac554b19a605F247961FA29E21C62";
+const CONTENT_FACTORY = "0xA332A819A39fE69fFe3de0A584722eb6607AB146";
+const MINTER_FACTORY = "0x6aF5e4348DE1e92a3083673a4aE7dC079AeD9aE1";
+const REWARDER_FACTORY = "0xe63bE0A7fABda97F05520fe72C308b019a3d51cb";
+const AUCTION_FACTORY = "0xe500E4dE2BbD968003d5648aAD7d3F181Aa7aD43";
+const CORE = "0xe156BDf15A836048EbBae13e3aC29096eDF32ef2";
+const MULTICALL = "0xa8053213236504d81Bb5c9359f1c573e46018d8E";
 
 // =============================================================================
 // STICKR CHANNEL LAUNCH PARAMETERS
@@ -406,8 +406,9 @@ async function verifyMockUSDC() {
 }
 
 async function verifyUnitByContentIndex(contentIndex) {
-  const contentAddress = await core.deployedContents(contentIndex);
-  const unitAddress = await core.contentToUnit(contentAddress);
+  const contentAddress = await core.contents(contentIndex);
+  const contentContract = await ethers.getContractAt("Content", contentAddress);
+  const unitAddress = await contentContract.unit();
   const unit = await ethers.getContractAt(
     "contracts/Unit.sol:Unit",
     unitAddress
@@ -429,7 +430,7 @@ async function verifyUnitByContentIndex(contentIndex) {
 }
 
 async function verifyContentByIndex(contentIndex) {
-  const contentAddress = await core.deployedContents(contentIndex);
+  const contentAddress = await core.contents(contentIndex);
   const content = await ethers.getContractAt(
     "contracts/Content.sol:Content",
     contentAddress
@@ -480,15 +481,18 @@ async function verifyContentByIndex(contentIndex) {
 }
 
 async function verifyMinterByContentIndex(contentIndex) {
-  const contentAddress = await core.deployedContents(contentIndex);
-  const minterAddress = await core.contentToMinter(contentAddress);
+  const contentAddress = await core.contents(contentIndex);
+  const contentContract = await ethers.getContractAt("Content", contentAddress);
+  const unitAddress = await contentContract.unit();
+  const unitContract = await ethers.getContractAt("Unit", unitAddress);
+  const minterAddress = await unitContract.minter();
   const minter = await ethers.getContractAt(
     "contracts/Minter.sol:Minter",
     minterAddress
   );
 
   // Read constructor args
-  const unitAddress = await minter.unit();
+  const minterUnitAddress = await minter.unit();
   const rewarderAddress = await minter.rewarder();
   const team = await minter.team();
   const initialUps = await minter.initialUps();
@@ -519,8 +523,9 @@ async function verifyMinterByContentIndex(contentIndex) {
 }
 
 async function verifyRewarderByContentIndex(contentIndex) {
-  const contentAddress = await core.deployedContents(contentIndex);
-  const rewarderAddress = await core.contentToRewarder(contentAddress);
+  const contentAddress = await core.contents(contentIndex);
+  const contentContract = await ethers.getContractAt("Content", contentAddress);
+  const rewarderAddress = await contentContract.rewarder();
 
   console.log("Starting Rewarder Verification for:", rewarderAddress);
   console.log("  Content:", contentAddress);
@@ -534,7 +539,7 @@ async function verifyRewarderByContentIndex(contentIndex) {
 }
 
 async function verifyAuctionByContentIndex(contentIndex) {
-  const contentAddress = await core.deployedContents(contentIndex);
+  const contentAddress = await core.contents(contentIndex);
   const auctionAddress = await core.contentToAuction(contentAddress);
   const auction = await ethers.getContractAt(
     "contracts/Auction.sol:Auction",
@@ -739,7 +744,7 @@ async function printDeployment() {
     );
     console.log(
       "Deployed Contents:   ",
-      (await core.deployedContentsLength()).toString()
+      (await core.contentsLength()).toString()
     );
   }
 
@@ -762,16 +767,18 @@ async function printCoreState() {
   console.log("Auction Factory:     ", await core.auctionFactory());
   console.log(
     "Deployed Contents:   ",
-    (await core.deployedContentsLength()).toString()
+    (await core.contentsLength()).toString()
   );
   console.log("");
 }
 
 async function printContentInfo(contentIndex) {
-  const contentAddress = await core.deployedContents(contentIndex);
-  const unitAddress = await core.contentToUnit(contentAddress);
-  const minterAddress = await core.contentToMinter(contentAddress);
-  const rewarderAddress = await core.contentToRewarder(contentAddress);
+  const contentAddress = await core.contents(contentIndex);
+  const contentContract = await ethers.getContractAt("Content", contentAddress);
+  const unitAddress = await contentContract.unit();
+  const unitContract = await ethers.getContractAt("Unit", unitAddress);
+  const minterAddress = await unitContract.minter();
+  const rewarderAddress = await contentContract.rewarder();
   const auctionAddress = await core.contentToAuction(contentAddress);
   const lpAddress = await core.contentToLP(contentAddress);
 
@@ -848,7 +855,7 @@ async function main() {
   // 4. Verify STICKR Channel Contracts
   //===================================================================
 
-  // const stickrIndex = (await core.deployedContentsLength()) - 1;
+  // const stickrIndex = (await core.contentsLength()) - 1;
   // await verifyStickrContracts(stickrIndex);
 
   //===================================================================

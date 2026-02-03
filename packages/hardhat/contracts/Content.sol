@@ -236,7 +236,7 @@ contract Content is ERC721, ERC721Enumerable, ERC721URIStorage, ReentrancyGuard,
 
             // Distribute fees
             accountToClaimable[prevOwner] += prevOwnerAmount;
-            IERC20(quote).safeTransfer(creator, creatorAmount);
+            accountToClaimable[creator] += creatorAmount;
             IERC20(quote).safeTransfer(treasury, treasuryAmount);
 
             if (teamAmount > 0) {

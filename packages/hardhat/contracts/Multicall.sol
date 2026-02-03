@@ -8,6 +8,7 @@ import {IMinter} from "./interfaces/IMinter.sol";
 import {IRewarder} from "./interfaces/IRewarder.sol";
 import {IAuction} from "./interfaces/IAuction.sol";
 import {ICore} from "./interfaces/ICore.sol";
+import {IUnit} from "./interfaces/IUnit.sol";
 
 /**
  * @title Multicall
@@ -19,6 +20,7 @@ contract Multicall {
     using SafeERC20 for IERC20;
 
     error Multicall__ZeroAddress();
+    error Multicall__InvalidContent();
 
     /*----------  IMMUTABLES  -------------------------------------------*/
 
@@ -119,6 +121,8 @@ contract Multicall {
         uint256 deadline,
         uint256 maxPrice
     ) external {
+        if (!ICore(core).isDeployedContent(content)) revert Multicall__InvalidContent();
+
         // Get previous owner before collect
         address prevOwner = IContent(content).ownerOf(tokenId);
 
@@ -129,6 +133,10 @@ contract Multicall {
 
         // Claim for previous owner (try/catch in case they're blacklisted)
         try IContent(content).claim(prevOwner) {} catch {}
+
+        // Claim for creator (try/catch in case they're blacklisted)
+        address creator = IContent(content).idToCreator(tokenId);
+        try IContent(content).claim(creator) {} catch {}
 
         // Refund unused quote
         uint256 quoteBalance = IERC20(quote).balanceOf(address(this));
@@ -206,7 +214,7 @@ contract Multicall {
      * @param content Content contract address
      */
     function updateMinterPeriod(address content) external {
-        address minter = ICore(core).contentToMinter(content);
+        address minter = IUnit(IContent(content).unit()).minter();
         IMinter(minter).updatePeriod();
     }
 
@@ -215,7 +223,7 @@ contract Multicall {
      * @param content Content contract address
      */
     function claimRewards(address content) external {
-        address rewarder = ICore(core).contentToRewarder(content);
+        address rewarder = IContent(content).rewarder();
         IRewarder(rewarder).getReward(msg.sender);
         try IContent(content).claim(msg.sender) {} catch {}
     }
@@ -231,11 +239,11 @@ contract Multicall {
     function getUnitState(address content, address account) external view returns (UnitState memory state) {
         // Core registry data
         state.index = ICore(core).contentToIndex(content);
-        state.unit = ICore(core).contentToUnit(content);
+        state.unit = IContent(content).unit();
         state.quote = IContent(content).quote();
-        state.launcher = ICore(core).contentToLauncher(content);
-        state.minter = ICore(core).contentToMinter(content);
-        state.rewarder = ICore(core).contentToRewarder(content);
+        state.launcher = IContent(content).owner();
+        state.minter = IUnit(state.unit).minter();
+        state.rewarder = IContent(content).rewarder();
         state.auction = ICore(core).contentToAuction(content);
         state.lp = ICore(core).contentToLP(content);
 

@@ -66,7 +66,6 @@ describe("Security Audit Tests", function () {
     const coreArtifact = await ethers.getContractFactory("Core");
     core = await coreArtifact.deploy(
       usdc.address,
-      donut.address,
       uniswapFactory.address,
       uniswapRouter.address,
       unitFactory.address,
@@ -75,22 +74,22 @@ describe("Security Audit Tests", function () {
       auctionFactory.address,
       rewarderFactory.address,
       protocol.address,
-      convert("100", 18)
+      convert("100", 6)
     );
 
     // Deploy Multicall
     const multicallArtifact = await ethers.getContractFactory("Multicall");
-    multicall = await multicallArtifact.deploy(core.address, usdc.address, donut.address);
+    multicall = await multicallArtifact.deploy(core.address, usdc.address);
 
-    // Mint DONUT to launcher and launch a content engine
-    await donut.connect(launcher).deposit({ value: convert("10000", 18) });
+    // Mint USDC to launcher for launch
+    await usdc.mint(launcher.address, convert("10000", 6));
 
     const launchParams = {
       launcher: launcher.address,
       tokenName: "Security Test Unit",
       tokenSymbol: "STUNIT",
       uri: "https://example.com/metadata",
-      donutAmount: convert("500", 18),
+      quoteAmount: convert("500", 6),
       unitAmount: convert("1000000", 18),
       initialUps: convert("4", 18),
       tailUps: convert("0.01", 18),
@@ -103,7 +102,7 @@ describe("Security Audit Tests", function () {
       auctionMinInitPrice: convert("1", 6),
     };
 
-    await donut.connect(launcher).approve(core.address, launchParams.donutAmount);
+    await usdc.connect(launcher).approve(core.address, launchParams.quoteAmount);
     const tx = await core.connect(launcher).launch(launchParams);
     const receipt = await tx.wait();
 
@@ -213,7 +212,7 @@ describe("Security Audit Tests", function () {
       ).to.be.revertedWith("Ownable: caller is not the owner");
 
       await expect(
-        core.connect(attacker).setMinDonutForLaunch(0)
+        core.connect(attacker).setMinQuoteForLaunch(0)
       ).to.be.revertedWith("Ownable: caller is not the owner");
     });
   });
@@ -349,7 +348,7 @@ describe("Security Audit Tests", function () {
     it("Rewarder.getReward() can be called for any account", async function () {
       // Anyone can claim rewards for any account
       // Rewards go to the account, not the caller
-      await rewarder.connect(attacker).getReward(user1.address);
+      await rewarder.connect(attacker)['getReward(address)'](user1.address);
       // Should not revert
     });
 
@@ -414,8 +413,8 @@ describe("Security Audit Tests", function () {
     });
 
     it("Core.launch() validates all parameters", async function () {
-      await donut.connect(attacker).deposit({ value: convert("500", 18) });
-      await donut.connect(attacker).approve(core.address, convert("500", 18));
+      await usdc.mint(attacker.address, convert("500", 6));
+      await usdc.connect(attacker).approve(core.address, convert("500", 6));
 
       // Zero launcher
       await expect(
@@ -424,7 +423,7 @@ describe("Security Audit Tests", function () {
           tokenName: "Test",
           tokenSymbol: "TEST",
           uri: "ipfs://test",
-          donutAmount: convert("500", 18),
+          quoteAmount: convert("500", 6),
           unitAmount: convert("1000", 18),
           initialUps: convert("1", 18),
           tailUps: convert("0.01", 18),
@@ -445,7 +444,7 @@ describe("Security Audit Tests", function () {
           tokenName: "",
           tokenSymbol: "TEST",
           uri: "ipfs://test",
-          donutAmount: convert("500", 18),
+          quoteAmount: convert("500", 6),
           unitAmount: convert("1000", 18),
           initialUps: convert("1", 18),
           tailUps: convert("0.01", 18),

@@ -72,47 +72,7 @@
   },
   {
     "inputs": [],
-    "name": "Core__InvalidAuctionEpochPeriod",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "Core__InvalidAuctionInitPrice",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "Core__InvalidAuctionMinInitPrice",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "Core__InvalidAuctionPriceMultiplier",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "Core__InvalidContentMinInitPrice",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "Core__InvalidHalvingPeriod",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "Core__InvalidInitialUps",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "Core__InvalidLauncher",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "Core__InvalidTailUps",
     "type": "error"
   },
   {
@@ -305,84 +265,6 @@
   },
   {
     "inputs": [],
-    "name": "AUCTION_ABS_MAX_INIT_PRICE",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "AUCTION_ABS_MIN_INIT_PRICE",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "AUCTION_MAX_EPOCH_PERIOD",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "AUCTION_MAX_PRICE_MULTIPLIER",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "AUCTION_MIN_EPOCH_PERIOD",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "AUCTION_MIN_PRICE_MULTIPLIER",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "DEAD_ADDRESS",
     "outputs": [
       {
@@ -397,32 +279,6 @@
   {
     "inputs": [],
     "name": "LP_DEADLINE_BUFFER",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "MINTER_MAX_INITIAL_UPS",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "MINTER_MIN_HALVING_PERIOD",
     "outputs": [
       {
         "internalType": "uint256",
@@ -519,88 +375,12 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "name": "contentToLauncher",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "name": "contentToMinter",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "name": "contentToRewarder",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "name": "contentToUnit",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
       }
     ],
-    "name": "deployedContents",
+    "name": "contents",
     "outputs": [
       {
         "internalType": "address",
@@ -613,7 +393,7 @@
   },
   {
     "inputs": [],
-    "name": "deployedContentsLength",
+    "name": "contentsLength",
     "outputs": [
       {
         "internalType": "uint256",

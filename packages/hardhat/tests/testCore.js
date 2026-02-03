@@ -64,7 +64,6 @@ describe("Core Launch Tests", function () {
     const coreArtifact = await ethers.getContractFactory("Core");
     core = await coreArtifact.deploy(
       usdc.address,
-      donut.address,
       uniswapFactory.address,
       uniswapRouter.address,
       unitFactory.address,
@@ -73,18 +72,18 @@ describe("Core Launch Tests", function () {
       auctionFactory.address,
       rewarderFactory.address,
       protocol.address,
-      convert("100", 18) // minDonutForLaunch
+      convert("100", 6) // minQuoteForLaunch
     );
     console.log("- Core Initialized");
 
     // Deploy Multicall
     const multicallArtifact = await ethers.getContractFactory("Multicall");
-    multicall = await multicallArtifact.deploy(core.address, usdc.address, donut.address);
+    multicall = await multicallArtifact.deploy(core.address, usdc.address);
     console.log("- Multicall Initialized");
 
-    // Mint DONUT to user0 for launching
-    await donut.connect(user0).deposit({ value: convert("10000", 18) });
-    console.log("- DONUT minted to user0");
+    // Mint USDC to user0 for launching
+    await usdc.mint(user0.address, convert("10000", 6));
+    console.log("- USDC minted to user0");
 
     console.log("Initialization Complete\n");
   });
@@ -92,10 +91,9 @@ describe("Core Launch Tests", function () {
   it("Core state is correct", async function () {
     console.log("******************************************************");
     expect(await core.protocolFeeAddress()).to.equal(protocol.address);
-    expect(await core.donutToken()).to.equal(donut.address);
     expect(await core.quote()).to.equal(usdc.address);
-    expect(await core.minDonutForLaunch()).to.equal(convert("100", 18));
-    expect(await core.deployedContentsLength()).to.equal(0);
+    expect(await core.minQuoteForLaunch()).to.equal(convert("100", 6));
+    expect(await core.contentsLength()).to.equal(0);
     console.log("Core state verified");
   });
 
@@ -107,7 +105,7 @@ describe("Core Launch Tests", function () {
       tokenName: "Test Unit",
       tokenSymbol: "TUNIT",
       uri: "https://example.com/metadata",
-      donutAmount: convert("500", 18),
+      quoteAmount: convert("500", 6),
       unitAmount: convert("1000000", 18),
       initialUps: convert("4", 18), // 4 tokens per second
       tailUps: convert("0.01", 18),
@@ -120,8 +118,8 @@ describe("Core Launch Tests", function () {
       auctionMinInitPrice: convert("1", 6),
     };
 
-    // Approve DONUT
-    await donut.connect(user0).approve(core.address, launchParams.donutAmount);
+    // Approve USDC
+    await usdc.connect(user0).approve(core.address, launchParams.quoteAmount);
 
     // Launch
     const tx = await core.connect(user0).launch(launchParams);
@@ -145,13 +143,13 @@ describe("Core Launch Tests", function () {
 
     // Verify registry
     expect(await core.isDeployedContent(content)).to.equal(true);
-    expect(await core.contentToLauncher(content)).to.equal(user0.address);
-    expect(await core.contentToUnit(content)).to.equal(unit);
-    expect(await core.contentToMinter(content)).to.equal(minter);
-    expect(await core.contentToRewarder(content)).to.equal(rewarder);
+    const contentContract = await ethers.getContractAt("Content", content);
+    expect(await contentContract.owner()).to.equal(user0.address);
+    expect(await contentContract.unit()).to.equal(unit);
+    expect(await contentContract.rewarder()).to.equal(rewarder);
     expect(await core.contentToAuction(content)).to.equal(auction);
     expect(await core.contentToLP(content)).to.equal(lpToken);
-    expect(await core.deployedContentsLength()).to.equal(1);
+    expect(await core.contentsLength()).to.equal(1);
   });
 
   it("Content ownership transferred to launcher", async function () {
@@ -217,7 +215,7 @@ describe("Core Launch Tests", function () {
     console.log("Minter parameters verified");
   });
 
-  it("Cannot launch with insufficient DONUT", async function () {
+  it("Cannot launch with insufficient quote", async function () {
     console.log("******************************************************");
 
     const launchParams = {
@@ -225,7 +223,7 @@ describe("Core Launch Tests", function () {
       tokenName: "Test Unit 2",
       tokenSymbol: "TUNIT2",
       uri: "https://example.com/metadata2",
-      donutAmount: convert("50", 18), // Less than minDonutForLaunch (100)
+      quoteAmount: convert("50", 6), // Less than minQuoteForLaunch (100)
       unitAmount: convert("1000000", 18),
       initialUps: convert("4", 18),
       tailUps: convert("0.01", 18),
@@ -238,12 +236,12 @@ describe("Core Launch Tests", function () {
       auctionMinInitPrice: convert("1", 6),
     };
 
-    await donut.connect(user0).approve(core.address, launchParams.donutAmount);
+    await usdc.connect(user0).approve(core.address, launchParams.quoteAmount);
 
     await expect(core.connect(user0).launch(launchParams)).to.be.revertedWith(
-      "Core__InsufficientDonut()"
+      "Core__InsufficientQuote()"
     );
-    console.log("Launch correctly reverted with insufficient DONUT");
+    console.log("Launch correctly reverted with insufficient quote");
   });
 
   it("Cannot launch with zero launcher address", async function () {
@@ -254,7 +252,7 @@ describe("Core Launch Tests", function () {
       tokenName: "Test Unit 2",
       tokenSymbol: "TUNIT2",
       uri: "https://example.com/metadata2",
-      donutAmount: convert("500", 18),
+      quoteAmount: convert("500", 6),
       unitAmount: convert("1000000", 18),
       initialUps: convert("4", 18),
       tailUps: convert("0.01", 18),
@@ -267,7 +265,7 @@ describe("Core Launch Tests", function () {
       auctionMinInitPrice: convert("1", 6),
     };
 
-    await donut.connect(user0).approve(core.address, launchParams.donutAmount);
+    await usdc.connect(user0).approve(core.address, launchParams.quoteAmount);
 
     await expect(core.connect(user0).launch(launchParams)).to.be.revertedWith(
       "Core__InvalidLauncher()"
@@ -283,7 +281,7 @@ describe("Core Launch Tests", function () {
       tokenName: "",
       tokenSymbol: "TUNIT2",
       uri: "https://example.com/metadata2",
-      donutAmount: convert("500", 18),
+      quoteAmount: convert("500", 6),
       unitAmount: convert("1000000", 18),
       initialUps: convert("4", 18),
       tailUps: convert("0.01", 18),
@@ -296,7 +294,7 @@ describe("Core Launch Tests", function () {
       auctionMinInitPrice: convert("1", 6),
     };
 
-    await donut.connect(user0).approve(core.address, launchParams.donutAmount);
+    await usdc.connect(user0).approve(core.address, launchParams.quoteAmount);
 
     await expect(core.connect(user0).launch(launchParams)).to.be.revertedWith(
       "Core__EmptyTokenName()"
@@ -312,7 +310,7 @@ describe("Core Launch Tests", function () {
       tokenName: "Test Unit 2",
       tokenSymbol: "",
       uri: "https://example.com/metadata2",
-      donutAmount: convert("500", 18),
+      quoteAmount: convert("500", 6),
       unitAmount: convert("1000000", 18),
       initialUps: convert("4", 18),
       tailUps: convert("0.01", 18),
@@ -325,7 +323,7 @@ describe("Core Launch Tests", function () {
       auctionMinInitPrice: convert("1", 6),
     };
 
-    await donut.connect(user0).approve(core.address, launchParams.donutAmount);
+    await usdc.connect(user0).approve(core.address, launchParams.quoteAmount);
 
     await expect(core.connect(user0).launch(launchParams)).to.be.revertedWith(
       "Core__EmptyTokenSymbol()"
@@ -341,7 +339,7 @@ describe("Core Launch Tests", function () {
       tokenName: "Test Unit 2",
       tokenSymbol: "TUNIT2",
       uri: "https://example.com/metadata2",
-      donutAmount: convert("500", 18),
+      quoteAmount: convert("500", 6),
       unitAmount: 0,
       initialUps: convert("4", 18),
       tailUps: convert("0.01", 18),
@@ -354,7 +352,7 @@ describe("Core Launch Tests", function () {
       auctionMinInitPrice: convert("1", 6),
     };
 
-    await donut.connect(user0).approve(core.address, launchParams.donutAmount);
+    await usdc.connect(user0).approve(core.address, launchParams.quoteAmount);
 
     await expect(core.connect(user0).launch(launchParams)).to.be.revertedWith(
       "Core__InvalidUnitAmount()"
@@ -379,19 +377,19 @@ describe("Core Launch Tests", function () {
     await core.connect(owner).setProtocolFeeAddress(protocol.address);
   });
 
-  it("Protocol owner can change min DONUT for launch", async function () {
+  it("Protocol owner can change min quote for launch", async function () {
     console.log("******************************************************");
 
     await expect(
-      core.connect(user0).setMinDonutForLaunch(convert("200", 18))
+      core.connect(user0).setMinQuoteForLaunch(convert("200", 6))
     ).to.be.revertedWith("Ownable: caller is not the owner");
 
-    await core.connect(owner).setMinDonutForLaunch(convert("200", 18));
-    expect(await core.minDonutForLaunch()).to.equal(convert("200", 18));
-    console.log("Min DONUT for launch:", divDec(await core.minDonutForLaunch()));
+    await core.connect(owner).setMinQuoteForLaunch(convert("200", 6));
+    expect(await core.minQuoteForLaunch()).to.equal(convert("200", 6));
+    console.log("Min quote for launch:", divDec6(await core.minQuoteForLaunch()));
 
     // Change back
-    await core.connect(owner).setMinDonutForLaunch(convert("100", 18));
+    await core.connect(owner).setMinQuoteForLaunch(convert("100", 6));
   });
 
   it("Can launch multiple content engines", async function () {
@@ -402,7 +400,7 @@ describe("Core Launch Tests", function () {
       tokenName: "Second Unit",
       tokenSymbol: "SUNIT",
       uri: "https://example.com/metadata2",
-      donutAmount: convert("500", 18),
+      quoteAmount: convert("500", 6),
       unitAmount: convert("2000000", 18),
       initialUps: convert("2", 18),
       tailUps: convert("0.005", 18),
@@ -415,14 +413,14 @@ describe("Core Launch Tests", function () {
       auctionMinInitPrice: convert("10", 6),
     };
 
-    // Mint and approve DONUT for user1
-    await donut.connect(user1).deposit({ value: convert("1000", 18) });
-    await donut.connect(user1).approve(core.address, launchParams.donutAmount);
+    // Mint and approve USDC for user1
+    await usdc.mint(user1.address, convert("1000", 6));
+    await usdc.connect(user1).approve(core.address, launchParams.quoteAmount);
 
     const tx = await core.connect(user1).launch(launchParams);
     await tx.wait();
 
-    expect(await core.deployedContentsLength()).to.equal(2);
-    console.log("Second content engine launched. Total:", (await core.deployedContentsLength()).toString());
+    expect(await core.contentsLength()).to.equal(2);
+    console.log("Second content engine launched. Total:", (await core.contentsLength()).toString());
   });
 });

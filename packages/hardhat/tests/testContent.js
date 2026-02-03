@@ -54,7 +54,6 @@ describe("Content Tests", function () {
     // Deploy Core with USDC as quote
     core = await (await ethers.getContractFactory("Core")).deploy(
       usdc.address,
-      donut.address,
       uniswapFactory.address,
       uniswapRouter.address,
       unitFactory.address,
@@ -63,18 +62,17 @@ describe("Content Tests", function () {
       auctionFactory.address,
       rewarderFactory.address,
       protocol.address,
-      convert("100", 18)
+      convert("100", 6)
     );
 
     // Deploy Multicall
     multicall = await (await ethers.getContractFactory("Multicall")).deploy(
       core.address,
-      usdc.address,
-      donut.address
+      usdc.address
     );
 
-    // Mint DONUT to user0 for launch, USDC to users for collections
-    await donut.connect(user0).deposit({ value: convert("10000", 18) });
+    // Mint USDC to user0 for launch, USDC to users for collections
+    await usdc.mint(user0.address, convert("10000", 6));
     await usdc.mint(user1.address, convert("100000", 6));
     await usdc.mint(user2.address, convert("100000", 6));
 
@@ -84,12 +82,12 @@ describe("Content Tests", function () {
       tokenName: "Test Unit",
       tokenSymbol: "TUNIT",
       uri: "https://example.com/metadata",
-      donutAmount: convert("500", 18),
+      quoteAmount: convert("500", 6),
       unitAmount: convert("1000000", 18),
       initialUps: convert("4", 18),
       tailUps: convert("0.01", 18),
       halvingPeriod: 86400 * 7,
-      contentMinInitPrice: convert("1", 6), // 10 USDC (6 decimals)
+      contentMinInitPrice: convert("1", 6), // 1 USDC (6 decimals)
       contentIsModerated: false,
       auctionInitPrice: convert("1000", 6), // 1000 USDC
       auctionEpochPeriod: 86400,
@@ -97,7 +95,7 @@ describe("Content Tests", function () {
       auctionMinInitPrice: convert("1", 6), // 1 USDC
     };
 
-    await donut.connect(user0).approve(core.address, launchParams.donutAmount);
+    await usdc.connect(user0).approve(core.address, launchParams.quoteAmount);
     const tx = await core.connect(user0).launch(launchParams);
     const receipt = await tx.wait();
 
@@ -287,13 +285,13 @@ describe("Content Tests", function () {
       // Get balances after
       const prevOwnerClaimable = await contentContract.accountToClaimable(user1.address);
       const auctionUsdcAfter = await usdc.balanceOf(auction);
-      const creatorUsdcAfter = await usdc.balanceOf(creator1.address);
+      const creatorClaimable = await contentContract.accountToClaimable(creator1.address);
       const teamUsdcAfter = await usdc.balanceOf(teamAddress);
       const protocolUsdcAfter = await usdc.balanceOf(protocol.address);
 
       // Calculate received amounts
       const treasuryReceived = auctionUsdcAfter.sub(auctionUsdcBefore);
-      const creatorReceived = creatorUsdcAfter.sub(creatorUsdcBefore);
+      const creatorReceived = creatorClaimable;
       const teamReceived = teamUsdcAfter.sub(teamUsdcBefore);
       const protocolReceived = protocolUsdcAfter.sub(protocolUsdcBefore);
 
@@ -508,12 +506,12 @@ describe("Content Moderation Tests", function () {
       tokenName: "Moderated Unit",
       tokenSymbol: "MUNIT",
       uri: "https://example.com/moderated",
-      donutAmount: convert("500", 18),
+      quoteAmount: convert("500", 6),
       unitAmount: convert("1000000", 18),
       initialUps: convert("4", 18),
       tailUps: convert("0.01", 18),
       halvingPeriod: 86400 * 7,
-      contentMinInitPrice: convert("1", 6), // 10 USDC
+      contentMinInitPrice: convert("1", 6), // 1 USDC
       contentIsModerated: true, // MODERATED
       auctionInitPrice: convert("1000", 6),
       auctionEpochPeriod: 86400,
@@ -521,7 +519,7 @@ describe("Content Moderation Tests", function () {
       auctionMinInitPrice: convert("1", 6),
     };
 
-    await donut.connect(user0).approve(core.address, launchParams.donutAmount);
+    await usdc.connect(user0).approve(core.address, launchParams.quoteAmount);
     const tx = await core.connect(user0).launch(launchParams);
     const receipt = await tx.wait();
 

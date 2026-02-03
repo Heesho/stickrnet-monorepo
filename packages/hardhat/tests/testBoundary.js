@@ -49,7 +49,6 @@ describe("Boundary Condition Tests", function () {
 
     core = await (await ethers.getContractFactory("Core")).deploy(
       usdc.address,
-      donut.address,
       uniswapFactory.address,
       uniswapRouter.address,
       unitFactory.address,
@@ -58,21 +57,20 @@ describe("Boundary Condition Tests", function () {
       auctionFactory.address,
       rewarderFactory.address,
       owner.address,
-      convert("100", 18)
+      convert("100", 6)
     );
 
     for (const user of [owner, user1, user2, user3]) {
-      await donut.connect(user).deposit({ value: convert("1000", 18) });
-      await usdc.mint(user.address, convert("1000", 6));
+      await usdc.mint(user.address, convert("10000", 6));
     }
 
-    await donut.connect(owner).approve(core.address, convert("1000", 18));
+    await usdc.connect(owner).approve(core.address, convert("1000", 6));
     const tx = await core.connect(owner).launch({
       launcher: owner.address,
       tokenName: "Boundary Test",
       tokenSymbol: "BTEST",
       uri: "https://test.com",
-      donutAmount: convert("1000", 18),
+      quoteAmount: convert("1000", 6),
       unitAmount: convert("1000000", 18),
       initialUps: convert("1", 18),
       tailUps: convert("0.01", 18),

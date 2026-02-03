@@ -55,14 +55,10 @@ contract Core is Ownable, ReentrancyGuard {
     address public protocolFeeAddress; // receives protocol fees from content collections
     uint256 public minQuoteForLaunch; // minimum quote required to launch
 
-    address[] public deployedContents; // array of all deployed content contracts
+    address[] public contents; // array of all deployed content contracts
     mapping(address => bool) public isDeployedContent; // content => is valid
-    mapping(address => uint256) public contentToIndex; // content => index in deployedContents
-    mapping(address => address) public contentToLauncher; // content => launcher address
-    mapping(address => address) public contentToUnit; // content => Unit token
+    mapping(address => uint256) public contentToIndex; // content => index in contents
     mapping(address => address) public contentToAuction; // content => Auction contract
-    mapping(address => address) public contentToMinter; // content => Minter contract
-    mapping(address => address) public contentToRewarder; // content => Rewarder contract
     mapping(address => address) public contentToLP; // content => LP token
 
     /*----------  STRUCTS  ----------------------------------------------*/
@@ -278,14 +274,10 @@ contract Core is Ownable, ReentrancyGuard {
         IContent(content).transferOwnership(params.launcher);
 
         // Update registry
-        contentToIndex[content] = deployedContents.length;
-        deployedContents.push(content);
+        contentToIndex[content] = contents.length;
+        contents.push(content);
         isDeployedContent[content] = true;
-        contentToLauncher[content] = params.launcher;
-        contentToUnit[content] = unit;
         contentToAuction[content] = auction;
-        contentToMinter[content] = minter;
-        contentToRewarder[content] = rewarder;
         contentToLP[content] = lpToken;
 
         emit Core__Launched(
@@ -342,7 +334,7 @@ contract Core is Ownable, ReentrancyGuard {
      * @notice Get the total number of deployed content contracts.
      * @return Number of content contracts launched
      */
-    function deployedContentsLength() external view returns (uint256) {
-        return deployedContents.length;
+    function contentsLength() external view returns (uint256) {
+        return contents.length;
     }
 }

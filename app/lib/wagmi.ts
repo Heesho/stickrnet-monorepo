@@ -1,0 +1,41 @@
+import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
+import { fallback, http, createStorage, cookieStorage } from "wagmi";
+import { base } from "wagmi/chains";
+import { createConfig } from "wagmi";
+import { injected } from "wagmi/connectors";
+
+const BASE_RPC_ENDPOINTS = [
+  process.env.NEXT_PUBLIC_BASE_RPC_URL,
+  process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL,
+  "https://base.llamarpc.com",
+  "https://base.meowrpc.com",
+  "https://base-pokt.nodies.app",
+  "https://1rpc.io/base",
+  "https://base.drpc.org",
+  "https://base-rpc.publicnode.com",
+  "https://rpc.ankr.com/base",
+  "https://base.gateway.tenderly.co",
+].filter((url): url is string => !!url && url !== "");
+
+const baseTransports = BASE_RPC_ENDPOINTS.map((url) =>
+  http(url, {
+    retryCount: 2,
+    retryDelay: 1000,
+    timeout: 10_000,
+  })
+);
+
+const connectors = [farcasterMiniApp(), injected()];
+
+export const wagmiConfig = createConfig({
+  chains: [base],
+  ssr: true,
+  connectors,
+  transports: {
+    [base.id]: fallback(baseTransports, { rank: true }),
+  },
+  storage: createStorage({
+    storage: cookieStorage,
+  }),
+  pollingInterval: 15_000,
+});

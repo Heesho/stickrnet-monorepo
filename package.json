@@ -2,7 +2,8 @@
   "name": "stickrnet-monorepo",
   "private": true,
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "app"
   ],
   "scripts": {
     "hardhat": "yarn workspace @stickrnet/hardhat",

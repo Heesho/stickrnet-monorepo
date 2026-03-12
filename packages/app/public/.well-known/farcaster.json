@@ -1,0 +1,27 @@
+{
+  "miniapp": {
+    "version": "1",
+    "name": "Stickrnet",
+    "tagline": "Content channels on Base",
+    "description": "A content channel platform on Base. Launch channels, create and collect content NFTs via Dutch auction, earn coin rewards through staking.",
+    "iconUrl": "https://stickrnet.com/media/icon.png",
+    "homeUrl": "https://stickrnet.com/",
+    "splashImageUrl": "https://stickrnet.com/media/splash.png",
+    "splashBackgroundColor": "#000000",
+    "heroImageUrl": "https://stickrnet.com/media/hero.png",
+    "buttonTitle": "Explore channels",
+    "ogTitle": "Stickrnet",
+    "ogDescription": "Content channels on Base. Launch channels, collect content NFTs, earn coin rewards.",
+    "ogImageUrl": "https://stickrnet.com/media/hero.png",
+    "requiredChains": [
+      "eip155:8453"
+    ],
+    "primaryCategory": "social",
+    "tags": [
+      "content",
+      "nft",
+      "base",
+      "rewards"
+    ]
+  }
+}

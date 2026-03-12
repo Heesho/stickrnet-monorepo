@@ -18,7 +18,7 @@ async function getAuctionData(content, tokenId) {
 describe("Boundary Condition Tests", function () {
   let owner, user1, user2, user3;
   let usdc, donut, core;
-  let content, minter, rewarder, auction, unit;
+  let content, minter, rewarder, auction, coin;
 
   const WEEK = 7 * 24 * 60 * 60;
   const DAY = 24 * 60 * 60;
@@ -41,7 +41,7 @@ describe("Boundary Condition Tests", function () {
     const mockUniswapRouterArtifact = await ethers.getContractFactory("MockUniswapV2Router");
     const uniswapRouter = await mockUniswapRouterArtifact.deploy(uniswapFactory.address);
 
-    const unitFactory = await (await ethers.getContractFactory("UnitFactory")).deploy();
+    const coinFactory = await (await ethers.getContractFactory("CoinFactory")).deploy();
     const contentFactory = await (await ethers.getContractFactory("ContentFactory")).deploy();
     const minterFactory = await (await ethers.getContractFactory("MinterFactory")).deploy();
     const rewarderFactory = await (await ethers.getContractFactory("RewarderFactory")).deploy();
@@ -51,7 +51,7 @@ describe("Boundary Condition Tests", function () {
       usdc.address,
       uniswapFactory.address,
       uniswapRouter.address,
-      unitFactory.address,
+      coinFactory.address,
       contentFactory.address,
       minterFactory.address,
       auctionFactory.address,
@@ -71,7 +71,7 @@ describe("Boundary Condition Tests", function () {
       tokenSymbol: "BTEST",
       uri: "https://test.com",
       quoteAmount: convert("1000", 6),
-      unitAmount: convert("1000000", 18),
+      coinAmount: convert("1000000", 18),
       initialUps: convert("1", 18),
       tailUps: convert("0.01", 18),
       halvingPeriod: WEEK,
@@ -86,7 +86,7 @@ describe("Boundary Condition Tests", function () {
     const receipt = await tx.wait();
     const launchEvent = receipt.events.find((e) => e.event === "Core__Launched");
     content = await ethers.getContractAt("Content", launchEvent.args.content);
-    unit = await ethers.getContractAt("Unit", launchEvent.args.unit);
+    coin = await ethers.getContractAt("Coin", launchEvent.args.coin);
     minter = await ethers.getContractAt("Minter", launchEvent.args.minter);
     rewarder = await ethers.getContractAt("Rewarder", launchEvent.args.rewarder);
     auction = await ethers.getContractAt("Auction", launchEvent.args.auction);
@@ -249,7 +249,7 @@ describe("Boundary Condition Tests", function () {
         const MinterFactory = await ethers.getContractFactory("Minter");
         await expect(
           MinterFactory.deploy(
-            unit.address,
+            coin.address,
             rewarder.address,
             convert("1", 18),
             convert("0.01", 18),
@@ -261,7 +261,7 @@ describe("Boundary Condition Tests", function () {
       it("Should accept halving period at exactly MIN_HALVING_PERIOD", async function () {
         const MinterFactory = await ethers.getContractFactory("Minter");
         const minterContract = await MinterFactory.deploy(
-          unit.address,
+          coin.address,
           rewarder.address,
           convert("1", 18),
           convert("0.01", 18),
@@ -274,7 +274,7 @@ describe("Boundary Condition Tests", function () {
         const MinterFactory = await ethers.getContractFactory("Minter");
         await expect(
           MinterFactory.deploy(
-            unit.address,
+            coin.address,
             rewarder.address,
             convert("1", 18),
             convert("2", 18), // tailUps > initialUps
@@ -286,7 +286,7 @@ describe("Boundary Condition Tests", function () {
       it("Should accept tailUps equal to initialUps", async function () {
         const MinterFactory = await ethers.getContractFactory("Minter");
         const minterContract = await MinterFactory.deploy(
-          unit.address,
+          coin.address,
           rewarder.address,
           convert("1", 18),
           convert("1", 18), // tailUps == initialUps
@@ -299,7 +299,7 @@ describe("Boundary Condition Tests", function () {
         const MinterFactory = await ethers.getContractFactory("Minter");
         await expect(
           MinterFactory.deploy(
-            unit.address,
+            coin.address,
             rewarder.address,
             0, // zero initialUps
             0,
@@ -313,7 +313,7 @@ describe("Boundary Condition Tests", function () {
         const maxInitialUps = ethers.BigNumber.from(10).pow(24);
         await expect(
           MinterFactory.deploy(
-            unit.address,
+            coin.address,
             rewarder.address,
             maxInitialUps.add(1), // Above max
             convert("0.01", 18),
@@ -326,7 +326,7 @@ describe("Boundary Condition Tests", function () {
         const MinterFactory = await ethers.getContractFactory("Minter");
         const maxInitialUps = ethers.BigNumber.from(10).pow(24);
         const minterContract = await MinterFactory.deploy(
-          unit.address,
+          coin.address,
           rewarder.address,
           maxInitialUps, // Exactly max
           convert("0.01", 18),
@@ -339,7 +339,7 @@ describe("Boundary Condition Tests", function () {
         const MinterFactory = await ethers.getContractFactory("Minter");
         await expect(
           MinterFactory.deploy(
-            unit.address,
+            coin.address,
             rewarder.address,
             convert("1", 18),
             0, // zero tailUps
@@ -357,7 +357,7 @@ describe("Boundary Condition Tests", function () {
             "Test",
             "TEST",
             "https://test.com",
-            unit.address,
+            coin.address,
             usdc.address,
             auction.address,
             owner.address, // team
@@ -378,7 +378,7 @@ describe("Boundary Condition Tests", function () {
             "Test",
             "TEST",
             "", // empty URI
-            unit.address,
+            coin.address,
             usdc.address,
             auction.address,
             owner.address, // team

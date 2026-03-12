@@ -3,13 +3,13 @@ pragma solidity 0.8.19;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IUnit} from "./interfaces/IUnit.sol";
+import {ICoin} from "./interfaces/ICoin.sol";
 import {IRewarder} from "./interfaces/IRewarder.sol";
 
 /**
  * @title Minter
  * @author heesho
- * @notice Mints Unit tokens weekly and distributes them to the Rewarder.
+ * @notice Mints Coin tokens weekly and distributes them to the Rewarder.
  *         Uses a Bitcoin-style halving emission schedule.
  * @dev Anyone can call update_period() once per week to trigger minting.
  *      All tokens go directly to the Rewarder for distribution to stakers.
@@ -25,7 +25,7 @@ contract Minter {
 
     /*----------  IMMUTABLES  -------------------------------------------*/
 
-    address public immutable unit;
+    address public immutable coin;
     address public immutable rewarder;
     uint256 public immutable initialUps;
     uint256 public immutable tailUps;
@@ -38,7 +38,7 @@ contract Minter {
 
     /*----------  ERRORS  -----------------------------------------------*/
 
-    error Minter__InvalidUnit();
+    error Minter__InvalidCoin();
     error Minter__InvalidRewarder();
     error Minter__InvalidInitialUps();
     error Minter__InitialUpsExceedsMax();
@@ -54,20 +54,20 @@ contract Minter {
 
     /**
      * @notice Deploy a new Minter contract.
-     * @param _unit Unit token address
+     * @param _coin Coin token address
      * @param _rewarder Rewarder contract address
      * @param _initialUps Starting units per second
      * @param _tailUps Minimum units per second after halvings
      * @param _halvingPeriod Time between halvings (minimum 7 days)
      */
     constructor(
-        address _unit,
+        address _coin,
         address _rewarder,
         uint256 _initialUps,
         uint256 _tailUps,
         uint256 _halvingPeriod
     ) {
-        if (_unit == address(0)) revert Minter__InvalidUnit();
+        if (_coin == address(0)) revert Minter__InvalidCoin();
         if (_rewarder == address(0)) revert Minter__InvalidRewarder();
         if (_initialUps == 0) revert Minter__InvalidInitialUps();
         if (_initialUps > MAX_INITIAL_UPS) revert Minter__InitialUpsExceedsMax();
@@ -75,7 +75,7 @@ contract Minter {
         if (_halvingPeriod == 0) revert Minter__InvalidHalvingPeriod();
         if (_halvingPeriod < MIN_HALVING_PERIOD) revert Minter__HalvingPeriodBelowMin();
 
-        unit = _unit;
+        coin = _coin;
         rewarder = _rewarder;
         initialUps = _initialUps;
         tailUps = _tailUps;
@@ -103,12 +103,12 @@ contract Minter {
 
             if (weekly > 0) {
                 // Mint directly to this contract
-                IUnit(unit).mint(address(this), weekly);
+                ICoin(coin).mint(address(this), weekly);
 
                 // Approve and notify rewarder
-                IERC20(unit).safeApprove(rewarder, 0);
-                IERC20(unit).safeApprove(rewarder, weekly);
-                IRewarder(rewarder).notifyRewardAmount(unit, weekly);
+                IERC20(coin).safeApprove(rewarder, 0);
+                IERC20(coin).safeApprove(rewarder, weekly);
+                IRewarder(rewarder).notifyRewardAmount(coin, weekly);
 
                 emit Minter__Minted(msg.sender, weekly);
             }

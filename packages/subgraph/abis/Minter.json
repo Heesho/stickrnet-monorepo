@@ -3,7 +3,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_unit",
+        "name": "_coin",
         "type": "address"
       },
       {
@@ -42,6 +42,11 @@
   },
   {
     "inputs": [],
+    "name": "Minter__InvalidCoin",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "Minter__InvalidHalvingPeriod",
     "type": "error"
   },
@@ -58,11 +63,6 @@
   {
     "inputs": [],
     "name": "Minter__InvalidTailUps",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "Minter__InvalidUnit",
     "type": "error"
   },
   {
@@ -131,6 +131,19 @@
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "coin",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -209,19 +222,6 @@
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "unit",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
       }
     ],
     "stateMutability": "view",

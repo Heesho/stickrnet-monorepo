@@ -15,7 +15,7 @@ contract ContentFactory {
      * @param _name Token name
      * @param _symbol Token symbol
      * @param _uri Metadata URI
-     * @param _unit Unit token address
+     * @param _coin Coin token address
      * @param _quote Quote token (WETH) address
      * @param _treasury Treasury (Auction) address
      * @param _team Team address for fee collection
@@ -29,7 +29,7 @@ contract ContentFactory {
         string memory _name,
         string memory _symbol,
         string memory _uri,
-        address _unit,
+        address _coin,
         address _quote,
         address _treasury,
         address _team,
@@ -42,7 +42,7 @@ contract ContentFactory {
             _name,
             _symbol,
             _uri,
-            _unit,
+            _coin,
             _quote,
             _treasury,
             _team,

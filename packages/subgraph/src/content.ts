@@ -247,6 +247,14 @@ export function handleContentCollected(event: ContentCollectedEvent): void {
     dayData.timestamp = dayTimestamp;
     dayData.collectCount = ZERO_BI;
     dayData.collectVolume = ZERO_BD;
+    dayData.open = channel.price;
+    dayData.high = channel.price;
+    dayData.low = channel.price;
+    dayData.close = channel.price;
+    dayData.volumeCoin = ZERO_BD;
+    dayData.volumeQuote = ZERO_BD;
+    dayData.swapTxCount = ZERO_BI;
+    dayData.liquidity = channel.liquidity;
   }
   dayData.collectCount = dayData.collectCount.plus(ONE_BI);
   dayData.collectVolume = dayData.collectVolume.plus(price);
@@ -262,6 +270,14 @@ export function handleContentCollected(event: ContentCollectedEvent): void {
     hourData.timestamp = hourTimestamp;
     hourData.collectCount = ZERO_BI;
     hourData.collectVolume = ZERO_BD;
+    hourData.open = channel.price;
+    hourData.high = channel.price;
+    hourData.low = channel.price;
+    hourData.close = channel.price;
+    hourData.volumeCoin = ZERO_BD;
+    hourData.volumeQuote = ZERO_BD;
+    hourData.swapTxCount = ZERO_BI;
+    hourData.liquidity = channel.liquidity;
   }
   hourData.collectCount = hourData.collectCount.plus(ONE_BI);
   hourData.collectVolume = hourData.collectVolume.plus(price);
@@ -277,6 +293,14 @@ export function handleContentCollected(event: ContentCollectedEvent): void {
     minuteData.timestamp = minuteTimestamp;
     minuteData.collectCount = ZERO_BI;
     minuteData.collectVolume = ZERO_BD;
+    minuteData.open = channel.price;
+    minuteData.high = channel.price;
+    minuteData.low = channel.price;
+    minuteData.close = channel.price;
+    minuteData.volumeCoin = ZERO_BD;
+    minuteData.volumeQuote = ZERO_BD;
+    minuteData.swapTxCount = ZERO_BI;
+    minuteData.liquidity = channel.liquidity;
   }
   minuteData.collectCount = minuteData.collectCount.plus(ONE_BI);
   minuteData.collectVolume = minuteData.collectVolume.plus(price);

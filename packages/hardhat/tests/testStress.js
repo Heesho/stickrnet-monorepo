@@ -21,8 +21,8 @@ async function getAuctionData(content, tokenId) {
 
 let owner, protocol, launcher, user1, user2, user3, creator1, creator2;
 let usdc, donut, core, multicall;
-let content, minter, rewarder, auction, unit, lpToken;
-let unitFactory, contentFactory, minterFactory, rewarderFactory, auctionFactory;
+let content, minter, rewarder, auction, coin, lpToken;
+let coinFactory, contentFactory, minterFactory, rewarderFactory, auctionFactory;
 let uniswapFactory, uniswapRouter;
 
 describe("STRESS TESTS - Professional Audit", function () {
@@ -47,7 +47,7 @@ describe("STRESS TESTS - Professional Audit", function () {
     uniswapRouter = await (await ethers.getContractFactory("MockUniswapV2Router")).deploy(uniswapFactory.address);
 
     // Deploy factories
-    unitFactory = await (await ethers.getContractFactory("UnitFactory")).deploy();
+    coinFactory = await (await ethers.getContractFactory("CoinFactory")).deploy();
     contentFactory = await (await ethers.getContractFactory("ContentFactory")).deploy();
     minterFactory = await (await ethers.getContractFactory("MinterFactory")).deploy();
     rewarderFactory = await (await ethers.getContractFactory("RewarderFactory")).deploy();
@@ -58,7 +58,7 @@ describe("STRESS TESTS - Professional Audit", function () {
       usdc.address,
       uniswapFactory.address,
       uniswapRouter.address,
-      unitFactory.address,
+      coinFactory.address,
       contentFactory.address,
       minterFactory.address,
       auctionFactory.address,
@@ -84,11 +84,11 @@ describe("STRESS TESTS - Professional Audit", function () {
     // Launch content engine with 1 USDC minInitPrice
     const launchParams = {
       launcher: launcher.address,
-      tokenName: "Stress Unit",
-      tokenSymbol: "SUNIT",
+      tokenName: "Stress Coin",
+      tokenSymbol: "SCOIN",
       uri: "https://stress.test",
       quoteAmount: convert("500", 6),
-      unitAmount: convert("1000000", 18),
+      coinAmount: convert("1000000", 18),
       initialUps: convert("4", 18),
       tailUps: convert("0.01", 18),
       halvingPeriod: WEEK,
@@ -106,7 +106,7 @@ describe("STRESS TESTS - Professional Audit", function () {
 
     const launchEvent = receipt.events.find((e) => e.event === "Core__Launched");
     content = await ethers.getContractAt("Content", launchEvent.args.content);
-    unit = await ethers.getContractAt("Unit", launchEvent.args.unit);
+    coin = await ethers.getContractAt("Coin", launchEvent.args.coin);
     minter = await ethers.getContractAt("Minter", launchEvent.args.minter);
     rewarder = await ethers.getContractAt("Rewarder", launchEvent.args.rewarder);
     auction = await ethers.getContractAt("Auction", launchEvent.args.auction);
@@ -376,7 +376,7 @@ describe("STRESS TESTS - Professional Audit", function () {
       await minter.updatePeriod();
 
       const weeklyEmission = await minter.weeklyEmission();
-      console.log("Weekly emission:", divDec(weeklyEmission), "UNIT");
+      console.log("Weekly emission:", divDec(weeklyEmission), "COIN");
 
       // Get stakes before rewards accrue
       const user1Stake = await rewarder.accountToBalance(user1.address);
@@ -392,11 +392,11 @@ describe("STRESS TESTS - Professional Audit", function () {
       await network.provider.send("evm_mine");
 
       // Check earned rewards
-      const user1Earned = await rewarder.earned(user1.address, unit.address);
-      const user2Earned = await rewarder.earned(user2.address, unit.address);
+      const user1Earned = await rewarder.earned(user1.address, coin.address);
+      const user2Earned = await rewarder.earned(user2.address, coin.address);
 
-      console.log("User1 earned:", divDec(user1Earned), "UNIT");
-      console.log("User2 earned:", divDec(user2Earned), "UNIT");
+      console.log("User1 earned:", divDec(user1Earned), "COIN");
+      console.log("User2 earned:", divDec(user2Earned), "COIN");
 
       // Verify proportionality (within tolerance)
       if (user1Stake.gt(0) && user2Stake.gt(0)) {
@@ -579,12 +579,12 @@ describe("STRESS TESTS - Professional Audit", function () {
       console.log("Initial UPS:", divDec(initialUps));
       console.log("Tail UPS:", divDec(tailUps));
       console.log("Halving period:", halvingPeriod.div(DAY).toString(), "days");
-      console.log("Tail weekly:", divDec(tailWeekly), "UNIT");
+      console.log("Tail weekly:", divDec(tailWeekly), "COIN");
 
       // Update period first to get current emission
       await minter.updatePeriod();
       const emission0 = await minter.weeklyEmission();
-      console.log("Current weekly emission:", divDec(emission0), "UNIT");
+      console.log("Current weekly emission:", divDec(emission0), "COIN");
 
       // If already at tail, skip halving check
       if (emission0.eq(tailWeekly)) {
@@ -600,7 +600,7 @@ describe("STRESS TESTS - Professional Audit", function () {
       // Update period to trigger halving calculation
       await minter.updatePeriod();
       const emission1 = await minter.weeklyEmission();
-      console.log("After 1 halving:", divDec(emission1), "UNIT");
+      console.log("After 1 halving:", divDec(emission1), "COIN");
 
       // Should be approximately half or at tail
       if (emission1.eq(tailWeekly)) {
@@ -624,14 +624,14 @@ describe("STRESS TESTS - Professional Audit", function () {
 
       const emission = await minter.weeklyEmission();
       expect(emission).to.equal(tailWeekly);
-      console.log("Tail weekly emission:", divDec(emission), "UNIT");
+      console.log("Tail weekly emission:", divDec(emission), "COIN");
       console.log("Tail emission floor: PASS");
     });
 
     it("4.3 Emission to Rewarder flow", async function () {
       console.log("\n--- Testing emission flow ---");
 
-      const rewarderBalBefore = await unit.balanceOf(rewarder.address);
+      const rewarderBalBefore = await coin.balanceOf(rewarder.address);
 
       // Trigger new emission
       await network.provider.send("evm_increaseTime", [WEEK]);
@@ -640,11 +640,11 @@ describe("STRESS TESTS - Professional Audit", function () {
       const expectedEmission = await minter.weeklyEmission();
       await minter.updatePeriod();
 
-      const rewarderBalAfter = await unit.balanceOf(rewarder.address);
+      const rewarderBalAfter = await coin.balanceOf(rewarder.address);
       const received = rewarderBalAfter.sub(rewarderBalBefore);
 
       expect(received).to.equal(expectedEmission);
-      console.log("Rewarder received:", divDec(received), "UNIT");
+      console.log("Rewarder received:", divDec(received), "COIN");
       console.log("Emission flow: PASS");
     });
   });
@@ -740,12 +740,12 @@ describe("STRESS TESTS - Professional Audit", function () {
 
       // Claim rewards
       for (const user of [user1, user2, user3]) {
-        const earned = await rewarder.earned(user.address, unit.address);
+        const earned = await rewarder.earned(user.address, coin.address);
         if (earned.gt(0)) {
-          const balBefore = await unit.balanceOf(user.address);
+          const balBefore = await coin.balanceOf(user.address);
           await rewarder['getReward(address)'](user.address);
-          const balAfter = await unit.balanceOf(user.address);
-          console.log(`${user.address.slice(0, 8)}... claimed ${divDec(balAfter.sub(balBefore))} UNIT`);
+          const balAfter = await coin.balanceOf(user.address);
+          console.log(`${user.address.slice(0, 8)}... claimed ${divDec(balAfter.sub(balBefore))} COIN`);
         }
       }
 

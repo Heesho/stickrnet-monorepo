@@ -26,7 +26,7 @@ interface IContent {
     function transferOwnership(address newOwner) external;
 
     function rewarder() external view returns (address);
-    function unit() external view returns (address);
+    function coin() external view returns (address);
     function quote() external view returns (address);
     function core() external view returns (address);
     function treasury() external view returns (address);

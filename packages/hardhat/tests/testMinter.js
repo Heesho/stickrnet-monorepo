@@ -8,8 +8,8 @@ const AddressZero = "0x0000000000000000000000000000000000000000";
 
 let owner, protocol, user0, user1, user2, creator1;
 let usdc, donut, core;
-let content, minter, rewarder, auction, unit, lpToken;
-let unitFactory, contentFactory, minterFactory, rewarderFactory, auctionFactory;
+let content, minter, rewarder, auction, coin, lpToken;
+let coinFactory, contentFactory, minterFactory, rewarderFactory, auctionFactory;
 let uniswapFactory, uniswapRouter;
 
 const WEEK = 86400 * 7;
@@ -33,7 +33,7 @@ describe("Minter Tests", function () {
     uniswapRouter = await (await ethers.getContractFactory("MockUniswapV2Router")).deploy(uniswapFactory.address);
 
     // Deploy factories
-    unitFactory = await (await ethers.getContractFactory("UnitFactory")).deploy();
+    coinFactory = await (await ethers.getContractFactory("CoinFactory")).deploy();
     contentFactory = await (await ethers.getContractFactory("ContentFactory")).deploy();
     minterFactory = await (await ethers.getContractFactory("MinterFactory")).deploy();
     rewarderFactory = await (await ethers.getContractFactory("RewarderFactory")).deploy();
@@ -44,7 +44,7 @@ describe("Minter Tests", function () {
       usdc.address,
       uniswapFactory.address,
       uniswapRouter.address,
-      unitFactory.address,
+      coinFactory.address,
       contentFactory.address,
       minterFactory.address,
       auctionFactory.address,
@@ -61,11 +61,11 @@ describe("Minter Tests", function () {
     // Launch content engine with 7-day halving
     const launchParams = {
       launcher: user0.address,
-      tokenName: "Test Unit",
-      tokenSymbol: "TUNIT",
+      tokenName: "Test Coin",
+      tokenSymbol: "TCOIN",
       uri: "https://example.com/metadata",
       quoteAmount: convert("500", 6),
-      unitAmount: convert("1000000", 18),
+      coinAmount: convert("1000000", 18),
       initialUps: convert("4", 18), // 4 tokens per second
       tailUps: convert("0.5", 18), // 0.5 tokens per second minimum
       halvingPeriod: WEEK, // 7 days
@@ -83,7 +83,7 @@ describe("Minter Tests", function () {
 
     const launchEvent = receipt.events.find((e) => e.event === "Core__Launched");
     content = launchEvent.args.content;
-    unit = launchEvent.args.unit;
+    coin = launchEvent.args.coin;
     minter = launchEvent.args.minter;
     rewarder = launchEvent.args.rewarder;
     auction = launchEvent.args.auction;
@@ -97,7 +97,7 @@ describe("Minter Tests", function () {
       console.log("******************************************************");
       const minterContract = await ethers.getContractAt("Minter", minter);
 
-      expect(await minterContract.unit()).to.equal(unit);
+      expect(await minterContract.coin()).to.equal(coin);
       expect(await minterContract.rewarder()).to.equal(rewarder);
       expect(await minterContract.initialUps()).to.equal(convert("4", 18));
       expect(await minterContract.tailUps()).to.equal(convert("0.5", 18));
@@ -132,15 +132,15 @@ describe("Minter Tests", function () {
     it("Cannot mint before week passes", async function () {
       console.log("******************************************************");
       const minterContract = await ethers.getContractAt("Minter", minter);
-      const unitContract = await ethers.getContractAt("Unit", unit);
+      const coinContract = await ethers.getContractAt("Coin", coin);
 
-      const rewarderBalanceBefore = await unitContract.balanceOf(rewarder);
+      const rewarderBalanceBefore = await coinContract.balanceOf(rewarder);
 
       // Try to update period
       await minterContract.connect(user1).updatePeriod();
 
       // No tokens should have been minted
-      const rewarderBalanceAfter = await unitContract.balanceOf(rewarder);
+      const rewarderBalanceAfter = await coinContract.balanceOf(rewarder);
       expect(rewarderBalanceAfter).to.equal(rewarderBalanceBefore);
       console.log("No tokens minted before week passes");
     });
@@ -148,19 +148,19 @@ describe("Minter Tests", function () {
     it("Anyone can call updatePeriod after week", async function () {
       console.log("******************************************************");
       const minterContract = await ethers.getContractAt("Minter", minter);
-      const unitContract = await ethers.getContractAt("Unit", unit);
+      const coinContract = await ethers.getContractAt("Coin", coin);
       const rewarderContract = await ethers.getContractAt("Rewarder", rewarder);
 
       // Forward 1 week
       await network.provider.send("evm_increaseTime", [WEEK]);
       await network.provider.send("evm_mine");
 
-      const rewarderBalanceBefore = await unitContract.balanceOf(rewarder);
+      const rewarderBalanceBefore = await coinContract.balanceOf(rewarder);
 
       // Anyone can call updatePeriod
       await minterContract.connect(user1).updatePeriod();
 
-      const rewarderBalanceAfter = await unitContract.balanceOf(rewarder);
+      const rewarderBalanceAfter = await coinContract.balanceOf(rewarder);
       const minted = rewarderBalanceAfter.sub(rewarderBalanceBefore);
 
       console.log("Tokens minted to rewarder:", divDec(minted));
@@ -175,7 +175,7 @@ describe("Minter Tests", function () {
       console.log("******************************************************");
       const rewarderContract = await ethers.getContractAt("Rewarder", rewarder);
 
-      const left = await rewarderContract.left(unit);
+      const left = await rewarderContract.left(coin);
       expect(left).to.be.gt(0);
       console.log("Rewards left in rewarder:", divDec(left));
     });
@@ -183,15 +183,15 @@ describe("Minter Tests", function () {
     it("Cannot mint twice in same week", async function () {
       console.log("******************************************************");
       const minterContract = await ethers.getContractAt("Minter", minter);
-      const unitContract = await ethers.getContractAt("Unit", unit);
+      const coinContract = await ethers.getContractAt("Coin", coin);
 
-      const rewarderBalanceBefore = await unitContract.balanceOf(rewarder);
+      const rewarderBalanceBefore = await coinContract.balanceOf(rewarder);
 
       // Try to update again
       await minterContract.connect(user1).updatePeriod();
 
       // No additional tokens should have been minted
-      const rewarderBalanceAfter = await unitContract.balanceOf(rewarder);
+      const rewarderBalanceAfter = await coinContract.balanceOf(rewarder);
       expect(rewarderBalanceAfter).to.equal(rewarderBalanceBefore);
       console.log("No double minting in same week");
     });
@@ -273,7 +273,7 @@ describe("Minter Parameter Validation Tests", function () {
       usdc.address,
       uniswapFactory.address,
       uniswapRouter.address,
-      unitFactory.address,
+      coinFactory.address,
       contentFactory.address,
       minterFactory.address,
       auctionFactory.address,
@@ -290,11 +290,11 @@ describe("Minter Parameter Validation Tests", function () {
 
     const launchParams = {
       launcher: user0.address,
-      tokenName: "Bad Unit",
-      tokenSymbol: "BUNIT",
+      tokenName: "Bad Coin",
+      tokenSymbol: "BCOIN",
       uri: "https://example.com",
       quoteAmount: convert("500", 6),
-      unitAmount: convert("1000000", 18),
+      coinAmount: convert("1000000", 18),
       initialUps: convert("4", 18),
       tailUps: convert("0.5", 18),
       halvingPeriod: 86400 * 6, // 6 days - too short
@@ -317,11 +317,11 @@ describe("Minter Parameter Validation Tests", function () {
 
     const launchParams = {
       launcher: user0.address,
-      tokenName: "Bad Unit",
-      tokenSymbol: "BUNIT",
+      tokenName: "Bad Coin",
+      tokenSymbol: "BCOIN",
       uri: "https://example.com",
       quoteAmount: convert("500", 6),
-      unitAmount: convert("1000000", 18),
+      coinAmount: convert("1000000", 18),
       initialUps: convert("1", 18),
       tailUps: convert("2", 18), // tail > initial
       halvingPeriod: WEEK,
@@ -344,11 +344,11 @@ describe("Minter Parameter Validation Tests", function () {
 
     const launchParams = {
       launcher: user0.address,
-      tokenName: "Bad Unit",
-      tokenSymbol: "BUNIT",
+      tokenName: "Bad Coin",
+      tokenSymbol: "BCOIN",
       uri: "https://example.com",
       quoteAmount: convert("500", 6),
-      unitAmount: convert("1000000", 18),
+      coinAmount: convert("1000000", 18),
       initialUps: 0,
       tailUps: convert("0.5", 18),
       halvingPeriod: WEEK,

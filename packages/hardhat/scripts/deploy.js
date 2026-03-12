@@ -13,7 +13,7 @@ const divDec = (amount, decimals = 18) => amount / 10 ** decimals;
 // Base Mainnet addresses
 // For testing: leave addresses empty to deploy mocks
 // For mainnet: set to real token addresses
-let USDC_ADDRESS = ""; // Set to "" to deploy MockUSDC, or "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" for Base mainnet
+let USDC_ADDRESS = "0xe90495BE187d434e23A9B1FeC0B6Ce039700870e"; // MockUSDC already deployed
 const UNISWAP_V2_FACTORY = "0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6";
 const UNISWAP_V2_ROUTER = "0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24";
 
@@ -23,14 +23,14 @@ const MULTISIG_ADDRESS = "0xeE0CB49D2805DA6bC0A979ddAd87bb793fbB765E";
 const MIN_QUOTE_FOR_LAUNCH = convert("1", 6); // 1 USDC minimum
 
 // Deployed Contract Addresses (paste after deployment)
-const MOCK_USDC = "0xB7E837e23A6c8D5B34Eb75d3B66742613e684f66";
-const UNIT_FACTORY = "0xC1681338353ac554b19a605F247961FA29E21C62";
-const CONTENT_FACTORY = "0xA332A819A39fE69fFe3de0A584722eb6607AB146";
-const MINTER_FACTORY = "0x6aF5e4348DE1e92a3083673a4aE7dC079AeD9aE1";
-const REWARDER_FACTORY = "0xe63bE0A7fABda97F05520fe72C308b019a3d51cb";
-const AUCTION_FACTORY = "0xe500E4dE2BbD968003d5648aAD7d3F181Aa7aD43";
-const CORE = "0xe156BDf15A836048EbBae13e3aC29096eDF32ef2";
-const MULTICALL = "0xa8053213236504d81Bb5c9359f1c573e46018d8E";
+const MOCK_USDC = "0xe90495BE187d434e23A9B1FeC0B6Ce039700870e";
+const COIN_FACTORY = "0xd6127d8fFb103508e2992bF7eD3e42612A1e646A";
+const CONTENT_FACTORY = "0x83B10085Ba26Cc56026FD44E62d8a5EdB6BDD984";
+const MINTER_FACTORY = "0x802A6F4d2Ff28B8bC052861Bf1DD84fEbDA1dc3b";
+const REWARDER_FACTORY = "0x308612C2547E171c58988c4D57C442e4803523ae";
+const AUCTION_FACTORY = "0xE58D1bd1DC5841dA7AeA1269460a9396C7cec680";
+const CORE = "0xf1fc02884D1D701fca31b8f90B309b726597424A";
+const MULTICALL = "0xAEd96fA4549eCD551e06ff644e6Fe86BfEd6B3A6";
 
 // =============================================================================
 // STICKR CHANNEL LAUNCH PARAMETERS
@@ -41,11 +41,11 @@ const STICKR_LAUNCH_PARAMS = {
   tokenName: "Stickr",
   tokenSymbol: "STICKR",
   uri: "", // TODO: Set metadata URI
-  quoteAmount: convert("100", 6), // USDC to provide for LP
-  unitAmount: convert("1000000", 18), // Unit tokens minted for initial LP
-  initialUps: convert("1", 18), // Starting units per second
-  tailUps: convert("0.01", 18), // Minimum units per second
-  halvingPeriod: 604800, // 7 days in seconds
+  quoteAmount: convert("1", 6), // 1 USDC to provide for LP
+  coinAmount: convert("10000", 18), // 10,000 coins minted for initial LP
+  initialUps: "1157407407407407407", // ~100K coins/day
+  tailUps: "11574074074074074", // ~1K coins/day
+  halvingPeriod: 2592000, // 30 days in seconds
   contentMinInitPrice: convert("1", 6), // 1 USDC minimum content price
   contentIsModerated: false,
   auctionInitPrice: convert("100", 6), // 100 USDC auction starting price
@@ -56,7 +56,7 @@ const STICKR_LAUNCH_PARAMS = {
 
 // Contract Variables
 let mockUsdc,
-  unitFactory,
+  coinFactory,
   contentFactory,
   minterFactory,
   rewarderFactory,
@@ -74,45 +74,45 @@ async function getContracts() {
     USDC_ADDRESS = MOCK_USDC;
     mockUsdc = await ethers.getContractAt(
       "contracts/mocks/MockUSDC.sol:MockUSDC",
-      MOCK_USDC
+      MOCK_USDC,
     );
     console.log("Using MockUSDC at:", MOCK_USDC);
   } else if (USDC_ADDRESS) {
     console.log("Using USDC at:", USDC_ADDRESS);
   }
 
-  if (UNIT_FACTORY) {
-    unitFactory = await ethers.getContractAt(
-      "contracts/UnitFactory.sol:UnitFactory",
-      UNIT_FACTORY
+  if (COIN_FACTORY) {
+    coinFactory = await ethers.getContractAt(
+      "contracts/CoinFactory.sol:CoinFactory",
+      COIN_FACTORY,
     );
   }
 
   if (CONTENT_FACTORY) {
     contentFactory = await ethers.getContractAt(
       "contracts/ContentFactory.sol:ContentFactory",
-      CONTENT_FACTORY
+      CONTENT_FACTORY,
     );
   }
 
   if (MINTER_FACTORY) {
     minterFactory = await ethers.getContractAt(
       "contracts/MinterFactory.sol:MinterFactory",
-      MINTER_FACTORY
+      MINTER_FACTORY,
     );
   }
 
   if (REWARDER_FACTORY) {
     rewarderFactory = await ethers.getContractAt(
       "contracts/RewarderFactory.sol:RewarderFactory",
-      REWARDER_FACTORY
+      REWARDER_FACTORY,
     );
   }
 
   if (AUCTION_FACTORY) {
     auctionFactory = await ethers.getContractAt(
       "contracts/AuctionFactory.sol:AuctionFactory",
-      AUCTION_FACTORY
+      AUCTION_FACTORY,
     );
   }
 
@@ -123,7 +123,7 @@ async function getContracts() {
   if (MULTICALL) {
     multicall = await ethers.getContractAt(
       "contracts/Multicall.sol:Multicall",
-      MULTICALL
+      MULTICALL,
     );
   }
 
@@ -144,13 +144,13 @@ async function deployMockUSDC() {
   console.log("MockUSDC Deployed at:", mockUsdc.address);
 }
 
-async function deployUnitFactory() {
-  console.log("Starting UnitFactory Deployment");
-  const artifact = await ethers.getContractFactory("UnitFactory");
+async function deployCoinFactory() {
+  console.log("Starting CoinFactory Deployment");
+  const artifact = await ethers.getContractFactory("CoinFactory");
   const contract = await artifact.deploy({ gasPrice: ethers.gasPrice });
-  unitFactory = await contract.deployed();
+  coinFactory = await contract.deployed();
   await sleep(5000);
-  console.log("UnitFactory Deployed at:", unitFactory.address);
+  console.log("CoinFactory Deployed at:", coinFactory.address);
 }
 
 async function deployContentFactory() {
@@ -197,7 +197,7 @@ async function deployCore() {
   }
   if (!USDC_ADDRESS) {
     throw new Error(
-      "USDC_ADDRESS must be set before deployment (deploy MockUSDC first or set address)"
+      "USDC_ADDRESS must be set before deployment (deploy MockUSDC first or set address)",
     );
   }
 
@@ -206,14 +206,14 @@ async function deployCore() {
     USDC_ADDRESS,
     UNISWAP_V2_FACTORY,
     UNISWAP_V2_ROUTER,
-    unitFactory.address,
+    coinFactory.address,
     contentFactory.address,
     minterFactory.address,
     auctionFactory.address,
     rewarderFactory.address,
     PROTOCOL_FEE_ADDRESS,
     MIN_QUOTE_FOR_LAUNCH,
-    { gasPrice: ethers.gasPrice }
+    { gasPrice: ethers.gasPrice },
   );
   core = await contract.deployed();
   await sleep(5000);
@@ -250,28 +250,28 @@ async function launchStickr() {
   console.log("  Token Symbol:          ", params.tokenSymbol);
   console.log("  URI:                   ", params.uri || "(empty)");
   console.log("  Quote Amount:          ", divDec(params.quoteAmount, 6));
-  console.log("  Unit Amount:           ", divDec(params.unitAmount));
+  console.log("  Coin Amount:           ", divDec(params.coinAmount));
   console.log("  Initial UPS:           ", divDec(params.initialUps));
   console.log("  Tail UPS:              ", divDec(params.tailUps));
   console.log("  Halving Period:        ", params.halvingPeriod, "seconds");
   console.log(
     "  Content Min Init Price:",
-    params.contentMinInitPrice.toString()
+    params.contentMinInitPrice.toString(),
   );
   console.log("  Content Is Moderated:  ", params.contentIsModerated);
   console.log("  Auction Init Price:    ", params.auctionInitPrice.toString());
   console.log(
     "  Auction Epoch Period:  ",
     params.auctionEpochPeriod,
-    "seconds"
+    "seconds",
   );
   console.log(
     "  Auction Price Multi:   ",
-    divDec(params.auctionPriceMultiplier)
+    divDec(params.auctionPriceMultiplier),
   );
   console.log(
     "  Auction Min Init Price:",
-    params.auctionMinInitPrice.toString()
+    params.auctionMinInitPrice.toString(),
   );
   console.log("");
 
@@ -279,7 +279,7 @@ async function launchStickr() {
   console.log("Approving USDC for Core...");
   const quoteToken = await ethers.getContractAt(
     "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
-    USDC_ADDRESS
+    USDC_ADDRESS,
   );
   const approveTx = await quoteToken.approve(core.address, params.quoteAmount);
   await approveTx.wait();
@@ -293,13 +293,13 @@ async function launchStickr() {
 
   // Parse the Core__Launched event to get deployed addresses
   const launchedEvent = receipt.events.find(
-    (e) => e.event === "Core__Launched"
+    (e) => e.event === "Core__Launched",
   );
 
   if (launchedEvent) {
     console.log("\n--- STICKR Deployed Contracts ---");
     console.log("  Content:  ", launchedEvent.args.content);
-    console.log("  Unit:     ", launchedEvent.args.unit);
+    console.log("  Coin:     ", launchedEvent.args.coin);
     console.log("  Minter:   ", launchedEvent.args.minter);
     console.log("  Rewarder: ", launchedEvent.args.rewarder);
     console.log("  Auction:  ", launchedEvent.args.auction);
@@ -314,14 +314,14 @@ async function launchStickr() {
 // VERIFY FUNCTIONS
 // =============================================================================
 
-async function verifyUnitFactory() {
-  console.log("Starting UnitFactory Verification");
+async function verifyCoinFactory() {
+  console.log("Starting CoinFactory Verification");
   await hre.run("verify:verify", {
-    address: unitFactory?.address || UNIT_FACTORY,
-    contract: "contracts/UnitFactory.sol:UnitFactory",
+    address: coinFactory?.address || COIN_FACTORY,
+    contract: "contracts/CoinFactory.sol:CoinFactory",
     constructorArguments: [],
   });
-  console.log("UnitFactory Verified");
+  console.log("CoinFactory Verified");
 }
 
 async function verifyContentFactory() {
@@ -373,7 +373,7 @@ async function verifyCore() {
       USDC_ADDRESS,
       UNISWAP_V2_FACTORY,
       UNISWAP_V2_ROUTER,
-      unitFactory?.address || UNIT_FACTORY,
+      coinFactory?.address || COIN_FACTORY,
       contentFactory?.address || CONTENT_FACTORY,
       minterFactory?.address || MINTER_FACTORY,
       auctionFactory?.address || AUCTION_FACTORY,
@@ -405,39 +405,39 @@ async function verifyMockUSDC() {
   console.log("MockUSDC Verified");
 }
 
-async function verifyUnitByContentIndex(contentIndex) {
+async function verifyCoinByContentIndex(contentIndex) {
   const contentAddress = await core.contents(contentIndex);
   const contentContract = await ethers.getContractAt("Content", contentAddress);
-  const unitAddress = await contentContract.unit();
-  const unit = await ethers.getContractAt(
-    "contracts/Unit.sol:Unit",
-    unitAddress
+  const coinAddress = await contentContract.coin();
+  const coin = await ethers.getContractAt(
+    "contracts/Coin.sol:Coin",
+    coinAddress,
   );
 
-  const name = await unit.name();
-  const symbol = await unit.symbol();
+  const name = await coin.name();
+  const symbol = await coin.symbol();
 
-  console.log("Starting Unit Verification for:", unitAddress);
+  console.log("Starting Coin Verification for:", coinAddress);
   console.log("  Name:", name);
   console.log("  Symbol:", symbol);
 
   await hre.run("verify:verify", {
-    address: unitAddress,
-    contract: "contracts/Unit.sol:Unit",
+    address: coinAddress,
+    contract: "contracts/Coin.sol:Coin",
     constructorArguments: [name, symbol],
   });
-  console.log("Unit Verified:", unitAddress);
+  console.log("Coin Verified:", coinAddress);
 }
 
 async function verifyContentByIndex(contentIndex) {
   const contentAddress = await core.contents(contentIndex);
   const content = await ethers.getContractAt(
     "contracts/Content.sol:Content",
-    contentAddress
+    contentAddress,
   );
 
   // Read constructor args from the deployed contract
-  const unitAddress = await content.unit();
+  const coinAddress = await content.coin();
   const quoteAddress = await content.quote();
   const treasury = await content.treasury();
   const team = await content.team();
@@ -452,7 +452,7 @@ async function verifyContentByIndex(contentIndex) {
   console.log("  Name:", name);
   console.log("  Symbol:", symbol);
   console.log("  URI:", uri);
-  console.log("  Unit:", unitAddress);
+  console.log("  Coin:", coinAddress);
   console.log("  Quote:", quoteAddress);
   console.log("  Treasury:", treasury);
   console.log("  Team:", team);
@@ -467,7 +467,7 @@ async function verifyContentByIndex(contentIndex) {
       name,
       symbol,
       uri,
-      unitAddress,
+      coinAddress,
       quoteAddress,
       treasury,
       team,
@@ -483,16 +483,16 @@ async function verifyContentByIndex(contentIndex) {
 async function verifyMinterByContentIndex(contentIndex) {
   const contentAddress = await core.contents(contentIndex);
   const contentContract = await ethers.getContractAt("Content", contentAddress);
-  const unitAddress = await contentContract.unit();
-  const unitContract = await ethers.getContractAt("Unit", unitAddress);
-  const minterAddress = await unitContract.minter();
+  const coinAddress = await contentContract.coin();
+  const coinContract = await ethers.getContractAt("Coin", coinAddress);
+  const minterAddress = await coinContract.minter();
   const minter = await ethers.getContractAt(
     "contracts/Minter.sol:Minter",
-    minterAddress
+    minterAddress,
   );
 
   // Read constructor args
-  const minterUnitAddress = await minter.unit();
+  const minterCoinAddress = await minter.coin();
   const rewarderAddress = await minter.rewarder();
   const team = await minter.team();
   const initialUps = await minter.initialUps();
@@ -500,7 +500,7 @@ async function verifyMinterByContentIndex(contentIndex) {
   const halvingPeriod = await minter.halvingPeriod();
 
   console.log("Starting Minter Verification for:", minterAddress);
-  console.log("  Unit:", unitAddress);
+  console.log("  Coin:", coinAddress);
   console.log("  Rewarder:", rewarderAddress);
   console.log("  Team:", team);
   console.log("  Initial UPS:", initialUps.toString());
@@ -511,7 +511,7 @@ async function verifyMinterByContentIndex(contentIndex) {
     address: minterAddress,
     contract: "contracts/Minter.sol:Minter",
     constructorArguments: [
-      unitAddress,
+      coinAddress,
       rewarderAddress,
       team,
       initialUps,
@@ -543,7 +543,7 @@ async function verifyAuctionByContentIndex(contentIndex) {
   const auctionAddress = await core.contentToAuction(contentAddress);
   const auction = await ethers.getContractAt(
     "contracts/Auction.sol:Auction",
-    auctionAddress
+    auctionAddress,
   );
 
   // Read constructor args from the deployed contract
@@ -560,10 +560,10 @@ async function verifyAuctionByContentIndex(contentIndex) {
 
   if (!epochId.eq(0)) {
     console.log(
-      "  WARNING: Auction has been used (epochId > 0). Using minInitPrice as initPrice."
+      "  WARNING: Auction has been used (epochId > 0). Using minInitPrice as initPrice.",
     );
     console.log(
-      "  If verification fails, you may need to find the original auctionInitPrice from launch event."
+      "  If verification fails, you may need to find the original auctionInitPrice from launch event.",
     );
   }
 
@@ -597,11 +597,11 @@ async function verifyAuctionByContentIndex(contentIndex) {
 async function deploySystem() {
   console.log("========== DEPLOYING SYSTEM CONTRACTS ==========\n");
 
-  // 1. Deploy tokens (mocks for testing)
-  await deployMockUSDC();
+  // 1. USDC already deployed, skip MockUSDC deployment
+  // await deployMockUSDC();
 
   // 2. Deploy factories
-  await deployUnitFactory();
+  await deployCoinFactory();
   await deployContentFactory();
   await deployMinterFactory();
   await deployRewarderFactory();
@@ -619,7 +619,7 @@ async function verifySystem() {
 
   await verifyMockUSDC();
   await sleep(5000);
-  await verifyUnitFactory();
+  await verifyCoinFactory();
   await sleep(5000);
   await verifyContentFactory();
   await sleep(5000);
@@ -638,10 +638,10 @@ async function verifySystem() {
 
 async function verifyStickrContracts(contentIndex) {
   console.log(
-    `========== VERIFYING STICKR CHANNEL (index ${contentIndex}) ==========\n`
+    `========== VERIFYING STICKR CHANNEL (index ${contentIndex}) ==========\n`,
   );
 
-  await verifyUnitByContentIndex(contentIndex);
+  await verifyCoinByContentIndex(contentIndex);
   await sleep(5000);
   await verifyContentByIndex(contentIndex);
   await sleep(5000);
@@ -706,32 +706,32 @@ async function printDeployment() {
   console.log("\n--- Deployed Contracts ---");
   console.log(
     "MockUSDC:            ",
-    mockUsdc?.address || MOCK_USDC || "NOT DEPLOYED (using real USDC)"
+    mockUsdc?.address || MOCK_USDC || "NOT DEPLOYED (using real USDC)",
   );
   console.log(
-    "UnitFactory:         ",
-    unitFactory?.address || UNIT_FACTORY || "NOT DEPLOYED"
+    "CoinFactory:         ",
+    coinFactory?.address || COIN_FACTORY || "NOT DEPLOYED",
   );
   console.log(
     "ContentFactory:      ",
-    contentFactory?.address || CONTENT_FACTORY || "NOT DEPLOYED"
+    contentFactory?.address || CONTENT_FACTORY || "NOT DEPLOYED",
   );
   console.log(
     "MinterFactory:       ",
-    minterFactory?.address || MINTER_FACTORY || "NOT DEPLOYED"
+    minterFactory?.address || MINTER_FACTORY || "NOT DEPLOYED",
   );
   console.log(
     "RewarderFactory:     ",
-    rewarderFactory?.address || REWARDER_FACTORY || "NOT DEPLOYED"
+    rewarderFactory?.address || REWARDER_FACTORY || "NOT DEPLOYED",
   );
   console.log(
     "AuctionFactory:      ",
-    auctionFactory?.address || AUCTION_FACTORY || "NOT DEPLOYED"
+    auctionFactory?.address || AUCTION_FACTORY || "NOT DEPLOYED",
   );
   console.log("Core:                ", core?.address || CORE || "NOT DEPLOYED");
   console.log(
     "Multicall:           ",
-    multicall?.address || MULTICALL || "NOT DEPLOYED"
+    multicall?.address || MULTICALL || "NOT DEPLOYED",
   );
 
   if (core) {
@@ -740,11 +740,11 @@ async function printDeployment() {
     console.log("Protocol Fee Address:", await core.protocolFeeAddress());
     console.log(
       "Min Quote:           ",
-      divDec(await core.minQuoteForLaunch(), 6)
+      divDec(await core.minQuoteForLaunch(), 6),
     );
     console.log(
       "Deployed Contents:   ",
-      (await core.contentsLength()).toString()
+      (await core.contentsLength()).toString(),
     );
   }
 
@@ -758,16 +758,16 @@ async function printCoreState() {
   console.log("Quote (USDC):        ", await core.quote());
   console.log(
     "Min Quote:           ",
-    divDec(await core.minQuoteForLaunch(), 6)
+    divDec(await core.minQuoteForLaunch(), 6),
   );
-  console.log("Unit Factory:        ", await core.unitFactory());
+  console.log("Coin Factory:        ", await core.coinFactory());
   console.log("Content Factory:     ", await core.contentFactory());
   console.log("Minter Factory:      ", await core.minterFactory());
   console.log("Rewarder Factory:    ", await core.rewarderFactory());
   console.log("Auction Factory:     ", await core.auctionFactory());
   console.log(
     "Deployed Contents:   ",
-    (await core.contentsLength()).toString()
+    (await core.contentsLength()).toString(),
   );
   console.log("");
 }
@@ -775,24 +775,24 @@ async function printCoreState() {
 async function printContentInfo(contentIndex) {
   const contentAddress = await core.contents(contentIndex);
   const contentContract = await ethers.getContractAt("Content", contentAddress);
-  const unitAddress = await contentContract.unit();
-  const unitContract = await ethers.getContractAt("Unit", unitAddress);
-  const minterAddress = await unitContract.minter();
+  const coinAddress = await contentContract.coin();
+  const coinContract = await ethers.getContractAt("Coin", coinAddress);
+  const minterAddress = await coinContract.minter();
   const rewarderAddress = await contentContract.rewarder();
   const auctionAddress = await core.contentToAuction(contentAddress);
   const lpAddress = await core.contentToLP(contentAddress);
 
   const content = await ethers.getContractAt(
     "contracts/Content.sol:Content",
-    contentAddress
+    contentAddress,
   );
-  const unit = await ethers.getContractAt(
-    "contracts/Unit.sol:Unit",
-    unitAddress
+  const coin = await ethers.getContractAt(
+    "contracts/Coin.sol:Coin",
+    coinAddress,
   );
   const minter = await ethers.getContractAt(
     "contracts/Minter.sol:Minter",
-    minterAddress
+    minterAddress,
   );
 
   console.log("\n--- Content #" + contentIndex + " ---");
@@ -801,13 +801,13 @@ async function printContentInfo(contentIndex) {
   console.log("  Symbol:            ", await content.symbol());
   console.log(
     "  Total Supply:      ",
-    (await content.totalSupply()).toString()
+    (await content.totalSupply()).toString(),
   );
   console.log("  Is Moderated:      ", await content.isModerated());
   console.log("  Treasury:          ", await content.treasury());
   console.log("  Team:              ", await content.team());
-  console.log("Unit:                ", unitAddress);
-  console.log("  Total Supply:      ", divDec(await unit.totalSupply()));
+  console.log("Coin:                ", coinAddress);
+  console.log("  Total Supply:      ", divDec(await coin.totalSupply()));
   console.log("Minter:              ", minterAddress);
   console.log("  Weekly Emission:   ", divDec(await minter.weeklyEmission()));
   console.log("  Current UPS:       ", (await minter.getUps()).toString());
@@ -827,7 +827,7 @@ async function main() {
   console.log(
     "Account balance:",
     ethers.utils.formatEther(await wallet.getBalance()),
-    "ETH"
+    "ETH",
   );
   console.log("");
 
@@ -837,7 +837,7 @@ async function main() {
   // 1. Deploy System Contracts
   //===================================================================
 
-  // await deploySystem();
+  await deploySystem();
 
   //===================================================================
   // 2. Verify System Contracts

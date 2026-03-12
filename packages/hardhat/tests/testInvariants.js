@@ -18,7 +18,7 @@ async function getAuctionData(content, tokenId) {
 describe("Invariant Tests", function () {
   let owner, user1, user2, user3, user4, user5;
   let usdc, donut, core;
-  let content, minter, rewarder, auction, unit, lpToken;
+  let content, minter, rewarder, auction, coin, lpToken;
 
   const WEEK = 7 * 24 * 60 * 60;
   const DAY = 24 * 60 * 60;
@@ -41,7 +41,7 @@ describe("Invariant Tests", function () {
     const mockUniswapRouterArtifact = await ethers.getContractFactory("MockUniswapV2Router");
     const uniswapRouter = await mockUniswapRouterArtifact.deploy(uniswapFactory.address);
 
-    const unitFactory = await (await ethers.getContractFactory("UnitFactory")).deploy();
+    const coinFactory = await (await ethers.getContractFactory("CoinFactory")).deploy();
     const contentFactory = await (await ethers.getContractFactory("ContentFactory")).deploy();
     const minterFactory = await (await ethers.getContractFactory("MinterFactory")).deploy();
     const rewarderFactory = await (await ethers.getContractFactory("RewarderFactory")).deploy();
@@ -51,7 +51,7 @@ describe("Invariant Tests", function () {
       usdc.address,
       uniswapFactory.address,
       uniswapRouter.address,
-      unitFactory.address,
+      coinFactory.address,
       contentFactory.address,
       minterFactory.address,
       auctionFactory.address,
@@ -71,7 +71,7 @@ describe("Invariant Tests", function () {
       tokenSymbol: "ITEST",
       uri: "https://test.com",
       quoteAmount: convert("1000", 6),
-      unitAmount: convert("1000000", 18),
+      coinAmount: convert("1000000", 18),
       initialUps: convert("1", 18),
       tailUps: convert("0.01", 18),
       halvingPeriod: WEEK,
@@ -86,7 +86,7 @@ describe("Invariant Tests", function () {
     const receipt = await tx.wait();
     const launchEvent = receipt.events.find((e) => e.event === "Core__Launched");
     content = await ethers.getContractAt("Content", launchEvent.args.content);
-    unit = await ethers.getContractAt("Unit", launchEvent.args.unit);
+    coin = await ethers.getContractAt("Coin", launchEvent.args.coin);
     minter = await ethers.getContractAt("Minter", launchEvent.args.minter);
     rewarder = await ethers.getContractAt("Rewarder", launchEvent.args.rewarder);
     auction = await ethers.getContractAt("Auction", launchEvent.args.auction);
@@ -388,14 +388,14 @@ describe("Invariant Tests", function () {
         await ethers.provider.send("evm_mine");
         await minter.updatePeriod();
 
-        let prevEarned = await rewarder.earned(user4.address, unit.address);
+        let prevEarned = await rewarder.earned(user4.address, coin.address);
 
         // Check that earned only increases over time
         for (let i = 0; i < 5; i++) {
           await ethers.provider.send("evm_increaseTime", [DAY]);
           await ethers.provider.send("evm_mine");
 
-          const currentEarned = await rewarder.earned(user4.address, unit.address);
+          const currentEarned = await rewarder.earned(user4.address, coin.address);
           expect(currentEarned).to.be.gte(prevEarned);
           prevEarned = currentEarned;
         }
@@ -408,14 +408,14 @@ describe("Invariant Tests", function () {
       await ethers.provider.send("evm_mine");
       await minter.updatePeriod();
 
-      let prevLeft = await rewarder.left(unit.address);
+      let prevLeft = await rewarder.left(coin.address);
 
       // Left should decrease as time passes
       for (let i = 0; i < 5; i++) {
         await ethers.provider.send("evm_increaseTime", [DAY]);
         await ethers.provider.send("evm_mine");
 
-        const currentLeft = await rewarder.left(unit.address);
+        const currentLeft = await rewarder.left(coin.address);
         if (prevLeft.gt(0)) {
           expect(currentLeft).to.be.lte(prevLeft);
         }
@@ -479,26 +479,26 @@ describe("Invariant Tests", function () {
     });
   });
 
-  describe("Unit Token Invariants", function () {
+  describe("Coin Token Invariants", function () {
     it("INVARIANT: Only minter can mint", async function () {
-      const minterAddress = await unit.minter();
+      const minterAddress = await coin.minter();
       expect(minterAddress).to.equal(minter.address);
 
       // Non-minter cannot mint
       await expect(
-        unit.connect(user1).mint(user1.address, convert("1000", 18))
+        coin.connect(user1).mint(user1.address, convert("1000", 18))
       ).to.be.reverted;
     });
 
     it("INVARIANT: Minter address is effectively immutable", async function () {
       // Minter contract has no setMinter function
-      // So once Unit.setMinter is called with Minter address, it's locked
-      const minterAddress = await unit.minter();
+      // So once Coin.setMinter is called with Minter address, it's locked
+      const minterAddress = await coin.minter();
       expect(minterAddress).to.equal(minter.address);
 
       // Cannot change from any account
       await expect(
-        unit.connect(owner).setMinter(user1.address)
+        coin.connect(owner).setMinter(user1.address)
       ).to.be.reverted;
     });
   });
@@ -509,8 +509,8 @@ describe("Invariant Tests", function () {
       expect(isDeployed).to.be.true;
 
       // Verify child contracts are accessible from Content
-      const contentUnit = await content.unit();
-      expect(contentUnit).to.equal(unit.address);
+      const contentCoin = await content.coin();
+      expect(contentCoin).to.equal(coin.address);
 
       const contentRewarder = await content.rewarder();
       expect(contentRewarder).to.equal(rewarder.address);
@@ -544,16 +544,16 @@ describe("Invariant Tests", function () {
       expect(contentRewarder).to.equal(rewarder.address);
     });
 
-    it("INVARIANT: Content.unit is not zero address", async function () {
-      const contentUnit = await content.unit();
-      expect(contentUnit).to.not.equal(AddressZero);
-      expect(contentUnit).to.equal(unit.address);
+    it("INVARIANT: Content.coin is not zero address", async function () {
+      const contentCoin = await content.coin();
+      expect(contentCoin).to.not.equal(AddressZero);
+      expect(contentCoin).to.equal(coin.address);
     });
 
-    it("INVARIANT: Minter.unit matches Content.unit", async function () {
-      const minterUnit = await minter.unit();
-      const contentUnit = await content.unit();
-      expect(minterUnit).to.equal(contentUnit);
+    it("INVARIANT: Minter.coin matches Content.coin", async function () {
+      const minterCoin = await minter.coin();
+      const contentCoin = await content.coin();
+      expect(minterCoin).to.equal(contentCoin);
     });
 
     it("INVARIANT: Minter.rewarder matches Content.rewarder", async function () {

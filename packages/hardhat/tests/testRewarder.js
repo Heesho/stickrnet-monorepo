@@ -17,8 +17,8 @@ async function getAuctionData(content, tokenId) {
 
 let owner, protocol, launcher, user1, user2, user3;
 let usdc, donut, core, multicall;
-let content, minter, rewarder, auction, unit, lpToken;
-let unitFactory, contentFactory, minterFactory, rewarderFactory, auctionFactory;
+let content, minter, rewarder, auction, coin, lpToken;
+let coinFactory, contentFactory, minterFactory, rewarderFactory, auctionFactory;
 let uniswapFactory, uniswapRouter;
 
 const WEEK = 7 * 24 * 60 * 60;
@@ -51,9 +51,9 @@ describe("Rewarder Tests", function () {
     console.log("- Uniswap V2 Router Initialized");
 
     // Deploy factories
-    const unitFactoryArtifact = await ethers.getContractFactory("UnitFactory");
-    unitFactory = await unitFactoryArtifact.deploy();
-    console.log("- UnitFactory Initialized");
+    const coinFactoryArtifact = await ethers.getContractFactory("CoinFactory");
+    coinFactory = await coinFactoryArtifact.deploy();
+    console.log("- CoinFactory Initialized");
 
     const contentFactoryArtifact = await ethers.getContractFactory("ContentFactory");
     contentFactory = await contentFactoryArtifact.deploy();
@@ -77,7 +77,7 @@ describe("Rewarder Tests", function () {
       usdc.address,
       uniswapFactory.address,
       uniswapRouter.address,
-      unitFactory.address,
+      coinFactory.address,
       contentFactory.address,
       minterFactory.address,
       auctionFactory.address,
@@ -98,11 +98,11 @@ describe("Rewarder Tests", function () {
 
     const launchParams = {
       launcher: launcher.address,
-      tokenName: "Test Unit",
-      tokenSymbol: "TUNIT",
+      tokenName: "Test Coin",
+      tokenSymbol: "TCOIN",
       uri: "https://example.com/metadata",
       quoteAmount: convert("500", 6),
-      unitAmount: convert("1000000", 18),
+      coinAmount: convert("1000000", 18),
       initialUps: convert("4", 18),
       tailUps: convert("0.01", 18),
       halvingPeriod: WEEK,
@@ -120,7 +120,7 @@ describe("Rewarder Tests", function () {
 
     const launchEvent = receipt.events.find((e) => e.event === "Core__Launched");
     content = await ethers.getContractAt("Content", launchEvent.args.content);
-    unit = await ethers.getContractAt("Unit", launchEvent.args.unit);
+    coin = await ethers.getContractAt("Coin", launchEvent.args.coin);
     minter = await ethers.getContractAt("Minter", launchEvent.args.minter);
     rewarder = await ethers.getContractAt("Rewarder", launchEvent.args.rewarder);
     auction = await ethers.getContractAt("Auction", launchEvent.args.auction);
@@ -143,9 +143,9 @@ describe("Rewarder Tests", function () {
       expect(await rewarder.totalSupply()).to.equal(0);
     });
 
-    it("Should have reward token added (unit only)", async function () {
+    it("Should have reward token added (coin only)", async function () {
       expect(await rewarder.rewardTokensLength()).to.equal(1);
-      expect(await rewarder.tokenToIsReward(unit.address)).to.be.true;
+      expect(await rewarder.tokenToIsReward(coin.address)).to.be.true;
     });
   });
 
@@ -222,9 +222,9 @@ describe("Rewarder Tests", function () {
       await minter.updatePeriod();
 
       // Check that there are rewards to claim
-      const leftUnit = await rewarder.left(unit.address);
-      console.log("Unit rewards left:", divDec(leftUnit));
-      expect(leftUnit).to.be.gt(0);
+      const leftCoin = await rewarder.left(coin.address);
+      console.log("Coin rewards left:", divDec(leftCoin));
+      expect(leftCoin).to.be.gt(0);
     });
 
     it("Should allow users to claim earned rewards", async function () {
@@ -232,19 +232,19 @@ describe("Rewarder Tests", function () {
       await ethers.provider.send("evm_increaseTime", [DAY]);
       await ethers.provider.send("evm_mine");
 
-      const earned = await rewarder.earned(user2.address, unit.address);
+      const earned = await rewarder.earned(user2.address, coin.address);
       console.log("User2 earned:", divDec(earned));
       expect(earned).to.be.gt(0);
 
-      const balanceBefore = await unit.balanceOf(user2.address);
+      const balanceBefore = await coin.balanceOf(user2.address);
       await rewarder['getReward(address)'](user2.address);
-      const balanceAfter = await unit.balanceOf(user2.address);
+      const balanceAfter = await coin.balanceOf(user2.address);
 
       expect(balanceAfter.sub(balanceBefore)).to.be.closeTo(earned, earned.div(100));
     });
 
     it("Should reset pending rewards after claim", async function () {
-      const earnedAfter = await rewarder.earned(user2.address, unit.address);
+      const earnedAfter = await rewarder.earned(user2.address, coin.address);
       expect(earnedAfter).to.be.lt(convert("0.001", 18));
     });
 
@@ -286,8 +286,8 @@ describe("Rewarder Tests", function () {
       await ethers.provider.send("evm_increaseTime", [DAY]);
       await ethers.provider.send("evm_mine");
 
-      const earned2 = await rewarder.earned(user2.address, unit.address);
-      const earned3 = await rewarder.earned(user3.address, unit.address);
+      const earned2 = await rewarder.earned(user2.address, coin.address);
+      const earned3 = await rewarder.earned(user3.address, coin.address);
       console.log("User2 earned:", divDec(earned2));
       console.log("User3 earned:", divDec(earned3));
 
@@ -307,8 +307,8 @@ describe("Rewarder Tests", function () {
     });
 
     it("Should revert when adding duplicate reward token", async function () {
-      // Try to add unit again via content owner
-      await expect(content.connect(launcher).addReward(unit.address)).to.be.revertedWith(
+      // Try to add coin again via content owner
+      await expect(content.connect(launcher).addReward(coin.address)).to.be.revertedWith(
         "Rewarder__RewardTokenAlreadyAdded()"
       );
     });
@@ -316,13 +316,13 @@ describe("Rewarder Tests", function () {
 
   describe("View Functions", function () {
     it("Should return correct left() when rewards are streaming", async function () {
-      const leftBefore = await rewarder.left(unit.address);
+      const leftBefore = await rewarder.left(coin.address);
       console.log("Left before:", divDec(leftBefore));
 
       await ethers.provider.send("evm_increaseTime", [DAY]);
       await ethers.provider.send("evm_mine");
 
-      const leftAfter = await rewarder.left(unit.address);
+      const leftAfter = await rewarder.left(coin.address);
       console.log("Left after:", divDec(leftAfter));
 
       expect(leftAfter).to.be.lt(leftBefore);
@@ -333,7 +333,7 @@ describe("Rewarder Tests", function () {
       await ethers.provider.send("evm_increaseTime", [8 * DAY]);
       await ethers.provider.send("evm_mine");
 
-      expect(await rewarder.left(unit.address)).to.equal(0);
+      expect(await rewarder.left(coin.address)).to.equal(0);
     });
 
     it("Should return correct rewardTokensLength", async function () {
@@ -344,9 +344,9 @@ describe("Rewarder Tests", function () {
   describe("Edge Cases", function () {
     it("Should handle claiming with no earned rewards", async function () {
       // User1 has no stake, claiming should succeed but transfer nothing
-      const balanceBefore = await unit.balanceOf(user1.address);
+      const balanceBefore = await coin.balanceOf(user1.address);
       await rewarder['getReward(address)'](user1.address);
-      const balanceAfter = await unit.balanceOf(user1.address);
+      const balanceAfter = await coin.balanceOf(user1.address);
 
       expect(balanceAfter).to.equal(balanceBefore);
     });

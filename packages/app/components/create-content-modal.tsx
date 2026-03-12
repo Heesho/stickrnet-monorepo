@@ -1,0 +1,470 @@
+"use client";
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import { X, Loader2, AlertCircle, ImagePlus, Plus } from "lucide-react";
+import { encodeFunctionData } from "viem";
+import { useFarcaster } from "@/hooks/useFarcaster";
+import { useBatchedTransaction, type Call } from "@/hooks/useBatchedTransaction";
+import { CONTENT_ABI } from "@/lib/contracts";
+import { TokenLogo } from "@/components/token-logo";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+type Tab = "media" | "text";
+
+type CreateContentModalProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  contentAddress: `0x${string}`;
+  isModerated?: boolean;
+  onSuccess?: () => void;
+  tokenSymbol?: string;
+  logoUrl?: string | null;
+};
+
+const TITLE_MAX = 150;
+const BODY_MAX = 500;
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+export function CreateContentModal({
+  isOpen,
+  onClose,
+  contentAddress,
+  isModerated = false,
+  onSuccess,
+  tokenSymbol = "",
+  logoUrl,
+}: CreateContentModalProps) {
+  const [tab, setTab] = useState<Tab>("media");
+
+  // Media tab state
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+  const [caption, setCaption] = useState("");
+
+  // Text tab state
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+
+  // Upload state
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { address: account } = useFarcaster();
+  const { execute, status, txHash, error: txError, reset } = useBatchedTransaction();
+
+  // Reset on open
+  useEffect(() => {
+    if (isOpen) {
+      setTab("media");
+      setMediaFile(null);
+      setMediaPreview(null);
+      setCaption("");
+      setTitle("");
+      setBody("");
+      setUploading(false);
+      setUploadError(null);
+      reset();
+    }
+  }, [isOpen, reset]);
+
+  // Auto-reset on tx error
+  useEffect(() => {
+    if (status !== "error") return;
+    const isRejection =
+      txError?.message?.includes("User rejected") ||
+      txError?.message?.includes("User denied");
+    const timer = setTimeout(() => reset(), isRejection ? 2000 : 5000);
+    return () => clearTimeout(timer);
+  }, [status, txError, reset]);
+
+  // Handle file selection
+  const handleFileSelect = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      setMediaFile(file);
+      setUploadError(null);
+      const url = URL.createObjectURL(file);
+      setMediaPreview(url);
+    },
+    [],
+  );
+
+  // Cleanup preview URL
+  useEffect(() => {
+    return () => {
+      if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+    };
+  }, [mediaPreview]);
+
+  // Upload media file to IPFS
+  const uploadMedia = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch("/api/pinata/upload", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Upload failed");
+    return data.ipfsUrl;
+  };
+
+  // Upload metadata JSON to IPFS
+  const uploadMetadata = async (
+    metadata: Record<string, unknown>,
+  ): Promise<string> => {
+    const res = await fetch("/api/pinata/metadata", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(metadata),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Metadata upload failed");
+    return data.ipfsUrl;
+  };
+
+  // Submit handler
+  const handleSubmit = useCallback(async () => {
+    if (!account || status === "pending" || uploading) return;
+
+    try {
+      setUploading(true);
+      setUploadError(null);
+
+      let contentUri: string;
+
+      if (tab === "media") {
+        if (!mediaFile) return;
+        const imageUri = await uploadMedia(mediaFile);
+        contentUri = await uploadMetadata({
+          name: caption.trim() || "Sticker",
+          symbol: tokenSymbol || "STICKER",
+          image: imageUri,
+          description: caption.trim(),
+        });
+      } else {
+        if (!title.trim()) return;
+        contentUri = await uploadMetadata({
+          name: title.trim(),
+          symbol: tokenSymbol || "STICKER",
+          description: body.trim(),
+        });
+      }
+
+      setUploading(false);
+
+      const data = encodeFunctionData({
+        abi: CONTENT_ABI,
+        functionName: "create",
+        args: [account, contentUri],
+      });
+
+      const calls: Call[] = [{ to: contentAddress, data, value: 0n }];
+      await execute(calls);
+    } catch (err) {
+      setUploading(false);
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
+    }
+  }, [
+    account,
+    tab,
+    mediaFile,
+    caption,
+    title,
+    body,
+    tokenSymbol,
+    contentAddress,
+    execute,
+    status,
+    uploading,
+  ]);
+
+  // Notify parent on success
+  useEffect(() => {
+    if (status === "success") onSuccess?.();
+  }, [status, onSuccess]);
+
+
+  if (!isOpen) return null;
+
+  const isPending = status === "pending" || uploading;
+  const isSuccess = status === "success";
+  const canSubmit =
+    !!account &&
+    !isPending &&
+    !isSuccess &&
+    (tab === "media" ? !!mediaFile : title.trim().length > 0);
+
+  const errorMsg =
+    uploadError ||
+    (txError
+      ? (() => {
+          const msg = txError?.message || "";
+          if (
+            msg.includes("rejected") ||
+            msg.includes("denied") ||
+            msg.includes("cancelled")
+          )
+            return "Transaction cancelled";
+          return "Something went wrong";
+        })()
+      : null);
+
+  // Success screen
+  if (isSuccess) {
+    return (
+      <div className="fixed inset-0 z-[100] flex h-screen w-screen justify-center bg-zinc-800">
+        <div
+          className="relative flex h-full w-full max-w-[520px] flex-col bg-background items-center justify-center px-6"
+          style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)" }}
+        >
+          <div className="text-center space-y-6 max-w-xs">
+            {mediaPreview && (
+              <div className="flex justify-center">
+                <img
+                  src={mediaPreview}
+                  alt={caption || "Sticker"}
+                  className="w-24 h-24 rounded-none object-cover ring-2 ring-zinc-800"
+                />
+              </div>
+            )}
+
+            <div>
+              <h2 className="text-2xl font-bold text-white mb-2 font-display">
+                Sticker Added!
+              </h2>
+              <p className="text-foreground/60 text-[15px]">
+                {caption?.trim() || title?.trim() || "Your sticker"} is now live
+                {isModerated ? " (pending approval)" : ""}
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-2 w-full">
+              <button
+                onClick={onClose}
+                className="block w-full py-3.5 px-4 bg-white text-black font-semibold font-display text-[15px] rounded-none hover:bg-zinc-200 transition-colors"
+              >
+                Done
+              </button>
+              {txHash && (
+                <a
+                  href={`https://basescan.org/tx/${txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full py-3.5 px-4 bg-zinc-800 text-white font-semibold font-display text-[15px] rounded-none hover:bg-zinc-800/80 transition-colors"
+                >
+                  View on Basescan
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] flex h-screen w-screen justify-center bg-zinc-800">
+      <div
+        className="relative flex h-full w-full max-w-[520px] flex-col bg-background"
+        style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)" }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 pb-2">
+          <button
+            onClick={onClose}
+            className="p-2 -ml-2 rounded-none hover:bg-secondary transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <span className="text-base font-semibold font-display">Add Sticker</span>
+          <div className="w-9" />
+        </div>
+
+        {/* Tab Switcher */}
+        <div className="flex px-4 mb-4 gap-0">
+          <button
+            onClick={() => setTab("media")}
+            className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-none text-[13px] font-medium font-display transition-all ${
+              tab === "media"
+                ? "bg-white text-black"
+                : "bg-secondary text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <ImagePlus className="w-3.5 h-3.5" />
+            Media
+          </button>
+          <button
+            onClick={() => setTab("text")}
+            className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-none text-[13px] font-medium font-display transition-all ${
+              tab === "text"
+                ? "bg-white text-black"
+                : "bg-secondary text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Text
+          </button>
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1 flex flex-col px-4 min-h-0 overflow-y-auto scrollbar-hide">
+          {tab === "media" ? (
+            <>
+              {/* Upload Area */}
+              {!mediaPreview ? (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex flex-col items-center justify-center py-12 bg-secondary rounded-none mb-4 hover:bg-secondary/80 transition-colors"
+                >
+                  <ImagePlus className="w-8 h-8 text-muted-foreground mb-2" />
+                  <span className="text-[13px] text-muted-foreground">
+                    Upload image, video or gif
+                  </span>
+                </button>
+              ) : (
+                <div className="relative mb-4 rounded-none overflow-hidden aspect-square">
+                  <img
+                    src={mediaPreview}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                  />
+                  <button
+                    onClick={() => {
+                      setMediaFile(null);
+                      setMediaPreview(null);
+                      if (fileInputRef.current) fileInputRef.current.value = "";
+                    }}
+                    className="absolute top-2 right-2 p-1.5 bg-black/60 rounded-none hover:bg-black/80 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/*,.gif"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+
+              {/* Caption */}
+              <input
+                type="text"
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+                placeholder="Caption"
+                className="w-full h-12 px-4 rounded-none bg-secondary text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-zinc-800 text-sm"
+              />
+            </>
+          ) : (
+            <>
+              {/* Title */}
+              <div className="relative mb-3">
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) =>
+                    e.target.value.length <= TITLE_MAX &&
+                    setTitle(e.target.value)
+                  }
+                  placeholder="Title"
+                  className="w-full h-12 px-4 pr-16 rounded-none bg-secondary text-foreground text-[15px] font-semibold placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-zinc-800"
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground font-mono">
+                  {title.length} / {TITLE_MAX}
+                </span>
+              </div>
+
+              {/* Body */}
+              <div className="relative flex-1">
+                <textarea
+                  value={body}
+                  onChange={(e) =>
+                    e.target.value.length <= BODY_MAX && setBody(e.target.value)
+                  }
+                  placeholder="Post"
+                  className="w-full h-full min-h-[200px] px-4 py-3 rounded-none bg-secondary text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-zinc-800 text-[14px] resize-none"
+                />
+                {body.length > 0 && (
+                  <span className="absolute right-4 bottom-3 text-[11px] text-muted-foreground font-mono">
+                    {body.length} / {BODY_MAX}
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* Moderation Warning */}
+          {isModerated && (
+            <div className="px-3 py-2 rounded-none bg-zinc-800/10 border border-border flex items-start gap-2 mb-3 mt-4">
+              <AlertCircle className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+              <div>
+                <span className="text-[12px] font-medium text-foreground block">
+                  You&apos;re adding a Sticker to a moderated board
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  Moderators will check and approve your Sticker. If it&apos;s
+                  not approved, you&apos;ll get notified.
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Error */}
+          {errorMsg && (
+            <div className="px-3 py-2 rounded-none bg-zinc-800/10 border border-zinc-800/20 flex items-start gap-2 mb-3 mt-2">
+              <AlertCircle className="w-4 h-4 text-foreground/60 mt-0.5 flex-shrink-0" />
+              <span className="text-[12px] text-foreground/60">{errorMsg}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Submit Button */}
+        <div
+          className="px-4 pb-4"
+          style={{
+            paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 32px)",
+          }}
+        >
+          <button
+            disabled={!canSubmit}
+            onClick={handleSubmit}
+            className={`w-full h-9 rounded-none font-semibold font-display text-[14px] transition-all flex items-center justify-center gap-2 ${
+              !canSubmit
+                ? "bg-zinc-800 text-foreground/50 cursor-not-allowed"
+                : "bg-[#A78BFA] text-black hover:bg-[#9575D9]"
+            }`}
+          >
+            {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+            {isPending ? (
+              uploading ? (
+                "Uploading..."
+              ) : (
+                "Submitting..."
+              )
+            ) : (
+              <>
+                <Plus className="w-4 h-4" />
+                Add Sticker
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

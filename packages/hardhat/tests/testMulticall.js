@@ -17,8 +17,8 @@ async function getAuctionData(content, tokenId) {
 
 let owner, protocol, launcher, user1, user2;
 let usdc, donut, core, multicall;
-let content, minter, rewarder, auction, unit, lpToken;
-let unitFactory, contentFactory, minterFactory, rewarderFactory, auctionFactory;
+let content, minter, rewarder, auction, coin, lpToken;
+let coinFactory, contentFactory, minterFactory, rewarderFactory, auctionFactory;
 let uniswapFactory, uniswapRouter;
 
 const WEEK = 7 * 24 * 60 * 60;
@@ -51,9 +51,9 @@ describe("Multicall Tests", function () {
     console.log("- Uniswap V2 Router Initialized");
 
     // Deploy factories
-    const unitFactoryArtifact = await ethers.getContractFactory("UnitFactory");
-    unitFactory = await unitFactoryArtifact.deploy();
-    console.log("- UnitFactory Initialized");
+    const coinFactoryArtifact = await ethers.getContractFactory("CoinFactory");
+    coinFactory = await coinFactoryArtifact.deploy();
+    console.log("- CoinFactory Initialized");
 
     const contentFactoryArtifact = await ethers.getContractFactory("ContentFactory");
     contentFactory = await contentFactoryArtifact.deploy();
@@ -77,7 +77,7 @@ describe("Multicall Tests", function () {
       usdc.address,
       uniswapFactory.address,
       uniswapRouter.address,
-      unitFactory.address,
+      coinFactory.address,
       contentFactory.address,
       minterFactory.address,
       auctionFactory.address,
@@ -98,11 +98,11 @@ describe("Multicall Tests", function () {
 
     const launchParams = {
       launcher: launcher.address,
-      tokenName: "Test Unit",
-      tokenSymbol: "TUNIT",
+      tokenName: "Test Coin",
+      tokenSymbol: "TCOIN",
       uri: "https://example.com/metadata",
       quoteAmount: convert("500", 6),
-      unitAmount: convert("1000000", 18),
+      coinAmount: convert("1000000", 18),
       initialUps: convert("4", 18),
       tailUps: convert("0.01", 18),
       halvingPeriod: WEEK,
@@ -120,7 +120,7 @@ describe("Multicall Tests", function () {
 
     const launchEvent = receipt.events.find((e) => e.event === "Core__Launched");
     content = await ethers.getContractAt("Content", launchEvent.args.content);
-    unit = await ethers.getContractAt("Unit", launchEvent.args.unit);
+    coin = await ethers.getContractAt("Coin", launchEvent.args.coin);
     minter = await ethers.getContractAt("Minter", launchEvent.args.minter);
     rewarder = await ethers.getContractAt("Rewarder", launchEvent.args.rewarder);
     auction = await ethers.getContractAt("Auction", launchEvent.args.auction);
@@ -152,12 +152,12 @@ describe("Multicall Tests", function () {
     });
   });
 
-  describe("getUnitState()", function () {
-    it("Should return correct unit state", async function () {
-      const state = await multicall.getUnitState(content.address, user1.address);
+  describe("getCoinState()", function () {
+    it("Should return correct coin state", async function () {
+      const state = await multicall.getCoinState(content.address, user1.address);
 
       expect(state.index).to.equal(0);
-      expect(state.unit).to.equal(unit.address);
+      expect(state.coin).to.equal(coin.address);
       expect(state.quote).to.equal(usdc.address);
       expect(state.launcher).to.equal(launcher.address);
       expect(state.minter).to.equal(minter.address);
@@ -173,17 +173,17 @@ describe("Multicall Tests", function () {
       // Give user1 some tokens
       await usdc.mint(user1.address, convert("10", 6));
 
-      const state = await multicall.getUnitState(content.address, user1.address);
+      const state = await multicall.getCoinState(content.address, user1.address);
 
       expect(state.accountQuoteBalance).to.be.gte(convert("10", 6));
-      // Note: accountUnitBalance may be 0 if user1 hasn't received any unit tokens yet
+      // Note: accountCoinBalance may be 0 if user1 hasn't received any coin tokens yet
     });
 
     it("Should return zero balances when account is zero address", async function () {
-      const state = await multicall.getUnitState(content.address, AddressZero);
+      const state = await multicall.getCoinState(content.address, AddressZero);
 
       expect(state.accountQuoteBalance).to.equal(0);
-      expect(state.accountUnitBalance).to.equal(0);
+      expect(state.accountCoinBalance).to.equal(0);
       expect(state.accountContentOwned).to.equal(0);
       expect(state.accountContentStaked).to.equal(0);
     });
@@ -201,7 +201,7 @@ describe("Multicall Tests", function () {
       await content.connect(user2).collect(user2.address, tokenId, epochId, (await ethers.provider.getBlock("latest")).timestamp + 1000, price);
 
       // Check accountContentStaked matches rewarder balance (stake in rewarder)
-      const state = await multicall.getUnitState(content.address, user2.address);
+      const state = await multicall.getCoinState(content.address, user2.address);
       const rewarderBalance = await rewarder.accountToBalance(user2.address);
       expect(state.accountContentStaked).to.equal(rewarderBalance);
       expect(state.accountContentStaked).to.be.gt(0);
@@ -209,9 +209,9 @@ describe("Multicall Tests", function () {
     });
 
     it("Should calculate market cap and liquidity correctly", async function () {
-      const state = await multicall.getUnitState(content.address, AddressZero);
+      const state = await multicall.getCoinState(content.address, AddressZero);
 
-      // LP was seeded with 500 DONUT and 1M Unit
+      // LP was seeded with 500 DONUT and 1M Coin
       // priceInQuote = donutInLP * 1e18 / unitInLP
       // liquidityInQuote = donutInLP * 2
       expect(state.priceInQuote).to.be.gt(0);
@@ -326,9 +326,9 @@ describe("Multicall Tests", function () {
       await ethers.provider.send("evm_increaseTime", [DAY]);
       await ethers.provider.send("evm_mine");
 
-      const balanceBefore = await unit.balanceOf(user2.address);
+      const balanceBefore = await coin.balanceOf(user2.address);
       await multicall.connect(user2).claimRewards(content.address);
-      const balanceAfter = await unit.balanceOf(user2.address);
+      const balanceAfter = await coin.balanceOf(user2.address);
 
       // Should have received some rewards
       expect(balanceAfter).to.be.gte(balanceBefore);
@@ -339,11 +339,11 @@ describe("Multicall Tests", function () {
     it("Should launch content engine through multicall", async function () {
       const launchParams = {
         launcher: user1.address,
-        tokenName: "Multicall Unit",
-        tokenSymbol: "MUNIT",
+        tokenName: "Multicall Coin",
+        tokenSymbol: "MCOIN",
         uri: "ipfs://multicall-test",
         quoteAmount: convert("500", 6),
-        unitAmount: convert("500000", 18),
+        coinAmount: convert("500000", 18),
         initialUps: convert("2", 18),
         tailUps: convert("0.005", 18),
         halvingPeriod: WEEK,
@@ -371,11 +371,11 @@ describe("Multicall Tests", function () {
     it("Should use msg.sender as launcher", async function () {
       const launchParams = {
         launcher: owner.address, // This gets overwritten
-        tokenName: "Multicall Unit 2",
-        tokenSymbol: "MUNIT2",
+        tokenName: "Multicall Coin 2",
+        tokenSymbol: "MCOIN2",
         uri: "ipfs://multicall-test-2",
         quoteAmount: convert("500", 6),
-        unitAmount: convert("500000", 18),
+        coinAmount: convert("500000", 18),
         initialUps: convert("2", 18),
         tailUps: convert("0.005", 18),
         halvingPeriod: WEEK,
@@ -412,8 +412,8 @@ describe("Multicall Tests", function () {
 
   describe("Edge Cases", function () {
     it("Should handle zero address account in view functions", async function () {
-      const unitState = await multicall.getUnitState(content.address, AddressZero);
-      expect(unitState.accountQuoteBalance).to.equal(0);
+      const coinState = await multicall.getCoinState(content.address, AddressZero);
+      expect(coinState.accountQuoteBalance).to.equal(0);
 
       const auctionState = await multicall.getAuctionState(content.address, AddressZero);
       expect(auctionState.accountQuoteBalance).to.equal(0);
@@ -421,16 +421,16 @@ describe("Multicall Tests", function () {
 
     it("Should return accountIsModerator correctly", async function () {
       // Owner is launcher
-      const stateForLauncher = await multicall.getUnitState(content.address, launcher.address);
+      const stateForLauncher = await multicall.getCoinState(content.address, launcher.address);
       expect(stateForLauncher.accountIsModerator).to.be.true;
 
       // Random user is not moderator
-      const stateForUser = await multicall.getUnitState(content.address, user1.address);
+      const stateForUser = await multicall.getCoinState(content.address, user1.address);
       expect(stateForUser.accountIsModerator).to.be.false;
 
       // Add user1 as moderator
       await content.connect(launcher).setModerators([user1.address], true);
-      const stateAfter = await multicall.getUnitState(content.address, user1.address);
+      const stateAfter = await multicall.getCoinState(content.address, user1.address);
       expect(stateAfter.accountIsModerator).to.be.true;
     });
   });

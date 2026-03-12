@@ -36,7 +36,7 @@ type Channel @entity(immutable: false) {
   launcher: Account!
 
   # Contract addresses
-  unit: Bytes!
+  coin: Bytes!
   minter: Bytes!
   rewarder: Bytes!
   auction: Bytes!
@@ -51,7 +51,7 @@ type Channel @entity(immutable: false) {
 
   # Launch parameters
   quoteAmount: BigDecimal!
-  unitAmount: BigDecimal!
+  coinAmount: BigDecimal!
   initialUps: BigInt!
   tailUps: BigInt!
   halvingPeriod: BigInt!
@@ -87,13 +87,13 @@ type Channel @entity(immutable: false) {
   protocolRevenue: BigDecimal!
 
   # Price data (from LP Sync events)
-  price: BigDecimal!                   # Current price in USDC (reserveQuote / reserveUnit)
-  reserveUnit: BigDecimal!             # Unit tokens in LP
+  price: BigDecimal!                   # Current price in USDC (reserveQuote / reserveCoin)
+  reserveCoin: BigDecimal!             # Coin tokens in LP
   reserveQuote: BigDecimal!            # USDC in LP
   liquidity: BigDecimal!               # USDC liquidity in LP
 
   # Volume data (from LP Swap events)
-  volumeUnit: BigDecimal!              # All-time Unit volume traded
+  volumeCoin: BigDecimal!              # All-time Coin volume traded
   volumeQuote: BigDecimal!             # All-time USDC volume traded
   swapTxCount: BigInt!                 # Total swap transactions
   lastSwapAt: BigInt!                  # Last swap timestamp
@@ -187,7 +187,7 @@ type ChannelDayData @entity(immutable: false) {
   high: BigDecimal!
   low: BigDecimal!
   close: BigDecimal!
-  volumeUnit: BigDecimal!
+  volumeCoin: BigDecimal!
   volumeQuote: BigDecimal!
   swapTxCount: BigInt!
   liquidity: BigDecimal!
@@ -205,7 +205,7 @@ type ChannelHourData @entity(immutable: false) {
   high: BigDecimal!
   low: BigDecimal!
   close: BigDecimal!
-  volumeUnit: BigDecimal!
+  volumeCoin: BigDecimal!
   volumeQuote: BigDecimal!
   swapTxCount: BigInt!
   liquidity: BigDecimal!
@@ -223,7 +223,7 @@ type ChannelMinuteData @entity(immutable: false) {
   high: BigDecimal!
   low: BigDecimal!
   close: BigDecimal!
-  volumeUnit: BigDecimal!
+  volumeCoin: BigDecimal!
   volumeQuote: BigDecimal!
   swapTxCount: BigInt!
   liquidity: BigDecimal!
@@ -263,9 +263,9 @@ type Swap @entity(immutable: true) {
 
   # Swap details
   type: String!                        # "buy" or "sell"
-  amountUnit: BigDecimal!              # Unit tokens swapped
+  amountCoin: BigDecimal!              # Coin tokens swapped
   amountQuote: BigDecimal!             # USDC swapped
-  price: BigDecimal!                   # Execution price (quote/unit)
+  price: BigDecimal!                   # Execution price (quote/coin)
 
   # Transaction
   timestamp: BigInt!

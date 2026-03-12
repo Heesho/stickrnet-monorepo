@@ -12,7 +12,7 @@ import {Minter} from "./Minter.sol";
 contract MinterFactory {
     /**
      * @notice Deploy a new Minter contract.
-     * @param _unit Unit token address
+     * @param _coin Coin token address
      * @param _rewarder Rewarder contract address
      * @param _initialUps Starting units per second
      * @param _tailUps Minimum units per second
@@ -20,14 +20,14 @@ contract MinterFactory {
      * @return Address of the newly deployed Minter
      */
     function deploy(
-        address _unit,
+        address _coin,
         address _rewarder,
         uint256 _initialUps,
         uint256 _tailUps,
         uint256 _halvingPeriod
     ) external returns (address) {
         Minter minter = new Minter(
-            _unit,
+            _coin,
             _rewarder,
             _initialUps,
             _tailUps,

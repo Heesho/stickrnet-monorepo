@@ -18,8 +18,8 @@ async function getAuctionData(content, tokenId) {
 
 let owner, protocol, user0, user1, user2, creator1, creator2;
 let usdc, donut, core, multicall;
-let content, minter, rewarder, auction, unit, lpToken;
-let unitFactory, contentFactory, minterFactory, rewarderFactory, auctionFactory;
+let content, minter, rewarder, auction, coin, lpToken;
+let coinFactory, contentFactory, minterFactory, rewarderFactory, auctionFactory;
 let uniswapFactory, uniswapRouter;
 
 describe("Content Tests", function () {
@@ -45,7 +45,7 @@ describe("Content Tests", function () {
     uniswapRouter = await mockUniswapRouterArtifact.deploy(uniswapFactory.address);
 
     // Deploy factories
-    unitFactory = await (await ethers.getContractFactory("UnitFactory")).deploy();
+    coinFactory = await (await ethers.getContractFactory("CoinFactory")).deploy();
     contentFactory = await (await ethers.getContractFactory("ContentFactory")).deploy();
     minterFactory = await (await ethers.getContractFactory("MinterFactory")).deploy();
     rewarderFactory = await (await ethers.getContractFactory("RewarderFactory")).deploy();
@@ -56,7 +56,7 @@ describe("Content Tests", function () {
       usdc.address,
       uniswapFactory.address,
       uniswapRouter.address,
-      unitFactory.address,
+      coinFactory.address,
       contentFactory.address,
       minterFactory.address,
       auctionFactory.address,
@@ -79,11 +79,11 @@ describe("Content Tests", function () {
     // Launch content engine
     const launchParams = {
       launcher: user0.address,
-      tokenName: "Test Unit",
-      tokenSymbol: "TUNIT",
+      tokenName: "Test Coin",
+      tokenSymbol: "TCOIN",
       uri: "https://example.com/metadata",
       quoteAmount: convert("500", 6),
-      unitAmount: convert("1000000", 18),
+      coinAmount: convert("1000000", 18),
       initialUps: convert("4", 18),
       tailUps: convert("0.01", 18),
       halvingPeriod: 86400 * 7,
@@ -101,7 +101,7 @@ describe("Content Tests", function () {
 
     const launchEvent = receipt.events.find((e) => e.event === "Core__Launched");
     content = launchEvent.args.content;
-    unit = launchEvent.args.unit;
+    coin = launchEvent.args.coin;
     minter = launchEvent.args.minter;
     rewarder = launchEvent.args.rewarder;
     auction = launchEvent.args.auction;
@@ -497,17 +497,17 @@ describe("Content Tests", function () {
 });
 
 describe("Content Moderation Tests", function () {
-  let moderatedContent, moderatedUnit, moderatedMinter, moderatedRewarder, moderatedAuction;
+  let moderatedContent, moderatedCoin, moderatedMinter, moderatedRewarder, moderatedAuction;
 
   before("Launch moderated content", async function () {
     // Launch a moderated content engine
     const launchParams = {
       launcher: user0.address,
-      tokenName: "Moderated Unit",
-      tokenSymbol: "MUNIT",
+      tokenName: "Moderated Coin",
+      tokenSymbol: "MCOIN",
       uri: "https://example.com/moderated",
       quoteAmount: convert("500", 6),
-      unitAmount: convert("1000000", 18),
+      coinAmount: convert("1000000", 18),
       initialUps: convert("4", 18),
       tailUps: convert("0.01", 18),
       halvingPeriod: 86400 * 7,
@@ -525,7 +525,7 @@ describe("Content Moderation Tests", function () {
 
     const launchEvent = receipt.events.find((e) => e.event === "Core__Launched");
     moderatedContent = launchEvent.args.content;
-    moderatedUnit = launchEvent.args.unit;
+    moderatedCoin = launchEvent.args.coin;
     moderatedMinter = launchEvent.args.minter;
     moderatedRewarder = launchEvent.args.rewarder;
     moderatedAuction = launchEvent.args.auction;

@@ -2,10 +2,10 @@
 pragma solidity 0.8.19;
 
 /**
- * @title IUnitFactory
+ * @title ICoinFactory
  * @author heesho
- * @notice Interface for the UnitFactory contract.
+ * @notice Interface for the CoinFactory contract.
  */
-interface IUnitFactory {
+interface ICoinFactory {
     function deploy(string calldata _tokenName, string calldata _tokenSymbol) external returns (address);
 }

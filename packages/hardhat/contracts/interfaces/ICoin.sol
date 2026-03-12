@@ -2,11 +2,11 @@
 pragma solidity 0.8.19;
 
 /**
- * @title IUnit
+ * @title ICoin
  * @author heesho
- * @notice Interface for the Unit token contract.
+ * @notice Interface for the Coin token contract.
  */
-interface IUnit {
+interface ICoin {
     function mint(address to, uint256 amount) external;
     function setMinter(address _minter) external;
     function minter() external view returns (address);

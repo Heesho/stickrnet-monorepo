@@ -11,7 +11,7 @@ interface IContentFactory {
         string memory _name,
         string memory _symbol,
         string memory _uri,
-        address _unit,
+        address _coin,
         address _quote,
         address _treasury,
         address _team,

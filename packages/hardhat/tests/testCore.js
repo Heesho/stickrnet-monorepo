@@ -9,8 +9,8 @@ const AddressDead = "0x000000000000000000000000000000000000dEaD";
 
 let owner, protocol, user0, user1, user2;
 let usdc, donut, core, multicall;
-let content, minter, rewarder, auction, unit, lpToken;
-let unitFactory, contentFactory, minterFactory, rewarderFactory, auctionFactory;
+let content, minter, rewarder, auction, coin, lpToken;
+let coinFactory, contentFactory, minterFactory, rewarderFactory, auctionFactory;
 let uniswapFactory, uniswapRouter;
 
 describe("Core Launch Tests", function () {
@@ -40,9 +40,9 @@ describe("Core Launch Tests", function () {
     console.log("- Uniswap V2 Router Initialized");
 
     // Deploy factories
-    const unitFactoryArtifact = await ethers.getContractFactory("UnitFactory");
-    unitFactory = await unitFactoryArtifact.deploy();
-    console.log("- UnitFactory Initialized");
+    const coinFactoryArtifact = await ethers.getContractFactory("CoinFactory");
+    coinFactory = await coinFactoryArtifact.deploy();
+    console.log("- CoinFactory Initialized");
 
     const contentFactoryArtifact = await ethers.getContractFactory("ContentFactory");
     contentFactory = await contentFactoryArtifact.deploy();
@@ -66,7 +66,7 @@ describe("Core Launch Tests", function () {
       usdc.address,
       uniswapFactory.address,
       uniswapRouter.address,
-      unitFactory.address,
+      coinFactory.address,
       contentFactory.address,
       minterFactory.address,
       auctionFactory.address,
@@ -102,11 +102,11 @@ describe("Core Launch Tests", function () {
 
     const launchParams = {
       launcher: user0.address,
-      tokenName: "Test Unit",
-      tokenSymbol: "TUNIT",
+      tokenName: "Test Coin",
+      tokenSymbol: "TCOIN",
       uri: "https://example.com/metadata",
       quoteAmount: convert("500", 6),
-      unitAmount: convert("1000000", 18),
+      coinAmount: convert("1000000", 18),
       initialUps: convert("4", 18), // 4 tokens per second
       tailUps: convert("0.01", 18),
       halvingPeriod: 86400 * 7, // 7 days (minimum)
@@ -128,14 +128,14 @@ describe("Core Launch Tests", function () {
     // Get deployed addresses from event
     const launchEvent = receipt.events.find((e) => e.event === "Core__Launched");
     content = launchEvent.args.content;
-    unit = launchEvent.args.unit;
+    coin = launchEvent.args.coin;
     minter = launchEvent.args.minter;
     rewarder = launchEvent.args.rewarder;
     auction = launchEvent.args.auction;
     lpToken = launchEvent.args.lpToken;
 
     console.log("Content deployed at:", content);
-    console.log("Unit token deployed at:", unit);
+    console.log("Coin token deployed at:", coin);
     console.log("Minter deployed at:", minter);
     console.log("Rewarder deployed at:", rewarder);
     console.log("Auction deployed at:", auction);
@@ -145,7 +145,7 @@ describe("Core Launch Tests", function () {
     expect(await core.isDeployedContent(content)).to.equal(true);
     const contentContract = await ethers.getContractAt("Content", content);
     expect(await contentContract.owner()).to.equal(user0.address);
-    expect(await contentContract.unit()).to.equal(unit);
+    expect(await contentContract.coin()).to.equal(coin);
     expect(await contentContract.rewarder()).to.equal(rewarder);
     expect(await core.contentToAuction(content)).to.equal(auction);
     expect(await core.contentToLP(content)).to.equal(lpToken);
@@ -159,11 +159,11 @@ describe("Core Launch Tests", function () {
     console.log("Content owner:", await contentContract.owner());
   });
 
-  it("Unit minting rights transferred to Minter", async function () {
+  it("Coin minting rights transferred to Minter", async function () {
     console.log("******************************************************");
-    const unitContract = await ethers.getContractAt("Unit", unit);
-    expect(await unitContract.minter()).to.equal(minter);
-    console.log("Unit minter:", await unitContract.minter());
+    const coinContract = await ethers.getContractAt("Coin", coin);
+    expect(await coinContract.minter()).to.equal(minter);
+    console.log("Coin minter:", await coinContract.minter());
   });
 
   it("LP tokens burned", async function () {
@@ -192,7 +192,7 @@ describe("Core Launch Tests", function () {
     console.log("******************************************************");
     const contentContract = await ethers.getContractAt("Content", content);
 
-    expect(await contentContract.unit()).to.equal(unit);
+    expect(await contentContract.coin()).to.equal(coin);
     expect(await contentContract.quote()).to.equal(usdc.address);
     expect(await contentContract.treasury()).to.equal(auction);
     expect(await contentContract.core()).to.equal(core.address);
@@ -206,7 +206,7 @@ describe("Core Launch Tests", function () {
     console.log("******************************************************");
     const minterContract = await ethers.getContractAt("Minter", minter);
 
-    expect(await minterContract.unit()).to.equal(unit);
+    expect(await minterContract.coin()).to.equal(coin);
     expect(await minterContract.rewarder()).to.equal(rewarder);
     expect(await minterContract.initialUps()).to.equal(convert("4", 18));
     expect(await minterContract.tailUps()).to.equal(convert("0.01", 18));
@@ -220,11 +220,11 @@ describe("Core Launch Tests", function () {
 
     const launchParams = {
       launcher: user0.address,
-      tokenName: "Test Unit 2",
-      tokenSymbol: "TUNIT2",
+      tokenName: "Test Coin 2",
+      tokenSymbol: "TCOIN2",
       uri: "https://example.com/metadata2",
       quoteAmount: convert("50", 6), // Less than minQuoteForLaunch (100)
-      unitAmount: convert("1000000", 18),
+      coinAmount: convert("1000000", 18),
       initialUps: convert("4", 18),
       tailUps: convert("0.01", 18),
       halvingPeriod: 86400 * 7,
@@ -249,11 +249,11 @@ describe("Core Launch Tests", function () {
 
     const launchParams = {
       launcher: AddressZero,
-      tokenName: "Test Unit 2",
-      tokenSymbol: "TUNIT2",
+      tokenName: "Test Coin 2",
+      tokenSymbol: "TCOIN2",
       uri: "https://example.com/metadata2",
       quoteAmount: convert("500", 6),
-      unitAmount: convert("1000000", 18),
+      coinAmount: convert("1000000", 18),
       initialUps: convert("4", 18),
       tailUps: convert("0.01", 18),
       halvingPeriod: 86400 * 7,
@@ -279,10 +279,10 @@ describe("Core Launch Tests", function () {
     const launchParams = {
       launcher: user0.address,
       tokenName: "",
-      tokenSymbol: "TUNIT2",
+      tokenSymbol: "TCOIN2",
       uri: "https://example.com/metadata2",
       quoteAmount: convert("500", 6),
-      unitAmount: convert("1000000", 18),
+      coinAmount: convert("1000000", 18),
       initialUps: convert("4", 18),
       tailUps: convert("0.01", 18),
       halvingPeriod: 86400 * 7,
@@ -307,11 +307,11 @@ describe("Core Launch Tests", function () {
 
     const launchParams = {
       launcher: user0.address,
-      tokenName: "Test Unit 2",
+      tokenName: "Test Coin 2",
       tokenSymbol: "",
       uri: "https://example.com/metadata2",
       quoteAmount: convert("500", 6),
-      unitAmount: convert("1000000", 18),
+      coinAmount: convert("1000000", 18),
       initialUps: convert("4", 18),
       tailUps: convert("0.01", 18),
       halvingPeriod: 86400 * 7,
@@ -331,16 +331,16 @@ describe("Core Launch Tests", function () {
     console.log("Launch correctly reverted with empty token symbol");
   });
 
-  it("Cannot launch with zero unit amount", async function () {
+  it("Cannot launch with zero coin amount", async function () {
     console.log("******************************************************");
 
     const launchParams = {
       launcher: user0.address,
-      tokenName: "Test Unit 2",
-      tokenSymbol: "TUNIT2",
+      tokenName: "Test Coin 2",
+      tokenSymbol: "TCOIN2",
       uri: "https://example.com/metadata2",
       quoteAmount: convert("500", 6),
-      unitAmount: 0,
+      coinAmount: 0,
       initialUps: convert("4", 18),
       tailUps: convert("0.01", 18),
       halvingPeriod: 86400 * 7,
@@ -355,9 +355,9 @@ describe("Core Launch Tests", function () {
     await usdc.connect(user0).approve(core.address, launchParams.quoteAmount);
 
     await expect(core.connect(user0).launch(launchParams)).to.be.revertedWith(
-      "Core__InvalidUnitAmount()"
+      "Core__InvalidCoinAmount()"
     );
-    console.log("Launch correctly reverted with zero unit amount");
+    console.log("Launch correctly reverted with zero coin amount");
   });
 
   it("Protocol owner can change protocol fee address", async function () {
@@ -397,11 +397,11 @@ describe("Core Launch Tests", function () {
 
     const launchParams = {
       launcher: user1.address,
-      tokenName: "Second Unit",
-      tokenSymbol: "SUNIT",
+      tokenName: "Second Coin",
+      tokenSymbol: "SCOIN",
       uri: "https://example.com/metadata2",
       quoteAmount: convert("500", 6),
-      unitAmount: convert("2000000", 18),
+      coinAmount: convert("2000000", 18),
       initialUps: convert("2", 18),
       tailUps: convert("0.005", 18),
       halvingPeriod: 86400 * 14, // 14 days

@@ -8,7 +8,7 @@ import {IMinter} from "./interfaces/IMinter.sol";
 import {IRewarder} from "./interfaces/IRewarder.sol";
 import {IAuction} from "./interfaces/IAuction.sol";
 import {ICore} from "./interfaces/ICore.sol";
-import {IUnit} from "./interfaces/IUnit.sol";
+import {ICoin} from "./interfaces/ICoin.sol";
 
 /**
  * @title Multicall
@@ -30,11 +30,11 @@ contract Multicall {
     /*----------  STRUCTS  ----------------------------------------------*/
 
     /**
-     * @notice Aggregated state for a Unit ecosystem.
+     * @notice Aggregated state for a Coin ecosystem.
      */
-    struct UnitState {
+    struct CoinState {
         uint256 index;
-        address unit;
+        address coin;
         address quote;
         address launcher;
         address minter;
@@ -49,10 +49,10 @@ contract Multicall {
         uint256 priceInQuote;
         uint256 contentRewardForDuration;
         uint256 accountQuoteBalance;
-        uint256 accountUnitBalance;
+        uint256 accountCoinBalance;
         uint256 accountContentOwned;
         uint256 accountContentStaked;
-        uint256 accountUnitEarned;
+        uint256 accountCoinEarned;
         uint256 accountClaimable;
         bool accountIsModerator;
     }
@@ -123,6 +123,10 @@ contract Multicall {
     ) external {
         if (!ICore(core).isDeployedContent(content)) revert Multicall__InvalidContent();
 
+        // Trigger weekly emission if a new period is due
+        address minter = ICoin(IContent(content).coin()).minter();
+        IMinter(minter).updatePeriod();
+
         // Get previous owner before collect
         address prevOwner = IContent(content).ownerOf(tokenId);
 
@@ -174,7 +178,7 @@ contract Multicall {
     function launch(ICore.LaunchParams calldata params)
         external
         returns (
-            address unit,
+            address coin,
             address content,
             address minter,
             address rewarder,
@@ -194,7 +198,7 @@ contract Multicall {
             tokenSymbol: params.tokenSymbol,
             uri: params.uri,
             quoteAmount: params.quoteAmount,
-            unitAmount: params.unitAmount,
+            coinAmount: params.coinAmount,
             initialUps: params.initialUps,
             tailUps: params.tailUps,
             halvingPeriod: params.halvingPeriod,
@@ -214,12 +218,12 @@ contract Multicall {
      * @param content Content contract address
      */
     function updateMinterPeriod(address content) external {
-        address minter = IUnit(IContent(content).unit()).minter();
+        address minter = ICoin(IContent(content).coin()).minter();
         IMinter(minter).updatePeriod();
     }
 
     /**
-     * @notice Claim all rewards (Unit from rewarder + fees from content).
+     * @notice Claim all rewards (Coin from rewarder + fees from content).
      * @param content Content contract address
      */
     function claimRewards(address content) external {
@@ -231,18 +235,18 @@ contract Multicall {
     /*----------  VIEW FUNCTIONS  ---------------------------------------*/
 
     /**
-     * @notice Get aggregated state for a Unit ecosystem.
+     * @notice Get aggregated state for a Coin ecosystem.
      * @param content Content contract address
      * @param account User address (or address(0) to skip balance queries)
-     * @return state Aggregated unit state
+     * @return state Aggregated coin state
      */
-    function getUnitState(address content, address account) external view returns (UnitState memory state) {
+    function getCoinState(address content, address account) external view returns (CoinState memory state) {
         // Core registry data
         state.index = ICore(core).contentToIndex(content);
-        state.unit = IContent(content).unit();
+        state.coin = IContent(content).coin();
         state.quote = IContent(content).quote();
         state.launcher = IContent(content).owner();
-        state.minter = IUnit(state.unit).minter();
+        state.minter = ICoin(state.coin).minter();
         state.rewarder = IContent(content).rewarder();
         state.auction = ICore(core).contentToAuction(content);
         state.lp = ICore(core).contentToLP(content);
@@ -252,28 +256,28 @@ contract Multicall {
         state.isModerated = IContent(content).isModerated();
         state.totalSupply = IContent(content).totalSupply();
 
-        // Calculate Unit price, market cap, and liquidity in quote from LP reserves
+        // Calculate Coin price, market cap, and liquidity in quote from LP reserves
         if (state.lp != address(0)) {
             uint256 quoteInLP = IERC20(quote).balanceOf(state.lp);
-            uint256 unitInLP = IERC20(state.unit).balanceOf(state.lp);
-            state.priceInQuote = unitInLP == 0 ? 0 : quoteInLP * 1e18 / unitInLP;
+            uint256 coinInLP = IERC20(state.coin).balanceOf(state.lp);
+            state.priceInQuote = coinInLP == 0 ? 0 : quoteInLP * 1e18 / coinInLP;
             state.liquidityInQuote = quoteInLP * 2;
 
-            // Market cap = total unit supply * unit price in quote
-            uint256 unitTotalSupply = IERC20(state.unit).totalSupply();
-            state.marketCapInQuote = unitTotalSupply * state.priceInQuote / 1e18;
+            // Market cap = total coin supply * coin price in quote
+            uint256 coinTotalSupply = IERC20(state.coin).totalSupply();
+            state.marketCapInQuote = coinTotalSupply * state.priceInQuote / 1e18;
         }
 
-        // Content reward for duration (weekly Unit emissions to content stakers)
-        state.contentRewardForDuration = IRewarder(state.rewarder).getRewardForDuration(state.unit);
+        // Content reward for duration (weekly Coin emissions to content stakers)
+        state.contentRewardForDuration = IRewarder(state.rewarder).getRewardForDuration(state.coin);
 
         // User balances and earnings
         if (account != address(0)) {
             state.accountQuoteBalance = IERC20(state.quote).balanceOf(account);
-            state.accountUnitBalance = IERC20(state.unit).balanceOf(account);
+            state.accountCoinBalance = IERC20(state.coin).balanceOf(account);
             state.accountContentOwned = IContent(content).balanceOf(account);
             state.accountContentStaked = IRewarder(state.rewarder).accountToBalance(account);
-            state.accountUnitEarned = IRewarder(state.rewarder).earned(account, state.unit);
+            state.accountCoinEarned = IRewarder(state.rewarder).earned(account, state.coin);
             state.accountClaimable = IContent(content).accountToClaimable(account);
             state.accountIsModerator =
                 IContent(content).owner() == account || IContent(content).accountToIsModerator(account);
@@ -290,7 +294,7 @@ contract Multicall {
      */
     function getContentState(address content, uint256 tokenId) external view returns (ContentState memory state) {
         address rewarder = IContent(content).rewarder();
-        address unitToken = IContent(content).unit();
+        address coinToken = IContent(content).coin();
 
         state.tokenId = tokenId;
         state.epochId = IContent(content).idToEpochId(tokenId);
@@ -305,7 +309,7 @@ contract Multicall {
 
         // Calculate this content's share of weekly rewards
         uint256 totalStaked = IRewarder(rewarder).totalSupply();
-        uint256 totalRewardForDuration = IRewarder(rewarder).getRewardForDuration(unitToken);
+        uint256 totalRewardForDuration = IRewarder(rewarder).getRewardForDuration(coinToken);
         state.rewardForDuration = totalStaked == 0 ? 0 : totalRewardForDuration * state.stake / totalStaked;
 
         return state;

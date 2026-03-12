@@ -17,8 +17,8 @@ async function getAuctionData(content, tokenId) {
 
 let owner, protocol, launcher, attacker, user1, user2, user3, user4, user5;
 let usdc, donut, core, multicall;
-let content, minter, rewarder, auction, unit, lpToken;
-let unitFactory, contentFactory, minterFactory, rewarderFactory, auctionFactory;
+let content, minter, rewarder, auction, coin, lpToken;
+let coinFactory, contentFactory, minterFactory, rewarderFactory, auctionFactory;
 let uniswapFactory, uniswapRouter;
 
 const WEEK = 7 * 24 * 60 * 60;
@@ -45,8 +45,8 @@ describe("EXTREME Stress Tests", function () {
     const mockUniswapRouterArtifact = await ethers.getContractFactory("MockUniswapV2Router");
     uniswapRouter = await mockUniswapRouterArtifact.deploy(uniswapFactory.address);
 
-    const unitFactoryArtifact = await ethers.getContractFactory("UnitFactory");
-    unitFactory = await unitFactoryArtifact.deploy();
+    const coinFactoryArtifact = await ethers.getContractFactory("CoinFactory");
+    coinFactory = await coinFactoryArtifact.deploy();
 
     const contentFactoryArtifact = await ethers.getContractFactory("ContentFactory");
     contentFactory = await contentFactoryArtifact.deploy();
@@ -65,7 +65,7 @@ describe("EXTREME Stress Tests", function () {
       usdc.address,
       uniswapFactory.address,
       uniswapRouter.address,
-      unitFactory.address,
+      coinFactory.address,
       contentFactory.address,
       minterFactory.address,
       auctionFactory.address,
@@ -84,11 +84,11 @@ describe("EXTREME Stress Tests", function () {
 
     const launchParams = {
       launcher: launcher.address,
-      tokenName: "Extreme Test Unit",
-      tokenSymbol: "XTUNIT",
+      tokenName: "Extreme Test Coin",
+      tokenSymbol: "XTCOIN",
       uri: "https://example.com/extreme",
       quoteAmount: convert("1000", 6),
-      unitAmount: convert("1000000", 18),
+      coinAmount: convert("1000000", 18),
       initialUps: convert("10", 18),
       tailUps: convert("0.1", 18),
       halvingPeriod: WEEK,
@@ -106,7 +106,7 @@ describe("EXTREME Stress Tests", function () {
 
     const launchEvent = receipt.events.find((e) => e.event === "Core__Launched");
     content = await ethers.getContractAt("Content", launchEvent.args.content);
-    unit = await ethers.getContractAt("Unit", launchEvent.args.unit);
+    coin = await ethers.getContractAt("Coin", launchEvent.args.coin);
     minter = await ethers.getContractAt("Minter", launchEvent.args.minter);
     rewarder = await ethers.getContractAt("Rewarder", launchEvent.args.rewarder);
     auction = await ethers.getContractAt("Auction", launchEvent.args.auction);
@@ -276,7 +276,7 @@ describe("EXTREME Stress Tests", function () {
       // Check each user's earned rewards
       for (const user of users) {
         const balance = await rewarder.accountToBalance(user.address);
-        const earned = await rewarder.earned(user.address, unit.address);
+        const earned = await rewarder.earned(user.address, coin.address);
         console.log(`User ${user.address.slice(0, 8)}: balance=${divDec(balance)}, earned=${divDec(earned)}`);
       }
     });
@@ -443,13 +443,13 @@ describe("EXTREME Stress Tests", function () {
     });
 
     it("Should handle notifyRewardAmount with exact leftover amount", async function () {
-      const left = await rewarder.left(unit.address);
+      const left = await rewarder.left(coin.address);
 
       if (left.gt(0)) {
         // Try to notify with exactly left amount - should fail
-        await unit.connect(user1).approve(rewarder.address, left);
+        await coin.connect(user1).approve(rewarder.address, left);
         await expect(
-          rewarder.connect(user1).notifyRewardAmount(unit.address, left.sub(1))
+          rewarder.connect(user1).notifyRewardAmount(coin.address, left.sub(1))
         ).to.be.revertedWith("Rewarder__RewardSmallerThanLeft()");
       }
     });
@@ -464,7 +464,7 @@ describe("EXTREME Stress Tests", function () {
 
       const totalSupply = await rewarder.totalSupply();
       if (totalSupply.gt(0)) {
-        const left = await rewarder.left(unit.address);
+        const left = await rewarder.left(coin.address);
         expect(left).to.be.gt(0);
       }
     });
@@ -686,7 +686,7 @@ describe("EXTREME Stress Tests", function () {
 describe("EXTREME Attack Vector Tests", function () {
   let owner, protocol, launcher, attacker, user1, user2, user3, user4, user5;
   let usdc, donut, core, multicall;
-  let content, minter, rewarder, auction, unit, lpToken;
+  let content, minter, rewarder, auction, coin, lpToken;
 
   const WEEK = 7 * 24 * 60 * 60;
   const DAY = 24 * 60 * 60;
@@ -708,7 +708,7 @@ describe("EXTREME Attack Vector Tests", function () {
     const mockUniswapRouterArtifact = await ethers.getContractFactory("MockUniswapV2Router");
     const uniswapRouter = await mockUniswapRouterArtifact.deploy(uniswapFactory.address);
 
-    const unitFactory = await (await ethers.getContractFactory("UnitFactory")).deploy();
+    const coinFactory = await (await ethers.getContractFactory("CoinFactory")).deploy();
     const contentFactory = await (await ethers.getContractFactory("ContentFactory")).deploy();
     const minterFactory = await (await ethers.getContractFactory("MinterFactory")).deploy();
     const rewarderFactory = await (await ethers.getContractFactory("RewarderFactory")).deploy();
@@ -718,7 +718,7 @@ describe("EXTREME Attack Vector Tests", function () {
       usdc.address,
       uniswapFactory.address,
       uniswapRouter.address,
-      unitFactory.address,
+      coinFactory.address,
       contentFactory.address,
       minterFactory.address,
       auctionFactory.address,
@@ -734,11 +734,11 @@ describe("EXTREME Attack Vector Tests", function () {
     await usdc.connect(launcher).approve(core.address, convert("1000", 6));
     const tx = await core.connect(launcher).launch({
       launcher: launcher.address,
-      tokenName: "Attack Test Unit",
-      tokenSymbol: "ATUNIT",
+      tokenName: "Attack Test Coin",
+      tokenSymbol: "ATCOIN",
       uri: "https://example.com/attack",
       quoteAmount: convert("1000", 6),
-      unitAmount: convert("1000000", 18),
+      coinAmount: convert("1000000", 18),
       initialUps: convert("10", 18),
       tailUps: convert("0.1", 18),
       halvingPeriod: WEEK,
@@ -753,7 +753,7 @@ describe("EXTREME Attack Vector Tests", function () {
     const receipt = await tx.wait();
     const launchEvent = receipt.events.find((e) => e.event === "Core__Launched");
     content = await ethers.getContractAt("Content", launchEvent.args.content);
-    unit = await ethers.getContractAt("Unit", launchEvent.args.unit);
+    coin = await ethers.getContractAt("Coin", launchEvent.args.coin);
     minter = await ethers.getContractAt("Minter", launchEvent.args.minter);
     rewarder = await ethers.getContractAt("Rewarder", launchEvent.args.rewarder);
     auction = await ethers.getContractAt("Auction", launchEvent.args.auction);
@@ -856,9 +856,9 @@ describe("EXTREME Attack Vector Tests", function () {
 
     it("Should resist rewarder griefing via getReward", async function () {
       // Attacker calls getReward for victims (funds still go to victim)
-      const victimBefore = await unit.balanceOf(user1.address);
+      const victimBefore = await coin.balanceOf(user1.address);
       await rewarder.connect(attacker)['getReward(address)'](user1.address);
-      const victimAfter = await unit.balanceOf(user1.address);
+      const victimAfter = await coin.balanceOf(user1.address);
 
       // Victim should not lose funds (might gain if they had earned rewards)
       expect(victimAfter).to.be.gte(victimBefore);
@@ -909,7 +909,7 @@ describe("EXTREME Attack Vector Tests", function () {
 describe("EXTREME Integration Tests", function () {
   let owner, protocol, launcher, attacker, user1, user2, user3, user4, user5;
   let usdc, donut, core, multicall;
-  let content, minter, rewarder, auction, unit, lpToken;
+  let content, minter, rewarder, auction, coin, lpToken;
 
   const WEEK = 7 * 24 * 60 * 60;
   const DAY = 24 * 60 * 60;
@@ -931,7 +931,7 @@ describe("EXTREME Integration Tests", function () {
     const mockUniswapRouterArtifact = await ethers.getContractFactory("MockUniswapV2Router");
     const uniswapRouter = await mockUniswapRouterArtifact.deploy(uniswapFactory.address);
 
-    const unitFactory = await (await ethers.getContractFactory("UnitFactory")).deploy();
+    const coinFactory = await (await ethers.getContractFactory("CoinFactory")).deploy();
     const contentFactory = await (await ethers.getContractFactory("ContentFactory")).deploy();
     const minterFactory = await (await ethers.getContractFactory("MinterFactory")).deploy();
     const rewarderFactory = await (await ethers.getContractFactory("RewarderFactory")).deploy();
@@ -941,7 +941,7 @@ describe("EXTREME Integration Tests", function () {
       usdc.address,
       uniswapFactory.address,
       uniswapRouter.address,
-      unitFactory.address,
+      coinFactory.address,
       contentFactory.address,
       minterFactory.address,
       auctionFactory.address,
@@ -957,11 +957,11 @@ describe("EXTREME Integration Tests", function () {
     await usdc.connect(launcher).approve(core.address, convert("1000", 6));
     const tx = await core.connect(launcher).launch({
       launcher: launcher.address,
-      tokenName: "Integration Test Unit",
-      tokenSymbol: "ITUNIT",
+      tokenName: "Integration Test Coin",
+      tokenSymbol: "ITCOIN",
       uri: "https://example.com/integration",
       quoteAmount: convert("1000", 6),
-      unitAmount: convert("1000000", 18),
+      coinAmount: convert("1000000", 18),
       initialUps: convert("10", 18),
       tailUps: convert("0.1", 18),
       halvingPeriod: WEEK,
@@ -976,7 +976,7 @@ describe("EXTREME Integration Tests", function () {
     const receipt = await tx.wait();
     const launchEvent = receipt.events.find((e) => e.event === "Core__Launched");
     content = await ethers.getContractAt("Content", launchEvent.args.content);
-    unit = await ethers.getContractAt("Unit", launchEvent.args.unit);
+    coin = await ethers.getContractAt("Coin", launchEvent.args.coin);
     minter = await ethers.getContractAt("Minter", launchEvent.args.minter);
     rewarder = await ethers.getContractAt("Rewarder", launchEvent.args.rewarder);
     auction = await ethers.getContractAt("Auction", launchEvent.args.auction);
@@ -1022,8 +1022,8 @@ describe("EXTREME Integration Tests", function () {
       console.log("4. Minter emission triggered");
 
       // 5. Claim rewards
-      const earnedUser2 = await rewarder.earned(user2.address, unit.address);
-      const earnedUser3 = await rewarder.earned(user3.address, unit.address);
+      const earnedUser2 = await rewarder.earned(user2.address, coin.address);
+      const earnedUser3 = await rewarder.earned(user3.address, coin.address);
       console.log(`5. User2 earned: ${divDec(earnedUser2)}, User3 earned: ${divDec(earnedUser3)}`);
 
       await rewarder.connect(user2)['getReward(address)'](user2.address);
@@ -1090,11 +1090,11 @@ describe("EXTREME Integration Tests", function () {
       // Launch a second content engine
       const launchParams2 = {
         launcher: user1.address,
-        tokenName: "Second Engine Unit",
-        tokenSymbol: "SEUNIT",
+        tokenName: "Second Engine Coin",
+        tokenSymbol: "SECOIN",
         uri: "https://example.com/second",
         quoteAmount: convert("500", 6),
-        unitAmount: convert("500000", 18),
+        coinAmount: convert("500000", 18),
         initialUps: convert("5", 18),
         tailUps: convert("0.05", 18),
         halvingPeriod: WEEK * 2,
@@ -1112,10 +1112,10 @@ describe("EXTREME Integration Tests", function () {
 
       const launchEvent = receipt.events.find((e) => e.event === "Core__Launched");
       const content2 = await ethers.getContractAt("Content", launchEvent.args.content);
-      const unit2 = await ethers.getContractAt("Unit", launchEvent.args.unit);
+      const coin2 = await ethers.getContractAt("Coin", launchEvent.args.coin);
 
       // Verify they're independent
-      expect(await content2.unit()).to.not.equal(await content.unit());
+      expect(await content2.coin()).to.not.equal(await content.coin());
       expect(await content2.minInitPrice()).to.not.equal(await content.minInitPrice());
 
       // Create content on second engine (requires approval since moderated)

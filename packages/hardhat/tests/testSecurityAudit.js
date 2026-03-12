@@ -17,8 +17,8 @@ async function getAuctionData(content, tokenId) {
 
 let owner, protocol, launcher, attacker, user1, user2;
 let usdc, donut, core, multicall;
-let content, minter, rewarder, auction, unit, lpToken;
-let unitFactory, contentFactory, minterFactory, rewarderFactory, auctionFactory;
+let content, minter, rewarder, auction, coin, lpToken;
+let coinFactory, contentFactory, minterFactory, rewarderFactory, auctionFactory;
 let uniswapFactory, uniswapRouter;
 
 const WEEK = 7 * 24 * 60 * 60;
@@ -47,8 +47,8 @@ describe("Security Audit Tests", function () {
     uniswapRouter = await mockUniswapRouterArtifact.deploy(uniswapFactory.address);
 
     // Deploy factories
-    const unitFactoryArtifact = await ethers.getContractFactory("UnitFactory");
-    unitFactory = await unitFactoryArtifact.deploy();
+    const coinFactoryArtifact = await ethers.getContractFactory("CoinFactory");
+    coinFactory = await coinFactoryArtifact.deploy();
 
     const contentFactoryArtifact = await ethers.getContractFactory("ContentFactory");
     contentFactory = await contentFactoryArtifact.deploy();
@@ -68,7 +68,7 @@ describe("Security Audit Tests", function () {
       usdc.address,
       uniswapFactory.address,
       uniswapRouter.address,
-      unitFactory.address,
+      coinFactory.address,
       contentFactory.address,
       minterFactory.address,
       auctionFactory.address,
@@ -86,11 +86,11 @@ describe("Security Audit Tests", function () {
 
     const launchParams = {
       launcher: launcher.address,
-      tokenName: "Security Test Unit",
-      tokenSymbol: "STUNIT",
+      tokenName: "Security Test Coin",
+      tokenSymbol: "STCOIN",
       uri: "https://example.com/metadata",
       quoteAmount: convert("500", 6),
-      unitAmount: convert("1000000", 18),
+      coinAmount: convert("1000000", 18),
       initialUps: convert("4", 18),
       tailUps: convert("0.01", 18),
       halvingPeriod: WEEK,
@@ -108,7 +108,7 @@ describe("Security Audit Tests", function () {
 
     const launchEvent = receipt.events.find((e) => e.event === "Core__Launched");
     content = await ethers.getContractAt("Content", launchEvent.args.content);
-    unit = await ethers.getContractAt("Unit", launchEvent.args.unit);
+    coin = await ethers.getContractAt("Coin", launchEvent.args.coin);
     minter = await ethers.getContractAt("Minter", launchEvent.args.minter);
     rewarder = await ethers.getContractAt("Rewarder", launchEvent.args.rewarder);
     auction = await ethers.getContractAt("Auction", launchEvent.args.auction);
@@ -158,15 +158,15 @@ describe("Security Audit Tests", function () {
   });
 
   describe("2. Access Control Tests", function () {
-    it("Unit.mint() only callable by minter", async function () {
+    it("Coin.mint() only callable by minter", async function () {
       await expect(
-        unit.connect(attacker).mint(attacker.address, convert("1000", 18))
+        coin.connect(attacker).mint(attacker.address, convert("1000", 18))
       ).to.be.reverted;
     });
 
-    it("Unit.setMinter() only callable by current minter", async function () {
+    it("Coin.setMinter() only callable by current minter", async function () {
       await expect(
-        unit.connect(attacker).setMinter(attacker.address)
+        coin.connect(attacker).setMinter(attacker.address)
       ).to.be.reverted;
     });
 
@@ -424,7 +424,7 @@ describe("Security Audit Tests", function () {
           tokenSymbol: "TEST",
           uri: "ipfs://test",
           quoteAmount: convert("500", 6),
-          unitAmount: convert("1000", 18),
+          coinAmount: convert("1000", 18),
           initialUps: convert("1", 18),
           tailUps: convert("0.01", 18),
           halvingPeriod: WEEK,
@@ -445,7 +445,7 @@ describe("Security Audit Tests", function () {
           tokenSymbol: "TEST",
           uri: "ipfs://test",
           quoteAmount: convert("500", 6),
-          unitAmount: convert("1000", 18),
+          coinAmount: convert("1000", 18),
           initialUps: convert("1", 18),
           tailUps: convert("0.01", 18),
           halvingPeriod: WEEK,
@@ -481,7 +481,7 @@ describe("Security Audit Tests", function () {
       // Below minimum (7 days)
       await expect(
         minterFactoryContract.deploy(
-          unit.address,
+          coin.address,
           rewarder.address,
           convert("1", 18),
           convert("0.01", 18),
@@ -650,10 +650,10 @@ describe("Security Audit Tests", function () {
       await core.connect(owner).setProtocolFeeAddress(oldFeeAddr);
     });
 
-    it("Unit minter is effectively immutable after transfer to Minter", async function () {
+    it("Coin minter is effectively immutable after transfer to Minter", async function () {
       // Once setMinter is called with Minter contract address,
       // it cannot be changed because Minter has no setMinter function
-      const currentMinter = await unit.minter();
+      const currentMinter = await coin.minter();
       expect(currentMinter).to.equal(minter.address);
 
       // Minter contract cannot call setMinter (no such function)

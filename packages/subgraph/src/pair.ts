@@ -39,34 +39,34 @@ export function handleSync(event: SyncEvent): void {
   let token0Result = pair.try_token0();
   if (token0Result.reverted) return;
 
-  // Determine which reserve is unit vs quote based on token0
+  // Determine which reserve is coin vs quote based on token0
   let reserve0 = event.params.reserve0;
   let reserve1 = event.params.reserve1;
 
-  let reserveUnit: BigDecimal;
+  let reserveCoin: BigDecimal;
   let reserveQuote: BigDecimal;
 
-  let token0IsUnit = token0Result.value.equals(Address.fromBytes(channel.unit));
+  let token0IsCoin = token0Result.value.equals(Address.fromBytes(channel.coin));
 
-  if (token0IsUnit) {
-    reserveUnit = convertTokenToDecimal(reserve0, BI_18);
+  if (token0IsCoin) {
+    reserveCoin = convertTokenToDecimal(reserve0, BI_18);
     reserveQuote = convertTokenToDecimal(reserve1, BI_6);
   } else {
-    reserveUnit = convertTokenToDecimal(reserve1, BI_18);
+    reserveCoin = convertTokenToDecimal(reserve1, BI_18);
     reserveQuote = convertTokenToDecimal(reserve0, BI_6);
   }
 
-  // Calculate price: quote per unit
+  // Calculate price: quote per coin
   let price: BigDecimal;
-  if (reserveUnit.gt(ZERO_BD)) {
-    price = reserveQuote.div(reserveUnit);
+  if (reserveCoin.gt(ZERO_BD)) {
+    price = reserveQuote.div(reserveCoin);
   } else {
     price = ZERO_BD;
   }
 
   // Update Channel price and liquidity data
   channel.price = price;
-  channel.reserveUnit = reserveUnit;
+  channel.reserveCoin = reserveCoin;
   channel.reserveQuote = reserveQuote;
   channel.liquidity = reserveQuote.times(BigDecimal.fromString("2"));
   channel.save();
@@ -96,30 +96,30 @@ export function handleSwap(event: SwapEvent): void {
   let amount0Out = event.params.amount0Out;
   let amount1Out = event.params.amount1Out;
 
-  let amountUnitIn: BigDecimal;
-  let amountUnitOut: BigDecimal;
+  let amountCoinIn: BigDecimal;
+  let amountCoinOut: BigDecimal;
   let amountQuoteIn: BigDecimal;
   let amountQuoteOut: BigDecimal;
 
-  let token0IsUnit = token0Result.value.equals(Address.fromBytes(channel.unit));
+  let token0IsCoin = token0Result.value.equals(Address.fromBytes(channel.coin));
 
-  if (token0IsUnit) {
-    amountUnitIn = convertTokenToDecimal(amount0In, BI_18);
-    amountUnitOut = convertTokenToDecimal(amount0Out, BI_18);
+  if (token0IsCoin) {
+    amountCoinIn = convertTokenToDecimal(amount0In, BI_18);
+    amountCoinOut = convertTokenToDecimal(amount0Out, BI_18);
     amountQuoteIn = convertTokenToDecimal(amount1In, BI_6);
     amountQuoteOut = convertTokenToDecimal(amount1Out, BI_6);
   } else {
-    amountUnitIn = convertTokenToDecimal(amount1In, BI_18);
-    amountUnitOut = convertTokenToDecimal(amount1Out, BI_18);
+    amountCoinIn = convertTokenToDecimal(amount1In, BI_18);
+    amountCoinOut = convertTokenToDecimal(amount1Out, BI_18);
     amountQuoteIn = convertTokenToDecimal(amount0In, BI_6);
     amountQuoteOut = convertTokenToDecimal(amount0Out, BI_6);
   }
 
   // Total amounts (in + out for each token)
-  let amountUnit = amountUnitIn.plus(amountUnitOut);
+  let amountCoin = amountCoinIn.plus(amountCoinOut);
   let amountQuote = amountQuoteIn.plus(amountQuoteOut);
 
-  // Classify trade direction: USDC in = buy (user buys unit), otherwise sell
+  // Classify trade direction: USDC in = buy (user buys coin), otherwise sell
   let type: string;
   if (amountQuoteIn.gt(ZERO_BD)) {
     type = "buy";
@@ -129,8 +129,8 @@ export function handleSwap(event: SwapEvent): void {
 
   // Calculate execution price
   let price: BigDecimal;
-  if (amountUnit.gt(ZERO_BD)) {
-    price = amountQuote.div(amountUnit);
+  if (amountCoin.gt(ZERO_BD)) {
+    price = amountQuote.div(amountCoin);
   } else {
     price = ZERO_BD;
   }
@@ -151,7 +151,7 @@ export function handleSwap(event: SwapEvent): void {
   swap.channel = channel.id;
   swap.account = accountAddress;
   swap.type = type;
-  swap.amountUnit = amountUnit;
+  swap.amountCoin = amountCoin;
   swap.amountQuote = amountQuote;
   swap.price = price;
   swap.timestamp = event.block.timestamp;
@@ -161,20 +161,20 @@ export function handleSwap(event: SwapEvent): void {
   swap.save();
 
   // Update Channel volume stats
-  channel.volumeUnit = channel.volumeUnit.plus(amountUnit);
+  channel.volumeCoin = channel.volumeCoin.plus(amountCoin);
   channel.volumeQuote = channel.volumeQuote.plus(amountQuote);
   channel.swapTxCount = channel.swapTxCount.plus(ONE_BI);
   channel.lastSwapAt = event.block.timestamp;
   channel.save();
 
   // Update OHLCV candle volume on time-series entities
-  updateCandles(channel, event.block.timestamp, amountUnit, amountQuote, true);
+  updateCandles(channel, event.block.timestamp, amountCoin, amountQuote, true);
 }
 
 function updateCandles(
   channel: Channel,
   timestamp: BigInt,
-  amountUnit: BigDecimal,
+  amountCoin: BigDecimal,
   amountQuote: BigDecimal,
   isSwap: boolean
 ): void {
@@ -192,7 +192,7 @@ function updateCandles(
     dayData.high = channel.price;
     dayData.low = channel.price;
     dayData.close = channel.price;
-    dayData.volumeUnit = ZERO_BD;
+    dayData.volumeCoin = ZERO_BD;
     dayData.volumeQuote = ZERO_BD;
     dayData.swapTxCount = ZERO_BI;
     dayData.liquidity = channel.liquidity;
@@ -208,7 +208,7 @@ function updateCandles(
   }
   dayData.liquidity = channel.liquidity;
   if (isSwap) {
-    dayData.volumeUnit = dayData.volumeUnit.plus(amountUnit);
+    dayData.volumeCoin = dayData.volumeCoin.plus(amountCoin);
     dayData.volumeQuote = dayData.volumeQuote.plus(amountQuote);
     dayData.swapTxCount = dayData.swapTxCount.plus(ONE_BI);
   }
@@ -226,7 +226,7 @@ function updateCandles(
     hourData.high = channel.price;
     hourData.low = channel.price;
     hourData.close = channel.price;
-    hourData.volumeUnit = ZERO_BD;
+    hourData.volumeCoin = ZERO_BD;
     hourData.volumeQuote = ZERO_BD;
     hourData.swapTxCount = ZERO_BI;
     hourData.liquidity = channel.liquidity;
@@ -242,7 +242,7 @@ function updateCandles(
   }
   hourData.liquidity = channel.liquidity;
   if (isSwap) {
-    hourData.volumeUnit = hourData.volumeUnit.plus(amountUnit);
+    hourData.volumeCoin = hourData.volumeCoin.plus(amountCoin);
     hourData.volumeQuote = hourData.volumeQuote.plus(amountQuote);
     hourData.swapTxCount = hourData.swapTxCount.plus(ONE_BI);
   }
@@ -260,7 +260,7 @@ function updateCandles(
     minuteData.high = channel.price;
     minuteData.low = channel.price;
     minuteData.close = channel.price;
-    minuteData.volumeUnit = ZERO_BD;
+    minuteData.volumeCoin = ZERO_BD;
     minuteData.volumeQuote = ZERO_BD;
     minuteData.swapTxCount = ZERO_BI;
     minuteData.liquidity = channel.liquidity;
@@ -276,7 +276,7 @@ function updateCandles(
   }
   minuteData.liquidity = channel.liquidity;
   if (isSwap) {
-    minuteData.volumeUnit = minuteData.volumeUnit.plus(amountUnit);
+    minuteData.volumeCoin = minuteData.volumeCoin.plus(amountCoin);
     minuteData.volumeQuote = minuteData.volumeQuote.plus(amountQuote);
     minuteData.swapTxCount = minuteData.swapTxCount.plus(ONE_BI);
   }

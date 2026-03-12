@@ -15,7 +15,7 @@ import {ICore} from "./interfaces/ICore.sol";
  * @title Content
  * @author heesho
  * @notice NFT collection where collectors can "steal" content by paying a dutch auction price.
- *         The purchase price determines the owner's stake in the Rewarder, earning them Unit rewards.
+ *         The purchase price determines the owner's stake in the Rewarder, earning them Coin rewards.
  * @dev Each content has a dutch auction that resets after collection with a 2x price multiplier.
  *      Fees: 80% to previous owner, 15% to treasury, 3% to creator, 1% to team, 1% to protocol.
  *      Fee-on-transfer and rebase tokens are NOT supported. The quote token must be a standard
@@ -39,7 +39,7 @@ contract Content is ERC721, ERC721Enumerable, ERC721URIStorage, ReentrancyGuard,
     /*----------  IMMUTABLES  -------------------------------------------*/
 
     address public immutable rewarder;
-    address public immutable unit;
+    address public immutable coin;
     address public immutable quote;
     address public immutable core;
     uint256 public immutable minInitPrice;
@@ -78,7 +78,7 @@ contract Content is ERC721, ERC721Enumerable, ERC721URIStorage, ReentrancyGuard,
     error Content__NotModerator();
     error Content__InvalidTreasury();
     error Content__InvalidCore();
-    error Content__InvalidUnit();
+    error Content__InvalidCoin();
     error Content__InvalidQuote();
     error Content__NothingToClaim();
 
@@ -108,7 +108,7 @@ contract Content is ERC721, ERC721Enumerable, ERC721URIStorage, ReentrancyGuard,
      * @param _name Token name
      * @param _symbol Token symbol
      * @param _uri Metadata URI
-     * @param _unit Unit token address
+     * @param _coin Coin token address
      * @param _quote Quote token (WETH) address
      * @param _treasury Treasury (Auction) address for fee collection
      * @param _team Team address for fee collection
@@ -121,7 +121,7 @@ contract Content is ERC721, ERC721Enumerable, ERC721URIStorage, ReentrancyGuard,
         string memory _name,
         string memory _symbol,
         string memory _uri,
-        address _unit,
+        address _coin,
         address _quote,
         address _treasury,
         address _team,
@@ -132,13 +132,13 @@ contract Content is ERC721, ERC721Enumerable, ERC721URIStorage, ReentrancyGuard,
     ) ERC721(_name, _symbol) {
         if (_minInitPrice == 0) revert Content__ZeroMinPrice();
         if (bytes(_uri).length == 0) revert Content__ZeroLengthUri();
-        if (_unit == address(0)) revert Content__InvalidUnit();
+        if (_coin == address(0)) revert Content__InvalidCoin();
         if (_quote == address(0)) revert Content__InvalidQuote();
         if (_treasury == address(0)) revert Content__InvalidTreasury();
         if (_core == address(0)) revert Content__InvalidCore();
 
         uri = _uri;
-        unit = _unit;
+        coin = _coin;
         quote = _quote;
         treasury = _treasury;
         team = _team;
@@ -147,7 +147,7 @@ contract Content is ERC721, ERC721Enumerable, ERC721URIStorage, ReentrancyGuard,
         isModerated = _isModerated;
 
         rewarder = IRewarderFactory(_rewarderFactory).deploy(address(this));
-        IRewarder(rewarder).addReward(_unit);
+        IRewarder(rewarder).addReward(_coin);
     }
 
     /*----------  EXTERNAL FUNCTIONS  -----------------------------------*/

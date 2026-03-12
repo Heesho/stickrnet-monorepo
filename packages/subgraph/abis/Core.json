@@ -18,7 +18,7 @@
       },
       {
         "internalType": "address",
-        "name": "_unitFactory",
+        "name": "_coinFactory",
         "type": "address"
       },
       {
@@ -72,12 +72,12 @@
   },
   {
     "inputs": [],
-    "name": "Core__InvalidLauncher",
+    "name": "Core__InvalidCoinAmount",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "Core__InvalidUnitAmount",
+    "name": "Core__InvalidLauncher",
     "type": "error"
   },
   {
@@ -103,7 +103,7 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "unit",
+        "name": "coin",
         "type": "address"
       },
       {
@@ -157,7 +157,7 @@
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "unitAmount",
+        "name": "coinAmount",
         "type": "uint256"
       },
       {
@@ -292,6 +292,19 @@
   {
     "inputs": [],
     "name": "auctionFactory",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "coinFactory",
     "outputs": [
       {
         "internalType": "address",
@@ -454,7 +467,7 @@
           },
           {
             "internalType": "uint256",
-            "name": "unitAmount",
+            "name": "coinAmount",
             "type": "uint256"
           },
           {
@@ -512,7 +525,7 @@
     "outputs": [
       {
         "internalType": "address",
-        "name": "unit",
+        "name": "coin",
         "type": "address"
       },
       {
@@ -684,19 +697,6 @@
   {
     "inputs": [],
     "name": "uniswapV2Router",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "unitFactory",
     "outputs": [
       {
         "internalType": "address",

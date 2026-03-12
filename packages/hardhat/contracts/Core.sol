@@ -7,8 +7,8 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {IContent} from "./interfaces/IContent.sol";
 import {IMinter} from "./interfaces/IMinter.sol";
-import {IUnit} from "./interfaces/IUnit.sol";
-import {IUnitFactory} from "./interfaces/IUnitFactory.sol";
+import {ICoin} from "./interfaces/ICoin.sol";
+import {ICoinFactory} from "./interfaces/ICoinFactory.sol";
 import {IContentFactory} from "./interfaces/IContentFactory.sol";
 import {IMinterFactory} from "./interfaces/IMinterFactory.sol";
 import {IAuctionFactory} from "./interfaces/IAuctionFactory.sol";
@@ -19,14 +19,14 @@ import {IUniswapV2Factory, IUniswapV2Router} from "./interfaces/IUniswapV2.sol";
  * @author heesho
  * @notice The main launchpad contract for deploying new Stickr Channel instances.
  *         Users provide quote tokens (e.g. USDC) to launch a new content platform. The Core contract:
- *         1. Deploys a new Unit token via UnitFactory
- *         2. Mints initial Unit tokens for liquidity
- *         3. Creates a Unit/quote liquidity pool on Uniswap V2
+ *         1. Deploys a new Coin token via CoinFactory
+ *         2. Mints initial Coin tokens for liquidity
+ *         3. Creates a Coin/quote liquidity pool on Uniswap V2
  *         4. Burns the initial LP tokens
  *         5. Deploys an Auction contract to collect and auction treasury fees
  *         6. Deploys a Content NFT collection via ContentFactory (creates Rewarder)
  *         7. Deploys a Minter contract via MinterFactory
- *         8. Transfers Unit minting rights to the Minter (permanently locked)
+ *         8. Transfers Coin minting rights to the Minter (permanently locked)
  *         9. Transfers ownership of Content and Minter to the launcher
  * @dev Fee-on-transfer and rebase tokens are NOT supported. The quote token must be a
  *      standard ERC20 token without transfer fees or rebasing mechanics.
@@ -44,7 +44,7 @@ contract Core is Ownable, ReentrancyGuard {
     address public immutable quote; // quote token for content collections (e.g. USDC)
     address public immutable uniswapV2Factory; // Uniswap V2 factory
     address public immutable uniswapV2Router; // Uniswap V2 router
-    address public immutable unitFactory; // factory for deploying Unit tokens
+    address public immutable coinFactory; // factory for deploying Coin tokens
     address public immutable contentFactory; // factory for deploying Content NFTs
     address public immutable minterFactory; // factory for deploying Minters
     address public immutable auctionFactory; // factory for deploying Auctions
@@ -68,11 +68,11 @@ contract Core is Ownable, ReentrancyGuard {
      */
     struct LaunchParams {
         address launcher; // address to receive ownership
-        string tokenName; // Unit token name
-        string tokenSymbol; // Unit token symbol
+        string tokenName; // Coin token name
+        string tokenSymbol; // Coin token symbol
         string uri; // metadata URI for the content
         uint256 quoteAmount; // quote to provide for LP
-        uint256 unitAmount; // Unit tokens minted for initial LP
+        uint256 coinAmount; // Coin tokens minted for initial LP
         uint256 initialUps; // starting units per second
         uint256 tailUps; // minimum units per second
         uint256 halvingPeriod; // time between halvings
@@ -90,7 +90,7 @@ contract Core is Ownable, ReentrancyGuard {
     error Core__InvalidLauncher();
     error Core__EmptyTokenName();
     error Core__EmptyTokenSymbol();
-    error Core__InvalidUnitAmount();
+    error Core__InvalidCoinAmount();
     error Core__ZeroAddress();
 
     /*----------  EVENTS  -----------------------------------------------*/
@@ -98,7 +98,7 @@ contract Core is Ownable, ReentrancyGuard {
     event Core__Launched(
         address indexed launcher,
         address indexed content,
-        address indexed unit,
+        address indexed coin,
         address minter,
         address rewarder,
         address auction,
@@ -107,7 +107,7 @@ contract Core is Ownable, ReentrancyGuard {
         string tokenSymbol,
         string uri,
         uint256 quoteAmount,
-        uint256 unitAmount,
+        uint256 coinAmount,
         uint256 initialUps,
         uint256 tailUps,
         uint256 halvingPeriod,
@@ -128,7 +128,7 @@ contract Core is Ownable, ReentrancyGuard {
      * @param _quote Quote token address (e.g. USDC)
      * @param _uniswapV2Factory Uniswap V2 factory address
      * @param _uniswapV2Router Uniswap V2 router address
-     * @param _unitFactory UnitFactory contract address
+     * @param _coinFactory CoinFactory contract address
      * @param _contentFactory ContentFactory contract address
      * @param _minterFactory MinterFactory contract address
      * @param _auctionFactory AuctionFactory contract address
@@ -140,7 +140,7 @@ contract Core is Ownable, ReentrancyGuard {
         address _quote,
         address _uniswapV2Factory,
         address _uniswapV2Router,
-        address _unitFactory,
+        address _coinFactory,
         address _contentFactory,
         address _minterFactory,
         address _auctionFactory,
@@ -150,7 +150,7 @@ contract Core is Ownable, ReentrancyGuard {
     ) {
         if (
             _quote == address(0) || _uniswapV2Factory == address(0)
-                || _uniswapV2Router == address(0) || _unitFactory == address(0) || _contentFactory == address(0)
+                || _uniswapV2Router == address(0) || _coinFactory == address(0) || _contentFactory == address(0)
                 || _minterFactory == address(0) || _auctionFactory == address(0) || _rewarderFactory == address(0)
         ) {
             revert Core__ZeroAddress();
@@ -159,7 +159,7 @@ contract Core is Ownable, ReentrancyGuard {
         quote = _quote;
         uniswapV2Factory = _uniswapV2Factory;
         uniswapV2Router = _uniswapV2Router;
-        unitFactory = _unitFactory;
+        coinFactory = _coinFactory;
         contentFactory = _contentFactory;
         minterFactory = _minterFactory;
         auctionFactory = _auctionFactory;
@@ -171,21 +171,21 @@ contract Core is Ownable, ReentrancyGuard {
     /*----------  EXTERNAL FUNCTIONS  -----------------------------------*/
 
     /**
-     * @notice Launch a new Stickr Channel with associated Unit token, LP, Content, Minter, and Auction.
+     * @notice Launch a new Stickr Channel with associated Coin token, LP, Content, Minter, and Auction.
      * @dev Caller must approve quote tokens before calling.
      * @param params Launch parameters struct
-     * @return unit Address of deployed Unit token
+     * @return coin Address of deployed Coin token
      * @return content Address of deployed Content NFT contract
      * @return minter Address of deployed Minter contract
      * @return rewarder Address of deployed Rewarder contract
      * @return auction Address of deployed Auction contract
-     * @return lpToken Address of Unit/quote LP token
+     * @return lpToken Address of Coin/quote LP token
      */
     function launch(LaunchParams calldata params)
         external
         nonReentrant
         returns (
-            address unit,
+            address coin,
             address content,
             address minter,
             address rewarder,
@@ -198,36 +198,36 @@ contract Core is Ownable, ReentrancyGuard {
         if (params.quoteAmount < minQuoteForLaunch) revert Core__InsufficientQuote();
         if (bytes(params.tokenName).length == 0) revert Core__EmptyTokenName();
         if (bytes(params.tokenSymbol).length == 0) revert Core__EmptyTokenSymbol();
-        if (params.unitAmount == 0) revert Core__InvalidUnitAmount();
+        if (params.coinAmount == 0) revert Core__InvalidCoinAmount();
 
         // Transfer quote from launcher
         IERC20(quote).safeTransferFrom(msg.sender, address(this), params.quoteAmount);
 
-        // Deploy Unit token via factory (Core becomes initial minter)
-        unit = IUnitFactory(unitFactory).deploy(params.tokenName, params.tokenSymbol);
+        // Deploy Coin token via factory (Core becomes initial minter)
+        coin = ICoinFactory(coinFactory).deploy(params.tokenName, params.tokenSymbol);
 
-        // Mint initial Unit tokens for LP seeding
-        IUnit(unit).mint(address(this), params.unitAmount);
+        // Mint initial Coin tokens for LP seeding
+        ICoin(coin).mint(address(this), params.coinAmount);
 
-        // Create Unit/quote LP via Uniswap V2
-        IERC20(unit).safeApprove(uniswapV2Router, 0);
-        IERC20(unit).safeApprove(uniswapV2Router, params.unitAmount);
+        // Create Coin/quote LP via Uniswap V2
+        IERC20(coin).safeApprove(uniswapV2Router, 0);
+        IERC20(coin).safeApprove(uniswapV2Router, params.coinAmount);
         IERC20(quote).safeApprove(uniswapV2Router, 0);
         IERC20(quote).safeApprove(uniswapV2Router, params.quoteAmount);
 
         (,, uint256 liquidity) = IUniswapV2Router(uniswapV2Router).addLiquidity(
-            unit,
+            coin,
             quote,
-            params.unitAmount,
+            params.coinAmount,
             params.quoteAmount,
-            params.unitAmount,
+            params.coinAmount,
             params.quoteAmount,
             address(this),
             block.timestamp + LP_DEADLINE_BUFFER
         );
 
         // Get LP token address and burn initial liquidity
-        lpToken = IUniswapV2Factory(uniswapV2Factory).getPair(unit, quote);
+        lpToken = IUniswapV2Factory(uniswapV2Factory).getPair(coin, quote);
         IERC20(lpToken).safeTransfer(DEAD_ADDRESS, liquidity);
 
         // Deploy Auction with LP as payment token (receives treasury fees, burns LP)
@@ -245,7 +245,7 @@ contract Core is Ownable, ReentrancyGuard {
             params.tokenName,
             params.tokenSymbol,
             params.uri,
-            unit,
+            coin,
             quote,
             auction,
             params.launcher, // team address = launcher
@@ -260,15 +260,15 @@ contract Core is Ownable, ReentrancyGuard {
 
         // Deploy Minter via factory
         minter = IMinterFactory(minterFactory).deploy(
-            unit,
+            coin,
             rewarder,
             params.initialUps,
             params.tailUps,
             params.halvingPeriod
         );
 
-        // Transfer Unit minting rights to Minter (permanently locked since Minter has no setMinter function)
-        IUnit(unit).setMinter(minter);
+        // Transfer Coin minting rights to Minter (permanently locked since Minter has no setMinter function)
+        ICoin(coin).setMinter(minter);
 
         // Transfer Content ownership to launcher
         IContent(content).transferOwnership(params.launcher);
@@ -283,7 +283,7 @@ contract Core is Ownable, ReentrancyGuard {
         emit Core__Launched(
             params.launcher,
             content,
-            unit,
+            coin,
             minter,
             rewarder,
             auction,
@@ -292,7 +292,7 @@ contract Core is Ownable, ReentrancyGuard {
             params.tokenSymbol,
             params.uri,
             params.quoteAmount,
-            params.unitAmount,
+            params.coinAmount,
             params.initialUps,
             params.tailUps,
             params.halvingPeriod,
@@ -304,7 +304,7 @@ contract Core is Ownable, ReentrancyGuard {
             params.auctionMinInitPrice
         );
 
-        return (unit, content, minter, rewarder, auction, lpToken);
+        return (coin, content, minter, rewarder, auction, lpToken);
     }
 
     /*----------  RESTRICTED FUNCTIONS  ---------------------------------*/

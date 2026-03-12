@@ -39,7 +39,7 @@ export function handleCoreLaunched(event: CoreLaunchedEvent): void {
   channel.launcher = event.params.launcher.toHexString();
 
   // Contract addresses
-  channel.unit = event.params.unit;
+  channel.coin = event.params.coin;
   channel.minter = event.params.minter;
   channel.rewarder = event.params.rewarder;
   channel.auction = event.params.auction;
@@ -54,7 +54,7 @@ export function handleCoreLaunched(event: CoreLaunchedEvent): void {
 
   // Launch parameters
   channel.quoteAmount = convertTokenToDecimal(event.params.quoteAmount, BI_6);
-  channel.unitAmount = convertTokenToDecimal(event.params.unitAmount, BI_18);
+  channel.coinAmount = convertTokenToDecimal(event.params.coinAmount, BI_18);
   channel.initialUps = event.params.initialUps;
   channel.tailUps = event.params.tailUps;
   channel.halvingPeriod = event.params.halvingPeriod;
@@ -90,10 +90,10 @@ export function handleCoreLaunched(event: CoreLaunchedEvent): void {
 
   // Price/volume data
   channel.price = ZERO_BD;
-  channel.reserveUnit = ZERO_BD;
+  channel.reserveCoin = ZERO_BD;
   channel.reserveQuote = ZERO_BD;
   channel.liquidity = ZERO_BD;
-  channel.volumeUnit = ZERO_BD;
+  channel.volumeCoin = ZERO_BD;
   channel.volumeQuote = ZERO_BD;
   channel.swapTxCount = ZERO_BI;
   channel.lastSwapAt = ZERO_BI;

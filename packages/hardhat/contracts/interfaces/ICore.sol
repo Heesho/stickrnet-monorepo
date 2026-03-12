@@ -13,7 +13,7 @@ interface ICore {
         string tokenSymbol;
         string uri;
         uint256 quoteAmount;
-        uint256 unitAmount;
+        uint256 coinAmount;
         uint256 initialUps;
         uint256 tailUps;
         uint256 halvingPeriod;
@@ -28,7 +28,7 @@ interface ICore {
     function launch(LaunchParams calldata params)
         external
         returns (
-            address unit,
+            address coin,
             address content,
             address minter,
             address rewarder,

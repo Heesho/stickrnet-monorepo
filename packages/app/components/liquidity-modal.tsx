@@ -303,7 +303,7 @@ export function LiquidityModal({
           <button
             onClick={handleAddLiquidity}
             disabled={!canCreate || isPending || isSuccess}
-            className={`w-full h-9 rounded-none font-semibold font-display text-[14px] transition-all mb-4 flex items-center justify-center gap-2 ${
+            className={`w-full h-10 rounded-none font-semibold font-display text-[14px] transition-all mb-4 flex items-center justify-center gap-2 ${
               isSuccess
                 ? "bg-white text-black"
                 : isError

@@ -293,7 +293,7 @@ export function CreateContentModal({
         <div className="flex px-4 mb-4 gap-0">
           <button
             onClick={() => setTab("media")}
-            className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-none text-[13px] font-medium font-display transition-all ${
+            className={`flex-1 flex items-center justify-center gap-2 h-10 rounded-none text-[13px] font-medium font-display transition-all ${
               tab === "media"
                 ? "bg-white text-black"
                 : "bg-secondary text-muted-foreground hover:text-foreground"
@@ -304,7 +304,7 @@ export function CreateContentModal({
           </button>
           <button
             onClick={() => setTab("text")}
-            className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-none text-[13px] font-medium font-display transition-all ${
+            className={`flex-1 flex items-center justify-center gap-2 h-10 rounded-none text-[13px] font-medium font-display transition-all ${
               tab === "text"
                 ? "bg-white text-black"
                 : "bg-secondary text-muted-foreground hover:text-foreground"
@@ -443,7 +443,7 @@ export function CreateContentModal({
           <button
             disabled={!canSubmit}
             onClick={handleSubmit}
-            className={`w-full h-9 rounded-none font-semibold font-display text-[14px] transition-all flex items-center justify-center gap-2 ${
+            className={`w-full h-10 rounded-none font-semibold font-display text-[14px] transition-all flex items-center justify-center gap-2 ${
               !canSubmit
                 ? "bg-zinc-800 text-foreground/50 cursor-not-allowed"
                 : "bg-[#A78BFA] text-black hover:bg-[#9575D9]"

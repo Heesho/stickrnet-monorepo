@@ -247,7 +247,7 @@ export function AuctionModal({
                 <button
                   onClick={handleBuy}
                   disabled={!account || !isAuctionActive || !hasEnoughPaymentToken || isPending || isSuccess}
-                  className={`w-full h-9 rounded-none font-semibold font-display text-[14px] transition-all flex items-center justify-center gap-2 ${
+                  className={`w-full h-10 rounded-none font-semibold font-display text-[14px] transition-all flex items-center justify-center gap-2 ${
                     isSuccess
                       ? "bg-white text-black"
                       : isError

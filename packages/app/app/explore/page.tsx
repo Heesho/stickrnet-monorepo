@@ -133,7 +133,7 @@ export default function ExplorePage() {
                 <button
                   key={tab.key}
                   onClick={() => setSortBy(tab.key)}
-                  className={`flex items-center gap-1 px-2.5 h-9 rounded-none text-[12px] font-medium transition-all ${
+                  className={`flex items-center gap-1 px-2.5 h-10 rounded-none text-[12px] font-medium transition-all ${
                     sortBy === tab.key
                       ? "bg-white text-black"
                       : "bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80"

@@ -497,7 +497,7 @@ export function TradeModal({
           <button
             disabled={buttonDisabled}
             onClick={handleConfirm}
-            className={`w-full h-9 rounded-none font-semibold font-display text-[14px] transition-all mb-4 flex items-center justify-center gap-2 ${
+            className={`w-full h-10 rounded-none font-semibold font-display text-[14px] transition-all mb-4 flex items-center justify-center gap-2 ${
               buttonDisabled
                 ? "bg-zinc-800 text-foreground/50 cursor-not-allowed"
                 : isSuccess

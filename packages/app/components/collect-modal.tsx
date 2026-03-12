@@ -380,7 +380,7 @@ export function CollectModal({
             <button
               disabled={buttonDisabled}
               onClick={handleConfirm}
-              className={`flex-1 h-9 rounded-none font-semibold font-display text-[15px] transition-all flex items-center justify-center gap-2 ${
+              className={`flex-1 h-10 rounded-none font-semibold font-display text-[15px] transition-all flex items-center justify-center gap-2 ${
                 buttonDisabled
                   ? "bg-zinc-800 text-foreground/50 cursor-not-allowed"
                   : isSuccess

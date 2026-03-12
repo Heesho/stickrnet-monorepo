@@ -428,7 +428,7 @@ export default function ProfilePage() {
         <div className="flex px-4 pb-3">
           <button
             onClick={() => setActiveTab("holdings")}
-            className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-none text-[13px] font-medium font-display transition-all ${
+            className={`flex-1 flex items-center justify-center gap-2 h-10 rounded-none text-[13px] font-medium font-display transition-all ${
               activeTab === "holdings"
                 ? "bg-white text-black"
                 : "bg-secondary text-muted-foreground hover:text-foreground"
@@ -439,7 +439,7 @@ export default function ProfilePage() {
           </button>
           <button
             onClick={() => setActiveTab("launched")}
-            className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-none text-[13px] font-medium font-display transition-all ${
+            className={`flex-1 flex items-center justify-center gap-2 h-10 rounded-none text-[13px] font-medium font-display transition-all ${
               activeTab === "launched"
                 ? "bg-white text-black"
                 : "bg-secondary text-muted-foreground hover:text-foreground"

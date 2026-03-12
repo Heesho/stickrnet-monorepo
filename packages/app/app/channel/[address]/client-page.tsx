@@ -506,7 +506,7 @@ export default function ChannelDetailPage() {
                     <button
                       key={tab.key}
                       onClick={() => setFeedSort(tab.key)}
-                      className={`flex-1 flex items-center justify-center gap-1 h-9 rounded-none text-[12px] font-medium transition-all ${
+                      className={`flex-1 flex items-center justify-center gap-1 h-10 rounded-none text-[12px] font-medium transition-all ${
                         feedSort === tab.key
                           ? "bg-white text-black"
                           : "bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80"
@@ -678,7 +678,7 @@ export default function ChannelDetailPage() {
                       <button
                         onClick={handleClaim}
                         disabled={claimStatus === "pending" || claimStatus === "success"}
-                        className={`w-full mt-1 h-9 text-[14px] font-semibold font-display rounded-none transition-all flex items-center justify-center gap-1.5 ${
+                        className={`w-full mt-1 h-10 text-[14px] font-semibold font-display rounded-none transition-all flex items-center justify-center gap-1.5 ${
                           claimStatus === "success"
                             ? "bg-foreground text-black"
                             : claimStatus === "error"
@@ -884,7 +884,7 @@ export default function ChannelDetailPage() {
                     setCollectCreatedAt(undefined);
                     setShowCollectModal(true);
                   }}
-                  className="w-full mt-4 h-9 text-[14px] font-semibold font-display rounded-none bg-white text-black hover:bg-zinc-200 transition-colors"
+                  className="w-full mt-4 h-10 text-[14px] font-semibold font-display rounded-none bg-white text-black hover:bg-zinc-200 transition-colors"
                 >
                   Collect
                 </button>
@@ -975,13 +975,13 @@ export default function ChannelDetailPage() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => setShowLiquidityModal(true)}
-                        className="flex-1 h-9 text-[14px] font-semibold font-display rounded-none bg-white text-black hover:bg-zinc-200 transition-colors"
+                        className="flex-1 h-10 text-[14px] font-semibold font-display rounded-none bg-white text-black hover:bg-zinc-200 transition-colors"
                       >
                         Liquidity
                       </button>
                       <button
                         onClick={() => setShowAuctionModal(true)}
-                        className="flex-1 h-9 text-[14px] font-semibold font-display rounded-none bg-white text-black hover:bg-zinc-200 transition-colors"
+                        className="flex-1 h-10 text-[14px] font-semibold font-display rounded-none bg-white text-black hover:bg-zinc-200 transition-colors"
                       >
                         Auction
                       </button>
@@ -989,7 +989,7 @@ export default function ChannelDetailPage() {
                     {isOwner && (
                       <button
                         onClick={() => setShowAdminModal(true)}
-                        className="w-full h-9 text-[14px] font-semibold font-display rounded-none bg-white text-black hover:bg-zinc-200 transition-colors"
+                        className="w-full h-10 text-[14px] font-semibold font-display rounded-none bg-white text-black hover:bg-zinc-200 transition-colors"
                       >
                         Admin
                       </button>
@@ -1010,7 +1010,7 @@ export default function ChannelDetailPage() {
               <button
                 onClick={() => connect()}
                 disabled={isConnecting || isInFrame === true}
-                className="flex-1 h-9 text-[14px] font-semibold font-display rounded-none bg-white text-black hover:bg-zinc-200 transition-colors disabled:opacity-50"
+                className="flex-1 h-10 text-[14px] font-semibold font-display rounded-none bg-white text-black hover:bg-zinc-200 transition-colors disabled:opacity-50"
               >
                 {isConnecting ? "Connecting..." : "Connect Wallet"}
               </button>
@@ -1018,7 +1018,7 @@ export default function ChannelDetailPage() {
               <>
                 <button
                   onClick={() => setView(view === "channel" ? "trade" : "channel")}
-                  className="flex-1 h-9 text-[14px] font-semibold font-display rounded-none bg-white text-black hover:bg-zinc-200 transition-colors flex items-center justify-center gap-1.5"
+                  className="flex-1 h-10 text-[14px] font-semibold font-display rounded-none bg-white text-black hover:bg-zinc-200 transition-colors flex items-center justify-center gap-1.5"
                 >
                   <ArrowLeftRight className="w-4 h-4" />
                   {view === "channel" ? "Trade" : "Channel"}
@@ -1026,7 +1026,7 @@ export default function ChannelDetailPage() {
                 {view === "channel" ? (
                   <button
                     onClick={() => setShowCreateContentModal(true)}
-                    className="flex-[2] h-9 text-[14px] font-semibold font-display rounded-none bg-[#A78BFA] text-black hover:bg-[#9575D9] transition-colors"
+                    className="flex-[2] h-10 text-[14px] font-semibold font-display rounded-none bg-[#A78BFA] text-black hover:bg-[#9575D9] transition-colors"
                   >
                     Create
                   </button>
@@ -1037,7 +1037,7 @@ export default function ChannelDetailPage() {
                         setTradeMode("sell");
                         setShowTradeModal(true);
                       }}
-                      className="flex-1 h-9 text-[14px] font-semibold font-display rounded-none bg-[#2DD4BF] text-black hover:bg-[#26B8A5] transition-colors"
+                      className="flex-1 h-10 text-[14px] font-semibold font-display rounded-none bg-[#2DD4BF] text-black hover:bg-[#26B8A5] transition-colors"
                     >
                       Sell
                     </button>
@@ -1046,7 +1046,7 @@ export default function ChannelDetailPage() {
                         setTradeMode("buy");
                         setShowTradeModal(true);
                       }}
-                      className="flex-1 h-9 text-[14px] font-semibold font-display rounded-none bg-[#A78BFA] text-black hover:bg-[#9575D9] transition-colors"
+                      className="flex-1 h-10 text-[14px] font-semibold font-display rounded-none bg-[#A78BFA] text-black hover:bg-[#9575D9] transition-colors"
                     >
                       Buy
                     </button>
@@ -1057,7 +1057,7 @@ export default function ChannelDetailPage() {
                       setTradeMode("buy");
                       setShowTradeModal(true);
                     }}
-                    className="flex-[2] h-9 text-[14px] font-semibold font-display rounded-none bg-[#A78BFA] text-black hover:bg-[#9575D9] transition-colors"
+                    className="flex-[2] h-10 text-[14px] font-semibold font-display rounded-none bg-[#A78BFA] text-black hover:bg-[#9575D9] transition-colors"
                   >
                     Buy
                   </button>

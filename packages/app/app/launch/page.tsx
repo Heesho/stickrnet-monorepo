@@ -464,7 +464,7 @@ export default function LaunchPage() {
               <button
                 onClick={handleLaunch}
                 disabled={!isFormValid || isLaunching || isUploading}
-                className={`flex-1 h-9 text-[15px] font-semibold font-display rounded-none transition-all ${
+                className={`flex-1 h-10 text-[15px] font-semibold font-display rounded-none transition-all ${
                   launchError || txStatus === "error"
                     ? "bg-zinc-800 text-foreground/70"
                     : !isFormValid || isLaunching || isUploading

@@ -409,7 +409,7 @@ export function AdminModal({
           <button
             onClick={handleSaveMetadata}
             disabled={isSaving || !metadataChanged}
-            className={`w-full h-9 rounded-none text-[14px] font-semibold font-display transition-all mt-4 ${
+            className={`w-full h-10 rounded-none text-[14px] font-semibold font-display transition-all mt-4 ${
               successField === "metadata"
                 ? "bg-white text-black"
                 : isSaving && pendingField === "metadata"

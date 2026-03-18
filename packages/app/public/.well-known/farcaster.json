@@ -16,7 +16,7 @@
     "heroImageUrl": "https://stickrnet.vercel.app/media/hero.png",
     "buttonTitle": "Explore channels",
     "ogTitle": "stickr.net",
-    "ogDescription": "Launch content channels on Base. Contribute content to earn and curate content to mine Community Coins.",
+    "ogDescription": "Content channels on Base. Contribute to earn, curate to mine Community Coins.",
     "ogImageUrl": "https://stickrnet.vercel.app/media/hero.png",
     "requiredChains": [
       "eip155:8453"

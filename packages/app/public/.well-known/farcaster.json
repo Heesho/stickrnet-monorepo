@@ -1,4 +1,9 @@
 {
+  "accountAssociation": {
+    "header": "eyJmaWQiOjI3MjEwOSwidHlwZSI6ImF1dGgiLCJrZXkiOiIweDQ5REI1QTFjOWZlRjBFMkY5OTVCNDZiMEI3MWJFQmJEOTEyQkYwZTMifQ",
+    "payload": "eyJkb21haW4iOiJzdGlja3JuZXQudmVyY2VsLmFwcCJ9",
+    "signature": "m+DpKNnGkvZzKvSwlXcwbR75OUZOcQRhSZSTO4e5HshAWyNh/2AT1a3RpWwhIrpz6+JHUgFpGtrLsbdVYsUMBRw="
+  },
   "miniapp": {
     "version": "1",
     "name": "stickr.net",

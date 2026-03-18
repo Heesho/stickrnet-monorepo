@@ -5,40 +5,52 @@ import { formatEther } from "viem";
 import {
   getAccount,
   getAllChannels,
-  type SubgraphChannel,
+  getOwnedContentPositions,
+  type SubgraphContentPosition,
 } from "@/lib/subgraph-launchpad";
 import { ERC20_ABI } from "@/lib/contracts";
 import { DEFAULT_CHAIN_ID } from "@/lib/constants";
 
-export type UserHolding = {
-  address: `0x${string}`;       // Channel/content address (channel.id)
-  coinAddress: `0x${string}`;   // Coin token address
-  tokenName: string;
-  tokenSymbol: string;
-  uri: string;
-  balance: bigint;              // Raw token balance (18 decimals)
-  balanceNum: number;           // Formatted balance
-  priceUsd: number;             // Price per token in USD
-  valueUsd: number;             // balance * price
-  change24h: number;
-  sparklinePrices: number[];
-};
+const CONTENT_EPOCH_PERIOD = 86400;
 
-export type UserLaunchedChannel = {
+function getDecayedContentPrice(initPrice: string, startTime: string): number {
+  const now = Math.floor(Date.now() / 1000);
+  const timePassed = now - parseInt(startTime, 10);
+  const init = parseFloat(initPrice);
+
+  if (timePassed >= CONTENT_EPOCH_PERIOD) return 0;
+  if (timePassed <= 0) return init;
+  return init - (init * timePassed) / CONTENT_EPOCH_PERIOD;
+}
+
+export type UserHolding = {
   address: `0x${string}`;
   coinAddress: `0x${string}`;
   tokenName: string;
   tokenSymbol: string;
   uri: string;
-  totalMinted: number;
-  coinPrice: number;
-  marketCapUsd: number;
+  balance: bigint;
+  balanceNum: number;
+  priceUsd: number;
+  valueUsd: number;
   change24h: number;
   sparklinePrices: number[];
 };
 
+export type UserCollectionItem = {
+  id: string;
+  channelAddress: `0x${string}`;
+  channelName: string;
+  channelSymbol: string;
+  contentUri: string;
+  tokenId: bigint;
+  isApproved: boolean;
+  collectCount: number;
+  marketValueUsd: number;
+  createdAt: number;
+};
+
 export function useUserProfile(accountAddress: `0x${string}` | undefined) {
-  // Fetch user account data from subgraph
   const {
     data: accountData,
     isLoading: isLoadingAccount,
@@ -53,7 +65,6 @@ export function useUserProfile(accountAddress: `0x${string}` | undefined) {
     refetchInterval: 30_000,
   });
 
-  // Fetch all channels from subgraph (to know which tokens exist + prices)
   const { data: allChannels, isLoading: isLoadingChannels } = useQuery({
     queryKey: ["allChannels"],
     queryFn: () => getAllChannels(100),
@@ -61,9 +72,33 @@ export function useUserProfile(accountAddress: `0x${string}` | undefined) {
     refetchInterval: 60_000,
   });
 
-  // Build balanceOf calls for every coin token
+  const {
+    data: ownedContentPositions,
+    isLoading: isLoadingCollection,
+  } = useQuery({
+    queryKey: ["ownedContentPositions", accountAddress],
+    queryFn: async () => {
+      if (!accountAddress) return [];
+
+      const pageSize = 100;
+      const positions: SubgraphContentPosition[] = [];
+
+      for (let skip = 0; ; skip += pageSize) {
+        const page = await getOwnedContentPositions(accountAddress, pageSize, skip);
+        positions.push(...page);
+        if (page.length < pageSize) break;
+      }
+
+      return positions;
+    },
+    enabled: !!accountAddress,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+  });
+
   const balanceOfCalls = useMemo(() => {
     if (!accountAddress || !allChannels?.length) return [];
+
     return allChannels.map((channel) => ({
       address: channel.coin.toLowerCase() as `0x${string}`,
       abi: ERC20_ABI,
@@ -82,7 +117,6 @@ export function useUserProfile(accountAddress: `0x${string}` | undefined) {
     },
   });
 
-  // Combine balances with channel metadata, filter non-zero, sort by USD value
   const holdings: UserHolding[] = useMemo(() => {
     if (!allChannels?.length || !balanceResults?.length) return [];
 
@@ -115,51 +149,62 @@ export function useUserProfile(accountAddress: `0x${string}` | undefined) {
       });
     }
 
-    // Sort by USD value descending
     items.sort((a, b) => b.valueUsd - a.valueUsd);
 
     return items;
   }, [allChannels, balanceResults]);
 
-  // Launched channels: filter channels where launcher matches account
-  const launchedChannels: UserLaunchedChannel[] = useMemo(() => {
-    if (!allChannels?.length || !accountAddress) return [];
+  const collection: UserCollectionItem[] = useMemo(() => {
+    if (!ownedContentPositions?.length) return [];
 
-    return allChannels
-      .filter((channel) => channel.launcher?.id?.toLowerCase() === accountAddress.toLowerCase())
-      .map((channel) => {
-        const totalMinted = parseFloat(channel.totalMinted || "0");
-        const coinPrice = parseFloat(channel.price) || 0;
-        const liquidityUsd = parseFloat(channel.liquidity) || 0;
+    const channelMap = new Map(
+      (allChannels ?? []).map((channel) => [channel.id.toLowerCase(), channel])
+    );
+
+    return ownedContentPositions
+      .map((position) => {
+        const channel = channelMap.get(position.channel.id.toLowerCase());
 
         return {
-          address: channel.id.toLowerCase() as `0x${string}`,
-          coinAddress: channel.coin.toLowerCase() as `0x${string}`,
-          tokenName: channel.name,
-          tokenSymbol: channel.symbol,
-          uri: channel.uri ?? "",
-          totalMinted,
-          coinPrice,
-          marketCapUsd: liquidityUsd, // Use liquidity as proxy
-          change24h: 0,
-          sparklinePrices: [],
+          id: position.id,
+          channelAddress: position.channel.id.toLowerCase() as `0x${string}`,
+          channelName: channel?.name ?? "Channel",
+          channelSymbol: channel?.symbol ?? "--",
+          contentUri: position.uri ?? "",
+          tokenId: BigInt(position.tokenId),
+          isApproved: position.isApproved,
+          collectCount: parseInt(position.collectCount, 10) || 0,
+          marketValueUsd: position.isApproved
+            ? getDecayedContentPrice(position.initPrice, position.startTime)
+            : 0,
+          createdAt: parseInt(position.createdAt, 10) || 0,
         };
       })
-      .sort((a, b) => b.marketCapUsd - a.marketCapUsd);
-  }, [allChannels, accountAddress]);
+      .sort((a, b) => b.marketValueUsd - a.marketValueUsd || b.createdAt - a.createdAt);
+  }, [allChannels, ownedContentPositions]);
 
-  const totalHoldingsValueUsd = useMemo(
-    () => holdings.reduce((sum, h) => sum + h.valueUsd, 0),
+  const totalCoinValueUsd = useMemo(
+    () => holdings.reduce((sum, holding) => sum + holding.valueUsd, 0),
     [holdings]
   );
 
-  const isLoading = isLoadingAccount || isLoadingChannels || isLoadingBalances;
+  const totalCollectionValueUsd = useMemo(
+    () => collection.reduce((sum, item) => sum + item.marketValueUsd, 0),
+    [collection]
+  );
+
+  const isLoading =
+    isLoadingAccount ||
+    isLoadingChannels ||
+    isLoadingBalances ||
+    isLoadingCollection;
 
   return {
     accountData,
     holdings,
-    launchedChannels,
-    totalHoldingsValueUsd,
+    collection,
+    totalCoinValueUsd,
+    totalCollectionValueUsd,
     isLoading,
   };
 }

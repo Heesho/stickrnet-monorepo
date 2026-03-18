@@ -52,8 +52,8 @@ contract Multicall {
         uint256 accountCoinBalance;
         uint256 accountContentOwned;
         uint256 accountContentStaked;
-        uint256 accountCoinEarned;
-        uint256 accountClaimable;
+        uint256 accountCoinClaimable;
+        uint256 accountQuoteClaimable;
         bool accountIsModerator;
     }
 
@@ -277,8 +277,8 @@ contract Multicall {
             state.accountCoinBalance = IERC20(state.coin).balanceOf(account);
             state.accountContentOwned = IContent(content).balanceOf(account);
             state.accountContentStaked = IRewarder(state.rewarder).accountToBalance(account);
-            state.accountCoinEarned = IRewarder(state.rewarder).earned(account, state.coin);
-            state.accountClaimable = IContent(content).accountToClaimable(account);
+            state.accountCoinClaimable = IRewarder(state.rewarder).earned(account, state.coin);
+            state.accountQuoteClaimable = IContent(content).accountToClaimable(account);
             state.accountIsModerator =
                 IContent(content).owner() == account || IContent(content).accountToIsModerator(account);
         }

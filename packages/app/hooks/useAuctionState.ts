@@ -7,6 +7,8 @@ import {
   type AuctionState,
 } from "@/lib/contracts";
 
+const LP_PRICE_SCALE = 10n ** 18n;
+
 export function useAuctionState(
   contentAddress: `0x${string}` | undefined,
   account: `0x${string}` | undefined,
@@ -69,9 +71,8 @@ export function useAllAuctionStates(
       if (!state) return null;
 
       const lpCostInQuote =
-        (state.price * state.paymentTokenPrice) / BigInt(1e18);
-      const lpCostScaled = lpCostInQuote / BigInt(1e12);
-      const profitLoss = state.quoteAccumulated - lpCostScaled;
+        (state.price * state.paymentTokenPrice) / LP_PRICE_SCALE;
+      const profitLoss = state.quoteAccumulated - lpCostInQuote;
       const isProfitable = profitLoss > 0n;
 
       return {

@@ -374,6 +374,15 @@ export function TradeModal({
     buyAmountWei,
     isBuy,
   ]);
+  const actionButtonClass = isBuy
+    ? "bg-[#A78BFA] text-black hover:bg-[#9575D9]"
+    : "bg-[#2DD4BF] text-black hover:bg-[#26B8A5]";
+  const actionSolidClass = isBuy
+    ? "bg-[#A78BFA] text-black"
+    : "bg-[#2DD4BF] text-black";
+  const actionDisabledClass = isBuy
+    ? "bg-[#A78BFA] text-black/60 opacity-50 cursor-not-allowed"
+    : "bg-[#2DD4BF] text-black/60 opacity-50 cursor-not-allowed";
 
   // ---- Render -------------------------------------------------------------
   if (!isOpen) return null;
@@ -499,10 +508,10 @@ export function TradeModal({
             onClick={handleConfirm}
             className={`w-full h-10 rounded-none font-semibold font-display text-[14px] transition-all mb-4 flex items-center justify-center gap-2 ${
               buttonDisabled
-                ? "bg-zinc-800 text-foreground/50 cursor-not-allowed"
+                ? actionDisabledClass
                 : isSuccess
-                ? "bg-white text-black"
-                : "bg-white text-black hover:bg-zinc-200"
+                ? actionSolidClass
+                : actionButtonClass
             }`}
           >
             {isPending && <Loader2 className="w-4 h-4 animate-spin" />}

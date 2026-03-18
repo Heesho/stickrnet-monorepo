@@ -25,11 +25,14 @@ import {
   type Call,
 } from "@/hooks/useBatchedTransaction";
 import {
-  CONTRACT_ADDRESSES,
-  MULTICALL_ABI,
   QUOTE_TOKEN_DECIMALS,
 } from "@/lib/contracts";
-import { getChannel } from "@/lib/subgraph-launchpad";
+import {
+  getChannel,
+  getChannelAccount,
+  getContentPositions,
+  type SubgraphContentPosition,
+} from "@/lib/subgraph-launchpad";
 import { ipfsToHttp } from "@/lib/constants";
 import { truncateAddress, formatPrice, formatNumber, formatMarketCap } from "@/lib/format";
 import { PriceChart, type HoverData } from "@/components/price-chart";
@@ -93,6 +96,16 @@ function formatPeriod(seconds: string | undefined): string {
   if (secs >= 60) return formatUnit(Math.round(secs / 60), "min", "min");
   return `${secs}s`;
 }
+
+const REWARDER_ABI = [
+  {
+    inputs: [{ internalType: "address", name: "account", type: "address" }],
+    name: "getReward",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+] as const;
 
 // Loading skeleton for the page
 function LoadingSkeleton() {
@@ -180,6 +193,9 @@ export default function ChannelDetailPage() {
 
   // Farcaster context for connected wallet
   const { address: account, isConnected, isInFrame, isConnecting, connect } = useFarcaster();
+  const [view, setView] = useState<"channel" | "trade">("channel");
+  const tradeViewChainRefetchInterval = view === "trade" ? 1_000 : 5_000;
+  const tradeViewSubgraphRefetchInterval = view === "trade" ? 5_000 : 30_000;
 
   // Fetch channel data from subgraph
   const { data: subgraphChannel, isLoading: isSubgraphLoading } = useQuery({
@@ -187,6 +203,33 @@ export default function ChannelDetailPage() {
     queryFn: () => getChannel(address),
     enabled: !!address,
     staleTime: 30_000,
+    refetchInterval: tradeViewSubgraphRefetchInterval,
+  });
+
+  const { data: channelAccount, refetch: refetchChannelAccount } = useQuery({
+    queryKey: ["channel-account", address, account],
+    queryFn: () => getChannelAccount(address, account!),
+    enabled: !!address && !!account,
+    staleTime: 30_000,
+    refetchInterval: isConnected ? tradeViewSubgraphRefetchInterval : false,
+  });
+
+  const totalContentCount = Number(subgraphChannel?.contentCount ?? "0");
+  const { data: channelContentPositions = [] } = useQuery({
+    queryKey: ["channel-content-positions", address, totalContentCount],
+    queryFn: async () => {
+      const pageSize = 200;
+      const positions: SubgraphContentPosition[] = [];
+      for (let skip = 0; skip < totalContentCount; skip += pageSize) {
+        const page = await getContentPositions(address, pageSize, skip);
+        positions.push(...page);
+        if (page.length < pageSize) break;
+      }
+      return positions;
+    },
+    enabled: !!address && !!account && totalContentCount > 0,
+    staleTime: 30_000,
+    refetchInterval: view === "trade" ? 15_000 : false,
   });
 
   // Fetch on-chain coin state via multicall
@@ -194,7 +237,7 @@ export default function ChannelDetailPage() {
     coinState,
     refetch: refetchState,
     isLoading: isCoinStateLoading,
-  } = useChannelState(contentAddress, account);
+  } = useChannelState(contentAddress, account, true, tradeViewChainRefetchInterval);
 
   // Normalize fields
   const coinPrice = coinState?.priceInQuote;
@@ -215,14 +258,14 @@ export default function ChannelDetailPage() {
   const [contentFastPoll, setContentFastPoll] = useState(false);
   const { contents, isLoading: isContentLoading, refetch: refetchContent } = useContentFeed(address, 20, 0, contentFastPoll);
   const contentUris = useMemo(() => contents.map((c) => c.uri).filter(Boolean), [contents]);
-  const { metadataMap, getLogoUrl: getContentImage } = useBatchMetadata(contentUris);
+  const { metadataMap } = useBatchMetadata(contentUris);
 
-  // Claim transaction
+  // Claim transactions
   const {
-    execute: executeClaim,
-    status: claimStatus,
-    error: claimError,
-    reset: resetClaim,
+    execute: executeTokenClaim,
+    status: tokenClaimStatus,
+    error: tokenClaimError,
+    reset: resetTokenClaim,
   } = useBatchedTransaction();
 
   // Derived values
@@ -257,29 +300,78 @@ export default function ChannelDetailPage() {
     ? Number(formatUnits(accountQuoteBalance, QUOTE_TOKEN_DECIMALS))
     : 0;
 
-  // Pending claimable rewards
-  const pendingRewards = coinState?.accountClaimable
-    ? Number(formatEther(coinState.accountClaimable))
-    : 0;
-
   // Content stats from coinState
   const contentOwned = coinState?.accountContentOwned
     ? Number(coinState.accountContentOwned)
     : 0;
-  const contentStaked = coinState?.accountContentStaked
-    ? Number(coinState.accountContentStaked)
-    : 0;
-  const coinEarned = coinState?.accountCoinEarned
-    ? Number(formatEther(coinState.accountCoinEarned))
+  const coinEarned = coinState?.accountCoinClaimable
+    ? Number(formatEther(coinState.accountCoinClaimable))
     : 0;
 
-  // Content reward for current duration
-  const contentRewardForDuration = coinState?.contentRewardForDuration
-    ? Number(formatEther(coinState.contentRewardForDuration))
-    : 0;
+  const normalizedAccount = account?.toLowerCase();
+  const ownedContentPositions = useMemo(
+    () =>
+      normalizedAccount
+        ? channelContentPositions.filter((content) => content.owner.id.toLowerCase() === normalizedAccount)
+        : [],
+    [channelContentPositions, normalizedAccount]
+  );
+  const createdContentPositions = useMemo(
+    () =>
+      normalizedAccount
+        ? channelContentPositions.filter((content) => content.creator.id.toLowerCase() === normalizedAccount)
+        : [],
+    [channelContentPositions, normalizedAccount]
+  );
 
-  // Show position section if user has any balance, pending, or staked content
-  const hasPosition = userCoinBalance > 0 || pendingRewards > 0 || contentStaked > 0;
+  const getContentMarketValue = useCallback(
+    (content: SubgraphContentPosition) =>
+      content.isApproved ? getDecayedPrice(content.initPrice, content.startTime) : 0,
+    []
+  );
+
+  const collectionStickerCount = Math.max(contentOwned, ownedContentPositions.length);
+  const collectionMarketValue = useMemo(
+    () => ownedContentPositions.reduce((sum, content) => sum + getContentMarketValue(content), 0),
+    [ownedContentPositions, getContentMarketValue]
+  );
+  const creationStickerCount = Math.max(
+    channelAccount?.contentCreated ? Number(channelAccount.contentCreated) : 0,
+    createdContentPositions.length
+  );
+  const creationsMarketValue = useMemo(
+    () => createdContentPositions.reduce((sum, content) => sum + getContentMarketValue(content), 0),
+    [createdContentPositions, getContentMarketValue]
+  );
+  const creationsCollectCount = useMemo(
+    () => createdContentPositions.reduce((sum, content) => sum + Number(content.collectCount), 0),
+    [createdContentPositions]
+  );
+  const totalSpent = channelAccount?.collectSpent
+    ? parseFloat(channelAccount.collectSpent)
+    : 0;
+  const ownerEarned = channelAccount?.ownerEarned
+    ? parseFloat(channelAccount.ownerEarned)
+    : 0;
+  const totalMined = (channelAccount?.rewardsClaimed
+    ? parseFloat(channelAccount.rewardsClaimed)
+    : 0) + coinEarned;
+  const creatorEarned = channelAccount?.creatorEarned
+    ? parseFloat(channelAccount.creatorEarned)
+    : 0;
+  const collectCount = channelAccount?.collectCount
+    ? Number(channelAccount.collectCount)
+    : 0;
+  const hasCollectionSection =
+    collectionStickerCount > 0 ||
+    collectCount > 0 ||
+    totalSpent > 0 ||
+    ownerEarned > 0 ||
+    totalMined > 0 ||
+    coinEarned > 0;
+  const hasCreationsSection =
+    creationStickerCount > 0 ||
+    creatorEarned > 0;
 
   // Stats from subgraph (primary) + DexScreener (fallback)
   const liquidityUsd = coinState?.liquidityInQuote
@@ -339,11 +431,15 @@ export default function ChannelDetailPage() {
     if (!firstPoint || firstPoint.value === 0) return 0;
     return ((priceUsd - firstPoint.value) / firstPoint.value) * 100;
   }, [chartData, priceUsd]);
+  const isPositiveTrend = displayChange >= 0;
+  const trendColor = isPositiveTrend ? "#A78BFA" : "#2DD4BF";
+  const trendButtonClass = isPositiveTrend
+    ? "bg-[#A78BFA] text-black hover:bg-[#9575D9]"
+    : "bg-[#2DD4BF] text-black hover:bg-[#26B8A5]";
 
   const [hoverData, setHoverData] = useState<HoverData>(null);
   const handleChartHover = useCallback((data: HoverData) => setHoverData(data), []);
 
-  const [view, setView] = useState<"channel" | "trade">("channel");
   const [feedSort, setFeedSort] = useState<"bump" | "top" | "new">("bump");
   const [showCreateContentModal, setShowCreateContentModal] = useState(false);
 
@@ -376,7 +472,7 @@ export default function ChannelDetailPage() {
     const scrollContainer = scrollContainerRef.current;
     const tokenInfo = tokenInfoRef.current;
 
-    if (!scrollContainer || !tokenInfo) return;
+    if ((isSubgraphLoading || (!!address && isCoinStateLoading)) || !scrollContainer || !tokenInfo) return;
 
     const handleScroll = () => {
       const tokenInfoBottom = tokenInfo.getBoundingClientRect().bottom;
@@ -384,44 +480,44 @@ export default function ChannelDetailPage() {
       setShowHeaderPrice(tokenInfoBottom < containerTop + 10);
     };
 
+    handleScroll();
     scrollContainer.addEventListener("scroll", handleScroll);
     return () => scrollContainer.removeEventListener("scroll", handleScroll);
-  }, []);
+  }, [address, isCoinStateLoading, isSubgraphLoading, view]);
 
   // Reset scroll position when switching views
   useEffect(() => {
     if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
   }, [view]);
 
-  // Auto-refetch after claim success, auto-reset after error
+  // Auto-refetch after token claim success, auto-reset after error
   useEffect(() => {
-    if (claimStatus === "success") {
+    if (tokenClaimStatus === "success") {
       const timer = setTimeout(() => {
         refetchState();
-        resetClaim();
+        refetchChannelAccount();
+        resetTokenClaim();
       }, 3000);
       return () => clearTimeout(timer);
     }
-    if (claimStatus === "error") {
-      const timer = setTimeout(() => resetClaim(), 2000);
+    if (tokenClaimStatus === "error") {
+      const timer = setTimeout(() => resetTokenClaim(), 2000);
       return () => clearTimeout(timer);
     }
-  }, [claimStatus, refetchState, resetClaim]);
+  }, [tokenClaimStatus, refetchState, refetchChannelAccount, resetTokenClaim]);
 
-  // Claim handler - calls claimRewards(content) directly
-  const handleClaim = useCallback(async () => {
-    if (!account || pendingRewards <= 0 || claimStatus === "pending") return;
-    const multicallAddr = CONTRACT_ADDRESSES.multicall as `0x${string}`;
+  const handleCollectionClaim = useCallback(async () => {
+    if (!account || !coinState?.rewarder || coinEarned <= 0 || tokenClaimStatus === "pending" || tokenClaimStatus === "confirming") return;
     const calls: Call[] = [
       encodeContractCall(
-        multicallAddr,
-        MULTICALL_ABI,
-        "claimRewards",
-        [contentAddress]
+        coinState.rewarder,
+        REWARDER_ABI,
+        "getReward",
+        [account]
       ),
     ];
-    await executeClaim(calls);
-  }, [account, pendingRewards, contentAddress, executeClaim, claimStatus]);
+    await executeTokenClaim(calls);
+  }, [account, coinState?.rewarder, coinEarned, executeTokenClaim, tokenClaimStatus]);
 
   // Show loading skeleton while critical data loads
   const isLoading = isSubgraphLoading || (!!address && isCoinStateLoading);
@@ -485,8 +581,8 @@ export default function ChannelDetailPage() {
                   {new Date(hoverData.time * 1000).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                 </div>
               ) : (
-                <div className={`text-[13px] font-medium font-mono ${displayChange >= 0 ? "text-[#A78BFA]" : "text-[#2DD4BF]"}`}>
-                  {`${displayChange >= 0 ? "+" : ""}${displayChange.toFixed(2)}%`}
+                <div className={`text-[13px] font-medium font-mono ${isPositiveTrend ? "text-[#A78BFA]" : "text-[#2DD4BF]"}`}>
+                  {`${isPositiveTrend ? "+" : ""}${displayChange.toFixed(2)}%`}
                 </div>
               )}
             </div>
@@ -534,7 +630,7 @@ export default function ChannelDetailPage() {
                   </div>
                 </div>
               ) : (
-                <div className="columns-2 gap-2 pb-4">
+                <div className="grid grid-cols-2 items-start gap-2 pb-4">
                   {contents
                     .filter((c) => c.isApproved || c.creator.id.toLowerCase() === account?.toLowerCase())
                     .sort((a, b) => {
@@ -563,7 +659,7 @@ export default function ChannelDetailPage() {
                             setCollectCreatedAt(content.createdAt);
                             setShowCollectModal(true);
                           }}
-                          className="break-inside-avoid mb-2 rounded-none overflow-hidden bg-secondary w-full text-left"
+                          className="h-fit w-full self-start rounded-none overflow-hidden bg-secondary text-left"
                         >
                           {/* Image */}
                           {imageUrl && (
@@ -618,7 +714,7 @@ export default function ChannelDetailPage() {
                 <PriceChart
                   data={chartData}
                   height={176}
-                  color={displayChange >= 0 ? "#A78BFA" : "#2DD4BF"}
+                  color={trendColor}
                   onHover={handleChartHover}
                   tokenFirstActiveTime={timeframe !== "ALL" ? createdAtTimestamp : undefined}
                   initialPrice={timeframe !== "ALL" ? initialPrice : undefined}
@@ -633,10 +729,10 @@ export default function ChannelDetailPage() {
                     onClick={() => setTimeframe(tf)}
                     className={`px-3.5 py-1.5 rounded-none text-[13px] font-medium font-mono transition-all ${
                       timeframe === tf
-                        ? displayChange >= 0
+                        ? isPositiveTrend
                           ? "bg-[#A78BFA] text-black"
                           : "bg-[#2DD4BF] text-black"
-                        : displayChange >= 0
+                        : isPositiveTrend
                           ? "text-[#A78BFA] hover:bg-[#A78BFA]/10"
                           : "text-[#2DD4BF] hover:bg-[#2DD4BF]/10"
                     }`}
@@ -647,102 +743,248 @@ export default function ChannelDetailPage() {
               </div>
 
               {/* Your Position Section */}
-              {hasPosition && (
+              <div className="mb-6">
+                <div className="mb-3">
+                  <div className="font-semibold text-[18px] font-display">Your Position</div>
+                  <div className="text-[12px] text-muted-foreground mt-0.5">Your token balance and current market value</div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-y-4 gap-x-8">
+                  <div>
+                    <div className="text-muted-foreground text-[12px] mb-1">Token balance</div>
+                    <div className="font-semibold text-[15px] tabular-nums font-mono flex items-center gap-1.5">
+                      <TokenLogo name={tokenName} logoUrl={logoUrl} size="sm" variant="circle" />
+                      <span>{formatNumber(userCoinBalance)}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground text-[12px] mb-1">Market value</div>
+                    <div className="font-semibold text-[15px] tabular-nums font-mono text-foreground">
+                      ${positionBalanceUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Your Collection Section */}
+              {hasCollectionSection && (
                 <div className="mb-6">
                   <div className="mb-3">
-                    <div className="font-semibold text-[18px] font-display">Your position</div>
-                    <div className="text-[12px] text-muted-foreground mt-0.5">Your coin balance, staked content, and claimable rewards</div>
+                    <div className="font-semibold text-[18px] font-display">Your Collection</div>
+                    <div className="text-[12px] text-muted-foreground mt-0.5">Stickers you hold, their stake, and the tokens they are mining</div>
                   </div>
-
-                  {pendingRewards > 0 && (
-                    <div className="mb-4">
-                      <div className="flex items-center gap-3 py-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">Claimable rewards</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4 flex-shrink-0 text-right">
-                          <div>
-                            <div className="text-[12px] text-muted-foreground">Coins</div>
-                            <div className="text-[13px] font-medium flex items-center justify-end gap-1">
-                              <TokenLogo name={tokenSymbol} logoUrl={logoUrl} size="xs" variant="circle" />
-                              {pendingRewards >= 1000
-                                ? `${(pendingRewards / 1000).toFixed(1)}K`
-                                : formatNumber(pendingRewards, 0)}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={handleClaim}
-                        disabled={claimStatus === "pending" || claimStatus === "success"}
-                        className={`w-full mt-1 h-10 text-[14px] font-semibold font-display rounded-none transition-all flex items-center justify-center gap-1.5 ${
-                          claimStatus === "success"
-                            ? "bg-foreground text-black"
-                            : claimStatus === "error"
-                            ? "bg-zinc-800 text-white"
-                            : claimStatus === "pending"
-                            ? "bg-zinc-800 text-foreground/60 cursor-not-allowed"
-                            : "bg-white text-black hover:bg-zinc-200"
-                        }`}
-                      >
-                        {claimStatus === "pending" && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                        {claimStatus === "success" && <CheckCircle className="w-3.5 h-3.5" />}
-                        {claimStatus === "pending"
-                          ? "Claiming..."
-                          : claimStatus === "success"
-                          ? "Claimed!"
-                          : claimStatus === "error"
-                          ? claimError?.message?.includes("cancelled") ? "Rejected" : "Failed"
-                          : "Claim rewards"}
-                      </button>
-                    </div>
-                  )}
 
                   <div className="grid grid-cols-2 gap-y-4 gap-x-8">
                     <div>
-                      <div className="text-muted-foreground text-[12px] mb-1">Balance</div>
-                      <div className="font-semibold text-[15px] tabular-nums font-mono flex items-center gap-1.5">
-                        <TokenLogo name={tokenName} logoUrl={logoUrl} size="sm" variant="circle" />
-                        <span>{formatNumber(userCoinBalance)}</span>
+                      <div className="text-muted-foreground text-[12px] mb-1">Stickers owned</div>
+                      <div className="font-semibold text-[15px] tabular-nums font-mono">
+                        {collectionStickerCount}
                       </div>
                     </div>
                     <div>
-                      <div className="text-muted-foreground text-[12px] mb-1">Value</div>
-                      <div className="font-semibold text-[15px] tabular-nums font-mono text-foreground">
-                        ${positionBalanceUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <div className="text-muted-foreground text-[12px] mb-1">Market value</div>
+                      <div className="font-semibold text-[15px] tabular-nums font-mono">
+                        ${collectionMarketValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </div>
-                    {contentOwned > 0 && (
-                      <div>
-                        <div className="text-muted-foreground text-[12px] mb-1">Content owned</div>
-                        <div className="font-semibold text-[15px] tabular-nums font-mono">
-                          {contentOwned}
-                        </div>
+                    <div>
+                      <div className="text-muted-foreground text-[12px] mb-1">Total spent</div>
+                      <div className="font-semibold text-[15px] tabular-nums font-mono">
+                        ${totalSpent.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
-                    )}
-                    {contentStaked > 0 && (
-                      <div>
-                        <div className="text-muted-foreground text-[12px] mb-1">Content staked</div>
-                        <div className="font-semibold text-[15px] tabular-nums font-mono">
-                          {contentStaked}
-                        </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground text-[12px] mb-1">Total earned</div>
+                      <div className="font-semibold text-[15px] tabular-nums font-mono">
+                        ${ownerEarned.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
-                    )}
-                    {coinEarned > 0 && (
-                      <div>
-                        <div className="text-muted-foreground text-[12px] mb-1">Total earned</div>
-                        <div className="font-semibold text-[15px] tabular-nums font-mono flex items-center gap-1.5">
-                          <TokenLogo name={tokenName} logoUrl={logoUrl} size="sm" variant="circle" />
-                          <span>{formatNumber(coinEarned)}</span>
-                        </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground text-[12px] mb-1">Total mined</div>
+                      <div className="font-semibold text-[15px] tabular-nums font-mono flex items-center gap-1.5">
+                        <TokenLogo name={tokenName} logoUrl={logoUrl} size="sm" variant="circle" />
+                        <span>{formatNumber(totalMined)}</span>
                       </div>
-                    )}
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground text-[12px] mb-1">Claimable</div>
+                      <div className="font-semibold text-[15px] tabular-nums font-mono flex items-center gap-1.5">
+                        <TokenLogo name={tokenName} logoUrl={logoUrl} size="sm" variant="circle" />
+                        <span>{formatNumber(coinEarned)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {coinEarned > 0 && (
+                    <button
+                      onClick={handleCollectionClaim}
+                      disabled={tokenClaimStatus === "pending" || tokenClaimStatus === "confirming" || tokenClaimStatus === "success"}
+                      className={`w-full mt-4 h-10 text-[14px] font-semibold font-display rounded-none transition-all flex items-center justify-center gap-1.5 ${
+                        tokenClaimStatus === "success"
+                          ? "bg-foreground text-black"
+                          : tokenClaimStatus === "error"
+                          ? "bg-zinc-800 text-white"
+                          : tokenClaimStatus === "pending" || tokenClaimStatus === "confirming"
+                          ? "bg-zinc-800 text-foreground/60 cursor-not-allowed"
+                          : trendButtonClass
+                      }`}
+                    >
+                      {(tokenClaimStatus === "pending" || tokenClaimStatus === "confirming") && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      {tokenClaimStatus === "success" && <CheckCircle className="w-3.5 h-3.5" />}
+                      {tokenClaimStatus === "pending" || tokenClaimStatus === "confirming"
+                        ? "Claiming..."
+                        : tokenClaimStatus === "success"
+                        ? "Claimed!"
+                        : tokenClaimStatus === "error"
+                        ? tokenClaimError?.message?.includes("cancelled") ? "Rejected" : "Failed"
+                        : "Claim"}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Your Creations Section */}
+              {hasCreationsSection && (
+                <div className="mb-6">
+                  <div className="mb-3">
+                    <div className="font-semibold text-[18px] font-display">Your Creations</div>
+                    <div className="text-[12px] text-muted-foreground mt-0.5">Stickers you made, their current value, and the earnings they generated</div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-y-4 gap-x-8">
+                    <div>
+                      <div className="text-muted-foreground text-[12px] mb-1">Stickers created</div>
+                      <div className="font-semibold text-[15px] tabular-nums font-mono">
+                        {creationStickerCount}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground text-[12px] mb-1">Market value</div>
+                      <div className="font-semibold text-[15px] tabular-nums font-mono">
+                        ${creationsMarketValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground text-[12px] mb-1">Collects</div>
+                      <div className="font-semibold text-[15px] tabular-nums font-mono">
+                        {creationsCollectCount}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground text-[12px] mb-1">Total earned</div>
+                      <div className="font-semibold text-[15px] tabular-nums font-mono">
+                        ${creatorEarned.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
+
+              {/* About Section */}
+              <div className="mb-6">
+                <div className="mb-3">
+                  <div className="font-semibold text-[18px] font-display">About</div>
+                  <div className="text-[12px] text-muted-foreground mt-0.5">Channel details, links, and team actions</div>
+                </div>
+
+                <div className="flex items-center gap-2 text-[13px] text-muted-foreground mb-2">
+                  <span>Deployed by</span>
+                  {launcherAddress ? (
+                    <span className="text-foreground font-medium font-mono">
+                      <AddressLink address={launcherAddress} />
+                    </span>
+                  ) : (
+                    <span className="text-foreground font-medium">--</span>
+                  )}
+                  <span className="text-muted-foreground/60">·</span>
+                  <span className="text-muted-foreground/60">{launchDateStr}</span>
+                </div>
+
+                {metadata?.description && (
+                  <p className="text-[13px] text-muted-foreground leading-relaxed mb-2">
+                    {metadata.description}
+                  </p>
+                )}
+                {!metadata?.description && (
+                  <p className="text-[13px] text-muted-foreground leading-relaxed mb-2">
+                    A Stickrnet channel. Collect content stickers, earn coin rewards through staking.
+                  </p>
+                )}
+
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {coinAddress && (
+                    <a
+                      href={`https://basescan.org/token/${coinAddress}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-none bg-secondary text-[12px] text-muted-foreground hover:bg-secondary/80 transition-colors"
+                    >
+                      {tokenSymbol}
+                    </a>
+                  )}
+                  {subgraphChannel?.lpToken && (
+                    <a
+                      href={`https://basescan.org/address/${subgraphChannel.lpToken}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-none bg-secondary text-[12px] text-muted-foreground hover:bg-secondary/80 transition-colors"
+                    >
+                      {tokenSymbol}-USDC LP
+                    </a>
+                  )}
+                  {metadata?.links && metadata.links.length > 0 && metadata.links.map((link, i) => {
+                    let label: string;
+                    try {
+                      const hostname = new URL(link).hostname.replace("www.", "");
+                      if (hostname.includes("twitter.com") || hostname.includes("x.com")) label = "Twitter";
+                      else if (hostname.includes("t.me") || hostname.includes("telegram")) label = "Telegram";
+                      else if (hostname.includes("discord")) label = "Discord";
+                      else if (hostname.includes("github.com")) label = "GitHub";
+                      else if (hostname.includes("warpcast.com")) label = "Warpcast";
+                      else label = hostname;
+                    } catch {
+                      label = link;
+                    }
+                    return (
+                      <a
+                        key={i}
+                        href={link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-none bg-secondary text-[12px] text-muted-foreground hover:bg-secondary/80 transition-colors"
+                      >
+                        {label}
+                      </a>
+                    );
+                  })}
+                </div>
+
+                {/* Action Buttons */}
+                {isConnected && (
+                  <div className="flex">
+                    <button
+                      onClick={() => setShowLiquidityModal(true)}
+                      className={`flex-1 h-10 text-[14px] font-semibold font-display rounded-none transition-colors ${trendButtonClass}`}
+                    >
+                      Liquidity
+                    </button>
+                    <button
+                      onClick={() => setShowAuctionModal(true)}
+                      className={`flex-1 h-10 text-[14px] font-semibold font-display rounded-none transition-colors ${trendButtonClass}`}
+                    >
+                      Auction
+                    </button>
+                    {isOwner && (
+                      <button
+                        onClick={() => setShowAdminModal(true)}
+                        className={`flex-1 h-10 text-[14px] font-semibold font-display rounded-none transition-colors ${trendButtonClass}`}
+                      >
+                        Admin
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* Stats Grid */}
               <div className="mb-6">
@@ -830,172 +1072,6 @@ export default function ChannelDetailPage() {
                     </>
                   )}
                 </div>
-              </div>
-
-              {/* Content & Rewards Section */}
-              <div className="mb-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <div className="font-semibold text-[18px] font-display">Content Rewards</div>
-                    <div className="text-[12px] text-muted-foreground mt-0.5">Collect content stickers to earn coin rewards from staking</div>
-                  </div>
-                </div>
-
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="text-[11px] text-muted-foreground mb-1">Reward Rate</div>
-                    <div className="text-[22px] font-bold tabular-nums font-mono">
-                      {contentRewardForDuration >= 1_000_000 ? `${(contentRewardForDuration / 1_000_000).toFixed(2)}M`
-                        : contentRewardForDuration >= 1_000 ? `${(contentRewardForDuration / 1_000).toFixed(0)}K`
-                        : contentRewardForDuration.toFixed(0)}
-                    </div>
-                    <div className="text-[13px] text-muted-foreground tabular-nums font-mono mt-0.5">
-                      {priceUsd > 0 ? `~$${formatNumber(contentRewardForDuration * priceUsd)} value` : `${tokenSymbol}`}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[11px] text-muted-foreground mb-1">Total Staked</div>
-                    <div className="text-[22px] font-bold tabular-nums font-mono flex items-center justify-end gap-1.5">
-                      <TokenLogo name={tokenSymbol} logoUrl={logoUrl} size="sm" variant="circle" />
-                      {subgraphChannel?.totalStaked
-                        ? (() => {
-                            const staked = parseFloat(subgraphChannel.totalStaked);
-                            if (staked >= 1_000_000) return `${(staked / 1_000_000).toFixed(2)}M`;
-                            if (staked >= 1_000) return `${(staked / 1_000).toFixed(0)}K`;
-                            return staked.toFixed(0);
-                          })()
-                        : "0"}
-                    </div>
-                    <div className="text-[13px] text-muted-foreground tabular-nums font-mono mt-0.5">
-                      content NFTs
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => {
-                    setCollectTokenId(0n);
-                    setCollectEpochId(0n);
-                    setCollectPrice(0n);
-                    setCollectImageUrl(null);
-                    setCollectCaption(null);
-                    setCollectCreator(undefined);
-                    setCollectOwner(undefined);
-                    setCollectCreatedAt(undefined);
-                    setShowCollectModal(true);
-                  }}
-                  className="w-full mt-4 h-10 text-[14px] font-semibold font-display rounded-none bg-white text-black hover:bg-zinc-200 transition-colors"
-                >
-                  Collect
-                </button>
-              </div>
-
-              {/* About Section */}
-              <div className="mb-6">
-                <div className="mb-3">
-                  <div className="font-semibold text-[18px] font-display">About</div>
-                  <div className="text-[12px] text-muted-foreground mt-0.5">Channel details, links, and team actions</div>
-                </div>
-
-                <div className="flex items-center gap-2 text-[13px] text-muted-foreground mb-2">
-                  <span>Deployed by</span>
-                  {launcherAddress ? (
-                    <span className="text-foreground font-medium font-mono">
-                      <AddressLink address={launcherAddress} />
-                    </span>
-                  ) : (
-                    <span className="text-foreground font-medium">--</span>
-                  )}
-                  <span className="text-muted-foreground/60">·</span>
-                  <span className="text-muted-foreground/60">{launchDateStr}</span>
-                </div>
-
-                {metadata?.description && (
-                  <p className="text-[13px] text-muted-foreground leading-relaxed mb-2">
-                    {metadata.description}
-                  </p>
-                )}
-                {!metadata?.description && (
-                  <p className="text-[13px] text-muted-foreground leading-relaxed mb-2">
-                    A Stickrnet channel. Collect content stickers, earn coin rewards through staking.
-                  </p>
-                )}
-
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {coinAddress && (
-                    <a
-                      href={`https://basescan.org/token/${coinAddress}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-none bg-secondary text-[12px] text-muted-foreground hover:bg-secondary/80 transition-colors"
-                    >
-                      {tokenSymbol}
-                    </a>
-                  )}
-                  {subgraphChannel?.lpToken && (
-                    <a
-                      href={`https://basescan.org/address/${subgraphChannel.lpToken}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-none bg-secondary text-[12px] text-muted-foreground hover:bg-secondary/80 transition-colors"
-                    >
-                      {tokenSymbol}-USDC LP
-                    </a>
-                  )}
-                  {metadata?.links && metadata.links.length > 0 && metadata.links.map((link, i) => {
-                    let label: string;
-                    try {
-                      const hostname = new URL(link).hostname.replace("www.", "");
-                      if (hostname.includes("twitter.com") || hostname.includes("x.com")) label = "Twitter";
-                      else if (hostname.includes("t.me") || hostname.includes("telegram")) label = "Telegram";
-                      else if (hostname.includes("discord")) label = "Discord";
-                      else if (hostname.includes("github.com")) label = "GitHub";
-                      else if (hostname.includes("warpcast.com")) label = "Warpcast";
-                      else label = hostname;
-                    } catch {
-                      label = link;
-                    }
-                    return (
-                      <a
-                        key={i}
-                        href={link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-none bg-secondary text-[12px] text-muted-foreground hover:bg-secondary/80 transition-colors"
-                      >
-                        {label}
-                      </a>
-                    );
-                  })}
-                </div>
-
-                {/* Action Buttons */}
-                {isConnected && (
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setShowLiquidityModal(true)}
-                        className="flex-1 h-10 text-[14px] font-semibold font-display rounded-none bg-white text-black hover:bg-zinc-200 transition-colors"
-                      >
-                        Liquidity
-                      </button>
-                      <button
-                        onClick={() => setShowAuctionModal(true)}
-                        className="flex-1 h-10 text-[14px] font-semibold font-display rounded-none bg-white text-black hover:bg-zinc-200 transition-colors"
-                      >
-                        Auction
-                      </button>
-                    </div>
-                    {isOwner && (
-                      <button
-                        onClick={() => setShowAdminModal(true)}
-                        className="w-full h-10 text-[14px] font-semibold font-display rounded-none bg-white text-black hover:bg-zinc-200 transition-colors"
-                      >
-                        Admin
-                      </button>
-                    )}
-                  </div>
-                )}
               </div>
             </>
           )}
@@ -1087,6 +1163,7 @@ export default function ChannelDetailPage() {
         ownerAddress={collectOwner}
         createdAt={collectCreatedAt}
         priceUsd={priceUsd}
+        isPositiveTrend={isPositiveTrend}
         onSuccess={() => refetchState()}
       />
 
@@ -1111,6 +1188,7 @@ export default function ChannelDetailPage() {
         contentAddress={contentAddress}
         tokenSymbol={tokenSymbol}
         tokenName={tokenName}
+        isPositiveTrend={isPositiveTrend}
       />
 
       {/* Liquidity Modal */}
@@ -1123,6 +1201,7 @@ export default function ChannelDetailPage() {
         tokenBalance={userCoinBalance}
         usdcBalance={userQuoteBalance}
         tokenPrice={priceUsd}
+        isPositiveTrend={isPositiveTrend}
       />
 
       {/* Admin Modal */}
@@ -1139,6 +1218,7 @@ export default function ChannelDetailPage() {
           initialIsModerated={coinState?.isModerated ?? false}
           initialMetadata={metadata ?? undefined}
           initialLogoUrl={logoUrl ?? undefined}
+          isPositiveTrend={isPositiveTrend}
         />
       )}
 
@@ -1157,6 +1237,7 @@ export default function ChannelDetailPage() {
         }}
         tokenSymbol={tokenSymbol}
         logoUrl={logoUrl}
+        isPositiveTrend={isPositiveTrend}
       />
 
     </main>

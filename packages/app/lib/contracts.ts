@@ -1,6 +1,6 @@
 export const CONTRACT_ADDRESSES = {
   core: "0xf1fc02884D1D701fca31b8f90B309b726597424A",
-  multicall: "0xAEd96fA4549eCD551e06ff644e6Fe86BfEd6B3A6",
+  multicall: "0xF1C7682591c9b4330ad311acc446F7a190a11cff",
   usdc: "0xe90495BE187d434e23A9B1FeC0B6Ce039700870e",
   uniV2Router: "0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24",
   uniV2Factory: "0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6",
@@ -121,8 +121,8 @@ export const MULTICALL_ABI = [
           { internalType: "uint256", name: "accountCoinBalance", type: "uint256" },
           { internalType: "uint256", name: "accountContentOwned", type: "uint256" },
           { internalType: "uint256", name: "accountContentStaked", type: "uint256" },
-          { internalType: "uint256", name: "accountCoinEarned", type: "uint256" },
-          { internalType: "uint256", name: "accountClaimable", type: "uint256" },
+          { internalType: "uint256", name: "accountCoinClaimable", type: "uint256" },
+          { internalType: "uint256", name: "accountQuoteClaimable", type: "uint256" },
           { internalType: "bool", name: "accountIsModerator", type: "bool" },
         ],
         internalType: "struct Multicall.CoinState",
@@ -696,8 +696,8 @@ export type CoinState = {
   accountCoinBalance: bigint;
   accountContentOwned: bigint;
   accountContentStaked: bigint;
-  accountCoinEarned: bigint;
-  accountClaimable: bigint;
+  accountCoinClaimable: bigint;
+  accountQuoteClaimable: bigint;
   accountIsModerator: boolean;
 };
 
@@ -721,7 +721,7 @@ export type AuctionState = {
   startTime: bigint;
   paymentToken: `0x${string}`;
   price: bigint;
-  paymentTokenPrice: bigint;
+  paymentTokenPrice: bigint; // Quote-token raw units per 1 LP token
   quoteAccumulated: bigint;
   accountQuoteBalance: bigint;
   accountPaymentTokenBalance: bigint;

@@ -392,6 +392,21 @@ export const GET_CONTENT_POSITIONS_QUERY = gql`
   }
 `;
 
+// Get content positions owned by an account across all channels
+export const GET_OWNED_CONTENT_POSITIONS_QUERY = gql`
+  query GetOwnedContentPositions($accountAddress: String!, $first: Int!, $skip: Int!) {
+    contentPositions(
+      where: { owner: $accountAddress }
+      orderBy: createdAt
+      orderDirection: desc
+      first: $first
+      skip: $skip
+    ) {
+      ${CONTENT_POSITION_FIELDS}
+    }
+  }
+`;
+
 // Get channel accounts (leaderboard data)
 export const GET_CHANNEL_ACCOUNTS_QUERY = gql`
   query GetChannelAccounts($channelAddress: String!, $first: Int!, $orderBy: ChannelAccount_orderBy!) {
@@ -806,6 +821,27 @@ export async function getContentPositions(
     return data.contentPositions ?? [];
   } catch (error) {
     console.error("[getContentPositions] Error:", error);
+    return [];
+  }
+}
+
+// Get content positions owned by an account across all channels
+export async function getOwnedContentPositions(
+  accountAddress: string,
+  first = 100,
+  skip = 0
+): Promise<SubgraphContentPosition[]> {
+  try {
+    const data = await client.request<{
+      contentPositions: SubgraphContentPosition[];
+    }>(GET_OWNED_CONTENT_POSITIONS_QUERY, {
+      accountAddress: accountAddress.toLowerCase(),
+      first,
+      skip,
+    });
+    return data.contentPositions ?? [];
+  } catch (error) {
+    console.error("[getOwnedContentPositions] Error:", error);
     return [];
   }
 }

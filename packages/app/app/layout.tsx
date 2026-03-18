@@ -27,10 +27,10 @@ const miniAppEmbed = {
 };
 
 export const metadata: Metadata = {
-  title: "Stickrnet",
+  title: "stickr.net",
   description: "Create content channels on Base. Collect stickers, earn coin rewards, and trade.",
   openGraph: {
-    title: "Stickrnet",
+    title: "stickr.net",
     description: "Create content channels on Base. Collect stickers, earn coin rewards, and trade.",
     url: appDomain,
     images: [

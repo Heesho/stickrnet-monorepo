@@ -28,6 +28,7 @@ type LiquidityModalProps = {
   tokenBalance?: number;
   usdcBalance?: number;
   tokenPrice?: number; // Token price in USDC
+  isPositiveTrend?: boolean;
 };
 
 // Number pad button component
@@ -59,6 +60,7 @@ export function LiquidityModal({
   tokenBalance = 0,
   usdcBalance = 0,
   tokenPrice = 0,
+  isPositiveTrend = true,
 }: LiquidityModalProps) {
   const { address: account } = useFarcaster();
   const { execute, status: txStatus, txHash, error: txError, reset: resetTx } = useBatchedTransaction();
@@ -127,6 +129,15 @@ export function LiquidityModal({
   const isPending = txStatus === "pending" || txStatus === "confirming";
   const isSuccess = txStatus === "success";
   const isError = txStatus === "error";
+  const accentButtonClass = isPositiveTrend
+    ? "bg-[#A78BFA] text-black hover:bg-[#9575D9]"
+    : "bg-[#2DD4BF] text-black hover:bg-[#26B8A5]";
+  const accentSolidClass = isPositiveTrend
+    ? "bg-[#A78BFA] text-black"
+    : "bg-[#2DD4BF] text-black";
+  const accentDisabledClass = isPositiveTrend
+    ? "bg-[#A78BFA] text-black/60 opacity-50 cursor-not-allowed"
+    : "bg-[#2DD4BF] text-black/60 opacity-50 cursor-not-allowed";
 
   // Auto-close on success after short delay
   const onCloseRef = useRef(onClose);
@@ -305,12 +316,12 @@ export function LiquidityModal({
             disabled={!canCreate || isPending || isSuccess}
             className={`w-full h-10 rounded-none font-semibold font-display text-[14px] transition-all mb-4 flex items-center justify-center gap-2 ${
               isSuccess
-                ? "bg-white text-black"
+                ? accentSolidClass
                 : isError
                 ? "bg-zinc-800 text-white"
                 : !canCreate || isPending
-                ? "bg-zinc-800 text-foreground/50 cursor-not-allowed"
-                : "bg-white text-black hover:bg-zinc-200"
+                ? accentDisabledClass
+                : accentButtonClass
             }`}
           >
             {isPending && <Loader2 className="w-4 h-4 animate-spin" />}

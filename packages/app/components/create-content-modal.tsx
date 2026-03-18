@@ -22,6 +22,7 @@ type CreateContentModalProps = {
   onSuccess?: () => void;
   tokenSymbol?: string;
   logoUrl?: string | null;
+  isPositiveTrend?: boolean;
 };
 
 const TITLE_MAX = 150;
@@ -39,6 +40,7 @@ export function CreateContentModal({
   onSuccess,
   tokenSymbol = "",
   logoUrl,
+  isPositiveTrend = true,
 }: CreateContentModalProps) {
   const [tab, setTab] = useState<Tab>("media");
 
@@ -217,6 +219,12 @@ export function CreateContentModal({
           return "Something went wrong";
         })()
       : null);
+  const accentButtonClass = isPositiveTrend
+    ? "bg-[#A78BFA] text-black hover:bg-[#9575D9]"
+    : "bg-[#2DD4BF] text-black hover:bg-[#26B8A5]";
+  const accentDisabledClass = isPositiveTrend
+    ? "bg-[#A78BFA] text-black/60 opacity-50 cursor-not-allowed"
+    : "bg-[#2DD4BF] text-black/60 opacity-50 cursor-not-allowed";
 
   // Success screen
   if (isSuccess) {
@@ -250,7 +258,7 @@ export function CreateContentModal({
             <div className="space-y-3 pt-2 w-full">
               <button
                 onClick={onClose}
-                className="block w-full py-3.5 px-4 bg-white text-black font-semibold font-display text-[15px] rounded-none hover:bg-zinc-200 transition-colors"
+                className={`block w-full py-3.5 px-4 font-semibold font-display text-[15px] rounded-none transition-colors ${accentButtonClass}`}
               >
                 Done
               </button>
@@ -445,8 +453,8 @@ export function CreateContentModal({
             onClick={handleSubmit}
             className={`w-full h-10 rounded-none font-semibold font-display text-[14px] transition-all flex items-center justify-center gap-2 ${
               !canSubmit
-                ? "bg-zinc-800 text-foreground/50 cursor-not-allowed"
-                : "bg-[#A78BFA] text-black hover:bg-[#9575D9]"
+                ? accentDisabledClass
+                : accentButtonClass
             }`}
           >
             {isPending && <Loader2 className="w-4 h-4 animate-spin" />}

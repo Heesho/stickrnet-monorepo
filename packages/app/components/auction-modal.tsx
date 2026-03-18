@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { X, Loader2, CheckCircle } from "lucide-react";
 import { formatEther, formatUnits } from "viem";
 import { useReadContract } from "wagmi";
@@ -20,12 +20,25 @@ import {
 } from "@/lib/contracts";
 import { DEADLINE_BUFFER_SECONDS } from "@/lib/constants";
 
+const LP_PRICE_SCALE = 10n ** 18n;
+
+function formatLpAmount(value: string): string {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "0";
+  if (amount === 0) return "0";
+  if (amount < 0.001) return amount.toFixed(8);
+  if (amount < 0.01) return amount.toFixed(6);
+  if (amount < 1) return amount.toFixed(4);
+  return amount.toFixed(3);
+}
+
 type AuctionModalProps = {
   isOpen: boolean;
   onClose: () => void;
   contentAddress: `0x${string}`;
   tokenSymbol: string;
   tokenName: string;
+  isPositiveTrend?: boolean;
 };
 
 export function AuctionModal({
@@ -34,6 +47,7 @@ export function AuctionModal({
   contentAddress,
   tokenSymbol,
   tokenName,
+  isPositiveTrend = true,
 }: AuctionModalProps) {
   const { address: account } = useFarcaster();
   const multicallAddr = CONTRACT_ADDRESSES.multicall as `0x${string}`;
@@ -78,15 +92,28 @@ export function AuctionModal({
     if (status === "success") {
       const timer = setTimeout(() => {
         refetchAuction();
-      }, 3000);
+      }, 1000);
       return () => clearTimeout(timer);
     }
   }, [status, refetchAuction]);
+
+  // Auto-close on success after a short delay
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    if (status === "success") {
+      const timer = setTimeout(() => {
+        onCloseRef.current();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [status]);
 
   // Derived display values
   const paymentPriceFormatted = auctionState
     ? formatEther(auctionState.price)
     : "0";
+  const paymentPriceDisplay = formatLpAmount(paymentPriceFormatted);
 
   const userPaymentTokenBalance = auctionState
     ? formatEther(auctionState.accountPaymentTokenBalance)
@@ -95,6 +122,11 @@ export function AuctionModal({
   const treasuryUsdc = auctionState
     ? formatUnits(auctionState.quoteAccumulated, QUOTE_TOKEN_DECIMALS)
     : "0";
+
+  const lpCostInQuoteRaw = auctionState
+    ? (auctionState.price * auctionState.paymentTokenPrice) / LP_PRICE_SCALE
+    : 0n;
+  const lpCostUsd = Number(formatUnits(lpCostInQuoteRaw, QUOTE_TOKEN_DECIMALS));
 
   const hasEnoughPaymentToken = auctionState
     ? auctionState.price === 0n || auctionState.accountPaymentTokenBalance >= auctionState.price
@@ -144,6 +176,15 @@ export function AuctionModal({
   const isPending = status === "pending";
   const isSuccess = status === "success";
   const isError = status === "error";
+  const accentButtonClass = isPositiveTrend
+    ? "bg-[#A78BFA] text-black hover:bg-[#9575D9]"
+    : "bg-[#2DD4BF] text-black hover:bg-[#26B8A5]";
+  const accentSolidClass = isPositiveTrend
+    ? "bg-[#A78BFA] text-black"
+    : "bg-[#2DD4BF] text-black";
+  const accentDisabledClass = isPositiveTrend
+    ? "bg-[#A78BFA] text-black/60 opacity-50 cursor-not-allowed"
+    : "bg-[#2DD4BF] text-black/60 opacity-50 cursor-not-allowed";
 
   return (
     <div className="fixed inset-0 z-[100] flex h-screen w-screen justify-center bg-zinc-800">
@@ -191,14 +232,14 @@ export function AuctionModal({
                 <div className="flex items-center justify-between">
                   <span className="text-[13px] text-muted-foreground font-display">You pay</span>
                   <span className="text-lg font-semibold font-mono tabular-nums">
-                    {isAuctionActive ? `${Number(paymentPriceFormatted).toFixed(3)} LP` : "\u2014"}
+                    {isAuctionActive ? `${paymentPriceDisplay} LP` : "\u2014"}
                   </span>
                 </div>
                 <div className="flex items-center justify-between mt-1">
                   <span className="text-[11px] text-muted-foreground">{tokenSymbol}-USDC LP</span>
                   {isAuctionActive && auctionState && (
                     <span className="text-[11px] text-muted-foreground font-mono tabular-nums">
-                      ~${(Number(paymentPriceFormatted) * Number(formatUnits(auctionState.paymentTokenPrice, 18))).toFixed(2)}
+                      ~${lpCostUsd.toFixed(2)}
                     </span>
                   )}
                 </div>
@@ -222,9 +263,8 @@ export function AuctionModal({
                 <div className="flex items-center justify-end gap-3 py-3 text-[11px] text-muted-foreground font-mono tabular-nums">
                   <span>
                     {(() => {
-                      const lpCost = Number(paymentPriceFormatted) * Number(formatUnits(auctionState.paymentTokenPrice, 18));
                       const usdcReceive = Number(treasuryUsdc);
-                      const profit = usdcReceive - lpCost;
+                      const profit = usdcReceive - lpCostUsd;
                       return `${profit >= 0 ? "+" : ""}${profit.toFixed(2)} ${profit >= 0 ? "profit" : "loss"}`;
                     })()}
                   </span>
@@ -249,12 +289,12 @@ export function AuctionModal({
                   disabled={!account || !isAuctionActive || !hasEnoughPaymentToken || isPending || isSuccess}
                   className={`w-full h-10 rounded-none font-semibold font-display text-[14px] transition-all flex items-center justify-center gap-2 ${
                     isSuccess
-                      ? "bg-white text-black"
+                      ? accentSolidClass
                       : isError
                       ? "bg-zinc-800 text-white"
                       : !account || !isAuctionActive || !hasEnoughPaymentToken || isPending
-                      ? "bg-zinc-800 text-foreground/50 cursor-not-allowed"
-                      : "bg-white text-black hover:bg-zinc-200"
+                      ? accentDisabledClass
+                      : accentButtonClass
                   }`}
                 >
                   {isPending && <Loader2 className="w-4 h-4 animate-spin" />}

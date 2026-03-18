@@ -45,6 +45,7 @@ type CollectModalProps = {
   ownerAddress?: string;
   createdAt?: string; // Unix timestamp string
   priceUsd?: number; // Coin price in USD for revenue conversion
+  isPositiveTrend?: boolean;
   onSuccess?: () => void;
 };
 
@@ -68,6 +69,7 @@ export function CollectModal({
   ownerAddress: ownerAddressProp,
   createdAt,
   priceUsd = 0,
+  isPositiveTrend = true,
   onSuccess,
 }: CollectModalProps) {
   const { address: account } = useFarcaster();
@@ -150,7 +152,7 @@ export function CollectModal({
 
   // Execute collect
   const handleConfirm = useCallback(async () => {
-    if (!account || status === "pending" || maxPrice === 0n) return;
+    if (!account || status === "pending") return;
 
     const deadline = BigInt(
       Math.floor(Date.now() / 1000) + DEADLINE_BUFFER_SECONDS
@@ -159,7 +161,8 @@ export function CollectModal({
     const calls: Call[] = [];
 
     const needsApproval =
-      currentAllowance === undefined || currentAllowance < maxPrice;
+      maxPrice > 0n &&
+      (currentAllowance === undefined || currentAllowance < maxPrice);
     if (needsApproval) {
       calls.push(
         encodeApproveCall(
@@ -212,7 +215,16 @@ export function CollectModal({
 
   const isPending = status === "pending";
   const isSuccess = status === "success";
-  const buttonDisabled = maxPrice === 0n || isPending;
+  const buttonDisabled = isPending;
+  const accentButtonClass = isPositiveTrend
+    ? "bg-[#A78BFA] text-black hover:bg-[#9575D9]"
+    : "bg-[#2DD4BF] text-black hover:bg-[#26B8A5]";
+  const accentSolidClass = isPositiveTrend
+    ? "bg-[#A78BFA] text-black"
+    : "bg-[#2DD4BF] text-black";
+  const accentDisabledClass = isPositiveTrend
+    ? "bg-[#A78BFA] text-black/60 opacity-50 cursor-not-allowed"
+    : "bg-[#2DD4BF] text-black/60 opacity-50 cursor-not-allowed";
 
   const errorMsg = txError
     ? (() => {
@@ -361,7 +373,7 @@ export function CollectModal({
                 <div className="font-semibold text-[17px] tabular-nums font-mono">
                   {currentPriceDisplay > 0
                     ? `$${formatNumber(currentPriceDisplay)}`
-                    : "Free"}
+                    : "$0"}
                 </div>
               </div>
               <div>
@@ -382,10 +394,10 @@ export function CollectModal({
               onClick={handleConfirm}
               className={`flex-1 h-10 rounded-none font-semibold font-display text-[15px] transition-all flex items-center justify-center gap-2 ${
                 buttonDisabled
-                  ? "bg-zinc-800 text-foreground/50 cursor-not-allowed"
+                  ? accentDisabledClass
                   : isSuccess
-                    ? "bg-white text-black"
-                    : "bg-white text-black hover:bg-zinc-200"
+                    ? accentSolidClass
+                    : accentButtonClass
               }`}
             >
               {isPending && <Loader2 className="w-4 h-4 animate-spin" />}

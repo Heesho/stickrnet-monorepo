@@ -11,7 +11,6 @@ const nextConfig: NextConfig = {
   webpack: (config) => {
     config.resolve.alias = {
       ...config.resolve.alias,
-      "@noble/hashes": path.resolve(process.cwd(), "../../node_modules/@noble/hashes"),
       "@react-native-async-storage/async-storage": false,
     };
 

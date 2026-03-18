@@ -456,7 +456,7 @@ export default function LaunchPage() {
               <button
                 onClick={() => connect()}
                 disabled={isConnecting}
-                className="w-40 h-10 text-[14px] font-semibold font-display rounded-none bg-white text-black hover:bg-zinc-200 transition-colors disabled:opacity-50"
+                className="flex-1 h-10 text-[14px] font-semibold font-display rounded-none bg-white text-black hover:bg-zinc-200 transition-colors disabled:opacity-50"
               >
                 {isConnecting ? "Connecting..." : "Connect Wallet"}
               </button>
@@ -467,9 +467,9 @@ export default function LaunchPage() {
                 className={`flex-1 h-10 text-[15px] font-semibold font-display rounded-none transition-all ${
                   launchError || txStatus === "error"
                     ? "bg-zinc-800 text-foreground/70"
-                    : !isFormValid || isLaunching || isUploading
-                    ? "bg-zinc-800 text-foreground/50 cursor-not-allowed"
-                    : "bg-white text-black hover:bg-zinc-200"
+                  : !isFormValid || isLaunching || isUploading
+                    ? "bg-[#A78BFA] text-black/60 opacity-50 cursor-not-allowed"
+                    : "bg-[#A78BFA] text-black hover:bg-[#9575D9]"
                 }`}
               >
                 {launchError || txStatus === "error"

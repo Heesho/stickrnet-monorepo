@@ -5,6 +5,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ipfsToHttp } from "@/lib/constants";
 
 export type TokenMetadata = {
+  name?: string;
+  symbol?: string;
   image?: string;
   description?: string;
   defaultMessage?: string;

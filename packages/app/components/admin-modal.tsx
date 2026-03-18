@@ -20,6 +20,7 @@ type AdminModalProps = {
   initialIsModerated?: boolean;
   initialMetadata?: TokenMetadata;
   initialLogoUrl?: string;
+  isPositiveTrend?: boolean;
 };
 
 function isValidAddress(address: string): boolean {
@@ -38,6 +39,7 @@ export function AdminModal({
   initialIsModerated = false,
   initialMetadata,
   initialLogoUrl,
+  isPositiveTrend = true,
 }: AdminModalProps) {
   // Metadata fields -- initialized from parent's already-loaded IPFS data
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -87,6 +89,15 @@ export function AdminModal({
   const isTreasuryValid = isValidAddress(treasury);
   const isTeamValid = team === "" || isValidAddress(team);
   const isNewOwnerValid = isValidAddress(newOwner);
+  const accentButtonClass = isPositiveTrend
+    ? "bg-[#A78BFA] text-black hover:bg-[#9575D9]"
+    : "bg-[#2DD4BF] text-black hover:bg-[#26B8A5]";
+  const accentSolidClass = isPositiveTrend
+    ? "bg-[#A78BFA] text-black"
+    : "bg-[#2DD4BF] text-black";
+  const accentDisabledClass = isPositiveTrend
+    ? "bg-[#A78BFA] text-black/60 opacity-50 cursor-not-allowed"
+    : "bg-[#2DD4BF] text-black/60 opacity-50 cursor-not-allowed";
 
   // Check if metadata changed from what was loaded
   const metadataChanged =
@@ -274,12 +285,12 @@ export function AdminModal({
   const saveBtnClass = (field: string, enabled: boolean) =>
     `h-10 px-4 rounded-none text-[13px] font-semibold font-display transition-all flex-shrink-0 ${
       successField === field
-        ? "bg-white text-black"
+        ? accentSolidClass
         : isSaving && pendingField === field
-        ? "bg-zinc-800 text-foreground/60"
+        ? accentDisabledClass
         : enabled
-        ? "bg-white text-black hover:bg-zinc-200"
-        : "bg-zinc-800 text-foreground/40"
+        ? accentButtonClass
+        : accentDisabledClass
     }`;
 
   return (
@@ -411,12 +422,12 @@ export function AdminModal({
             disabled={isSaving || !metadataChanged}
             className={`w-full h-10 rounded-none text-[14px] font-semibold font-display transition-all mt-4 ${
               successField === "metadata"
-                ? "bg-white text-black"
+                ? accentSolidClass
                 : isSaving && pendingField === "metadata"
-                ? "bg-zinc-800 text-foreground/60"
+                ? accentDisabledClass
                 : metadataChanged
-                ? "bg-white text-black hover:bg-zinc-200"
-                : "bg-zinc-800 text-foreground/40"
+                ? accentButtonClass
+                : accentDisabledClass
             }`}
           >
             {successField === "metadata" ? (
@@ -529,12 +540,12 @@ export function AdminModal({
                   disabled={isSaving || !isValidAddress(moderatorInput)}
                   className={`h-10 px-3 rounded-none text-[13px] font-semibold font-display transition-all flex-shrink-0 ${
                     successField === "removeModerator"
-                      ? "bg-white text-black"
+                      ? accentSolidClass
                       : isSaving && pendingField === "removeModerator"
-                      ? "bg-zinc-800 text-foreground/60"
+                      ? accentDisabledClass
                       : isValidAddress(moderatorInput)
-                      ? "bg-zinc-800 text-white hover:bg-zinc-800/80"
-                      : "bg-zinc-800 text-foreground/40"
+                      ? accentButtonClass
+                      : accentDisabledClass
                   }`}
                 >
                   {successField === "removeModerator" ? "Removed" : isSaving && pendingField === "removeModerator" ? (
@@ -585,12 +596,12 @@ export function AdminModal({
                 disabled={isSaving || !isNewOwnerValid}
                 className={`h-10 px-4 rounded-none text-[13px] font-semibold font-display transition-all flex-shrink-0 ${
                   successField === "transferOwnership"
-                    ? "bg-white text-black"
+                    ? accentSolidClass
                     : isSaving && pendingField === "transferOwnership"
-                    ? "bg-zinc-800 text-foreground/60"
+                    ? accentDisabledClass
                     : isNewOwnerValid
-                    ? "bg-[#2DD4BF] text-white hover:bg-[#26B8A5]"
-                    : "bg-zinc-800 text-foreground/40"
+                    ? accentButtonClass
+                    : accentDisabledClass
                 }`}
               >
                 {successField === "transferOwnership" ? "Transferred" : isSaving && pendingField === "transferOwnership" ? (

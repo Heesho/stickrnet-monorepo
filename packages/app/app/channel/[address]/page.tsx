@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getChannel } from "@/lib/subgraph-launchpad";
 import ChannelDetailPage from "./client-page";
 
-const appDomain = process.env.NEXT_PUBLIC_APP_URL || "https://stickrnet.com";
+const appDomain = process.env.NEXT_PUBLIC_APP_URL || "https://stickrnet.vercel.app";
 const heroImageUrl = `${appDomain}/media/hero.png`;
 const splashImageUrl = `${appDomain}/media/splash.png`;
 

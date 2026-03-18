@@ -10,7 +10,7 @@ const INFO_SECTIONS = [
     bullets: [
       "Channels are launched with their own coin and liquidity pool",
       "Content stickers are NFTs that can be collected and staked",
-      "All contracts are immutable -- nobody can change the rules",
+      "All contracts are immutable — \1obody can change the rules",
     ],
   },
   {
@@ -29,7 +29,7 @@ const INFO_SECTIONS = [
     content:
       "Channels mint coins over time using a Bitcoin-inspired halving schedule. Coins are distributed to staked content holders proportional to their stake.",
     bullets: [
-      "Rewards follow a halving schedule -- early stakers earn the most",
+      "Rewards follow a halving schedule — \1arly stakers earn the most",
       "Tail rewards ensure coins are minted forever",
       "Stake more content to earn more coins",
       "Claim accumulated rewards at any time",
@@ -40,11 +40,11 @@ const INFO_SECTIONS = [
     content:
       "When content is collected, fees are split transparently on-chain between participants in the ecosystem.",
     bullets: [
-      "Owner -- the current sticker owner receives the majority",
-      "Creator -- the original content creator earns a fee",
-      "Treasury -- grows liquidity via auctions",
-      "Team -- the channel launcher earns a team fee",
-      "Protocol -- small protocol fee",
+      "Owner — \1he current sticker owner receives the majority",
+      "Creator — \1he original content creator earns a fee",
+      "Treasury — \1rows liquidity via auctions",
+      "Team — \1he channel launcher earns a team fee",
+      "Protocol — \1mall protocol fee",
     ],
   },
   {
@@ -52,15 +52,15 @@ const INFO_SECTIONS = [
     content:
       "Treasury fees accumulate as USDC and are auctioned off to LP holders. This permanently deepens liquidity for the coin.",
     bullets: [
-      "Dutch auction -- price decays over time",
+      "Dutch auction — \1rice decays over time",
       "Buy when the price makes it profitable",
-      "LP used in auctions gets burned -- liquidity only grows",
+      "LP used in auctions gets burned — \1iquidity only grows",
     ],
   },
   {
     title: "For Launchers",
     content:
-      "Launch a channel in one click. Everything is configured at launch and locked forever -- fully immutable.",
+      "Launch a channel in one click. Everything is configured at launch and locked forever — \1ully immutable.",
     bullets: [
       "Bitcoin-style coin rewards with customizable parameters",
       "Earn team fees from all collecting activity",
@@ -106,7 +106,7 @@ export default function InfoPage() {
                       key={i}
                       className="text-[14px] text-muted-foreground flex items-start gap-3 leading-snug"
                     >
-                      <span className="text-foreground/50 mt-0.5 font-mono text-[12px]">--</span>
+                      <span className="text-foreground/50 mt-0.5 font-mono text-[12px]">•</span>
                       {bullet}
                     </li>
                   ))}

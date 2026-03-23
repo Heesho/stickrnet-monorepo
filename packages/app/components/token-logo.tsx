@@ -18,6 +18,7 @@ type TokenLogoProps = {
   size?: TokenLogoSize;
   /** "square" for standard display, "circle" for inline currency usage */
   variant?: "square" | "circle";
+  loading?: "eager" | "lazy";
 };
 
 export function TokenLogo({
@@ -25,6 +26,7 @@ export function TokenLogo({
   logoUrl,
   size = "md-lg",
   variant = "square",
+  loading = "lazy",
 }: TokenLogoProps) {
   const [imgError, setImgError] = useState(false);
   const classes = sizeClasses[size];
@@ -36,6 +38,8 @@ export function TokenLogo({
         src={logoUrl}
         alt={name}
         className={`${classes.img} ${rounding} object-cover`}
+        loading={loading}
+        decoding="async"
         onError={() => setImgError(true)}
       />
     );

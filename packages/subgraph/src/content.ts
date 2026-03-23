@@ -21,6 +21,7 @@ import {
   ChannelHourData,
   ChannelMinuteData,
 } from "../generated/schema";
+import { IpfsMetadata as IpfsMetadataTemplate } from "../generated/templates";
 import {
   ZERO_BD,
   ZERO_BI,
@@ -45,6 +46,7 @@ import {
   getChannelDayDataId,
   getChannelHourDataId,
   getChannelMinuteDataId,
+  extractIpfsPath,
 } from "./helpers";
 
 function getOrCreateAccount(address: string): Account {
@@ -104,6 +106,12 @@ export function handleContentCreated(event: ContentCreatedEvent): void {
   content.creator = creatorAddress;
   content.owner = creatorAddress;
   content.uri = event.params.uri;
+  let metadataPath = extractIpfsPath(event.params.uri);
+  if (metadataPath != null) {
+    let resolvedMetadataPath = changetype<string>(metadataPath);
+    content.metadata = resolvedMetadataPath;
+    IpfsMetadataTemplate.create(resolvedMetadataPath);
+  }
   content.isApproved = !channel.isModerated;
   content.epochId = ZERO_BI;
   content.startTime = event.block.timestamp;
@@ -352,6 +360,12 @@ export function handleContentUriSet(event: ContentUriSetEvent): void {
   if (channel == null) return;
 
   channel.uri = event.params.uri;
+  let metadataPath = extractIpfsPath(event.params.uri);
+  if (metadataPath != null) {
+    let resolvedMetadataPath = changetype<string>(metadataPath);
+    channel.metadata = resolvedMetadataPath;
+    IpfsMetadataTemplate.create(resolvedMetadataPath);
+  }
   channel.save();
 }
 

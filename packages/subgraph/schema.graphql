@@ -48,6 +48,7 @@ type Channel @entity(immutable: false) {
   name: String!
   symbol: String!
   uri: String!
+  metadata: IpfsMetadata
 
   # Launch parameters
   quoteAmount: BigDecimal!
@@ -148,6 +149,7 @@ type ContentPosition @entity(immutable: false) {
   creator: Account!
   owner: Account!
   uri: String!
+  metadata: IpfsMetadata
   isApproved: Boolean!
 
   # Epoch/pricing state
@@ -166,6 +168,17 @@ type ContentPosition @entity(immutable: false) {
 
   # Relationships
   collects: [Collect!]! @derivedFrom(field: "content")
+}
+
+type IpfsMetadata @entity(immutable: true) {
+  id: ID! # CID or CID/path
+  name: String
+  symbol: String
+  imageUri: String
+  description: String
+  defaultMessage: String
+  recipientName: String
+  links: [String!]
 }
 
 # Lookup: maps rewarder/minter address to content channel

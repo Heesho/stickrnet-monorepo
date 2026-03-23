@@ -7,6 +7,7 @@ import {
   getAllChannels,
   getOwnedContentPositions,
   type SubgraphContentPosition,
+  type SubgraphMetadata,
 } from "@/lib/subgraph-launchpad";
 import { ERC20_ABI } from "@/lib/contracts";
 import { DEFAULT_CHAIN_ID } from "@/lib/constants";
@@ -29,6 +30,7 @@ export type UserHolding = {
   tokenName: string;
   tokenSymbol: string;
   uri: string;
+  imageUri: string | null;
   balance: bigint;
   balanceNum: number;
   priceUsd: number;
@@ -43,6 +45,7 @@ export type UserCollectionItem = {
   channelName: string;
   channelSymbol: string;
   contentUri: string;
+  metadata: SubgraphMetadata | null;
   tokenId: bigint;
   isApproved: boolean;
   collectCount: number;
@@ -140,6 +143,7 @@ export function useUserProfile(accountAddress: `0x${string}` | undefined) {
         tokenName: channel.name,
         tokenSymbol: channel.symbol,
         uri: channel.uri ?? "",
+        imageUri: channel.metadata?.imageUri ?? null,
         balance,
         balanceNum,
         priceUsd,
@@ -171,6 +175,7 @@ export function useUserProfile(accountAddress: `0x${string}` | undefined) {
           channelName: channel?.name ?? "Channel",
           channelSymbol: channel?.symbol ?? "--",
           contentUri: position.uri ?? "",
+          metadata: position.metadata ?? null,
           tokenId: BigInt(position.tokenId),
           isApproved: position.isApproved,
           collectCount: parseInt(position.collectCount, 10) || 0,

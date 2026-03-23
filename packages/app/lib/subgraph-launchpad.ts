@@ -26,6 +26,17 @@ export type SubgraphDirectory = {
   protocolRevenue: string;
 };
 
+export type SubgraphMetadata = {
+  id: string;
+  name?: string | null;
+  symbol?: string | null;
+  imageUri?: string | null;
+  description?: string | null;
+  defaultMessage?: string | null;
+  recipientName?: string | null;
+  links?: string[] | null;
+};
+
 export type SubgraphChannel = {
   id: string; // Content contract address
   index: string;
@@ -40,6 +51,7 @@ export type SubgraphChannel = {
   name: string;
   symbol: string;
   uri: string;
+  metadata?: SubgraphMetadata | null;
   quoteAmount: string;
   coinAmount: string;
   initialUps: string;
@@ -103,6 +115,7 @@ export type SubgraphContentPosition = {
   creator: { id: string };
   owner: { id: string };
   uri: string;
+  metadata?: SubgraphMetadata | null;
   isApproved: boolean;
   epochId: string;
   startTime: string;
@@ -165,6 +178,16 @@ const CHANNEL_FIELDS = `
   name
   symbol
   uri
+  metadata {
+    id
+    name
+    symbol
+    imageUri
+    description
+    defaultMessage
+    recipientName
+    links
+  }
   quoteAmount
   coinAmount
   initialUps
@@ -228,6 +251,16 @@ const CONTENT_POSITION_FIELDS = `
   creator { id }
   owner { id }
   uri
+  metadata {
+    id
+    name
+    symbol
+    imageUri
+    description
+    defaultMessage
+    recipientName
+    links
+  }
   isApproved
   epochId
   startTime

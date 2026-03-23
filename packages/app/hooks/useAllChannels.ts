@@ -16,6 +16,7 @@ export type ChannelListItem = {
   tokenName: string;
   tokenSymbol: string;
   uri: string;
+  imageUri: string | null;
   launcher: `0x${string}`;
   // Market data (from subgraph)
   priceUsd: number;
@@ -79,6 +80,7 @@ function channelToChannelListItem(channel: SubgraphChannel): ChannelListItem {
     tokenName: channel.name,
     tokenSymbol: channel.symbol,
     uri: channel.uri,
+    imageUri: channel.metadata?.imageUri ?? null,
     launcher: channel.launcher.id.toLowerCase() as `0x${string}`,
     priceUsd,
     change24h: 0, // No nested dayData; sparkline data comes separately

@@ -19,6 +19,7 @@ export type AuctionItem = {
   tokenName: string;
   tokenSymbol: string;
   uri: string;
+  imageUri: string | null;
   // Auction state
   lpPrice: bigint; // Current LP cost (18 dec)
   quoteAccumulated: bigint; // USDC in auction (6 dec)
@@ -99,6 +100,7 @@ export function useAuctions() {
           tokenName: channel.name,
           tokenSymbol: channel.symbol,
           uri: channel.uri,
+          imageUri: channel.metadata?.imageUri ?? null,
           lpPrice: state.price,
           quoteAccumulated: state.quoteAccumulated,
           paymentTokenPrice: state.paymentTokenPrice,

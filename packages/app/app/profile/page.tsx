@@ -9,6 +9,7 @@ import { useFarcaster } from "@/hooks/useFarcaster";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useBatchMetadata, useTokenMetadata } from "@/hooks/useMetadata";
 import { CONTRACT_ADDRESSES, ERC20_ABI, MOCK_MINT_ABI, QUOTE_TOKEN_DECIMALS } from "@/lib/contracts";
+import { ipfsToHttp } from "@/lib/constants";
 import type { UserHolding, UserCollectionItem } from "@/hooks/useUserProfile";
 import { Wallet, ImageIcon, Loader2 } from "lucide-react";
 import { TokenLogo } from "@/components/token-logo";
@@ -66,8 +67,9 @@ function Sparkline({ data, isPositive }: { data: number[]; isPositive: boolean }
 // ---------------------------------------------------------------------------
 
 function HoldingRow({ holding, sparklineData }: { holding: UserHolding; sparklineData: number[] }) {
-  const { logoUrl } = useTokenMetadata(holding.uri);
+  const { logoUrl: fallbackLogoUrl } = useTokenMetadata(!holding.imageUri ? holding.uri : undefined);
   const isPositive = holding.change24h >= 0;
+  const logoUrl = holding.imageUri ? ipfsToHttp(holding.imageUri) : fallbackLogoUrl;
 
   return (
     <Link
@@ -315,7 +317,7 @@ export default function ProfilePage() {
   const allCoinAddresses = holdings.map((holding) => holding.coinAddress);
   const { getSparkline } = useSparklineData(allCoinAddresses);
   const collectionUris = useMemo(
-    () => collection.map((item) => item.contentUri).filter(Boolean),
+    () => collection.filter((item) => !item.metadata).map((item) => item.contentUri).filter(Boolean),
     [collection]
   );
   const { metadataMap, getLogoUrl } = useBatchMetadata(collectionUris);
@@ -568,20 +570,26 @@ export default function ProfilePage() {
               ) : (
                 <div className="grid grid-cols-2 items-start gap-2 pb-4">
                   {collection.map((item) => {
-                    const metadata = metadataMap[item.contentUri];
+                    const fallbackMetadata = metadataMap[item.contentUri];
+                    const imageUrl = item.metadata?.imageUri
+                      ? ipfsToHttp(item.metadata.imageUri)
+                      : getLogoUrl(item.contentUri);
                     const description =
-                      metadata?.description ||
-                      metadata?.name ||
-                      metadata?.defaultMessage ||
+                      item.metadata?.description ||
+                      item.metadata?.name ||
+                      item.metadata?.defaultMessage ||
+                      fallbackMetadata?.description ||
+                      fallbackMetadata?.name ||
+                      fallbackMetadata?.defaultMessage ||
                       null;
 
                     return (
                       <CollectionTile
                         key={item.id}
                         item={item}
-                        imageUrl={getLogoUrl(item.contentUri)}
+                        imageUrl={imageUrl}
                         description={description}
-                        isMetadataLoading={metadata === undefined}
+                        isMetadataLoading={!item.metadata && fallbackMetadata === undefined}
                       />
                     );
                   })}

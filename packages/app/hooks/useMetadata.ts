@@ -3,23 +3,39 @@
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ipfsToHttp } from "@/lib/constants";
+import type { TokenMetadata } from "@/lib/metadata";
 
-export type TokenMetadata = {
-  name?: string;
-  symbol?: string;
-  image?: string;
-  description?: string;
-  defaultMessage?: string;
-  recipientName?: string;
-  links?: string[];
-  // Legacy format support
-  website?: string;
-  twitter?: string;
-  telegram?: string;
-  discord?: string;
-};
+export type { TokenMetadata } from "@/lib/metadata";
 
 const METADATA_STALE_TIME = 30 * 60 * 1000; // 30 minutes - metadata rarely changes
+
+async function fetchMetadataBatch(rigUris: string[]): Promise<Record<string, TokenMetadata | null>> {
+  const uniqueUris = [...new Set(
+    rigUris
+      .filter((uri): uri is string => typeof uri === "string")
+      .map((uri) => uri.trim())
+      .filter(Boolean)
+  )];
+
+  if (uniqueUris.length === 0) return {};
+
+  try {
+    const response = await fetch("/api/metadata/resolve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uris: uniqueUris }),
+    });
+
+    if (!response.ok) {
+      return Object.fromEntries(uniqueUris.map((uri) => [uri, null])) as Record<string, TokenMetadata | null>;
+    }
+
+    const data = await response.json();
+    return (data?.metadataMap ?? {}) as Record<string, TokenMetadata | null>;
+  } catch {
+    return Object.fromEntries(uniqueUris.map((uri) => [uri, null])) as Record<string, TokenMetadata | null>;
+  }
+}
 
 /**
  * Fetch and cache token metadata from IPFS
@@ -27,25 +43,15 @@ const METADATA_STALE_TIME = 30 * 60 * 1000; // 30 minutes - metadata rarely chan
  */
 async function fetchMetadata(rigUri: string): Promise<TokenMetadata | null> {
   if (!rigUri || rigUri === "") return null;
-
-  const metadataUrl = ipfsToHttp(rigUri);
-  if (!metadataUrl || metadataUrl === "") return null;
-
-  try {
-    const response = await fetch(metadataUrl);
-    if (!response.ok) return null;
-    const data = await response.json();
-    return data;
-  } catch {
-    return null;
-  }
+  const metadataMap = await fetchMetadataBatch([rigUri]);
+  return metadataMap[rigUri] ?? null;
 }
 
 /**
  * Hook for fetching token metadata with caching
  */
 export function useTokenMetadata(rigUri: string | undefined) {
-  const validUri = rigUri && rigUri.length > 0 && rigUri.startsWith("ipfs://");
+  const validUri = rigUri && rigUri.trim().length > 0;
 
   const { data: metadata, isLoading } = useQuery({
     queryKey: ["tokenMetadata", rigUri],
@@ -57,7 +63,7 @@ export function useTokenMetadata(rigUri: string | undefined) {
     retryDelay: 1000, // Wait 1 second between retries
   });
 
-  const logoUrl = metadata?.image ? ipfsToHttp(metadata.image) : null;
+  const logoUrl = metadata?.imageUrl ?? (metadata?.image ? ipfsToHttp(metadata.image) : null);
 
   return {
     metadata,
@@ -75,7 +81,7 @@ export function usePrefetchMetadata() {
 
   // Memoize the prefetch function to prevent useEffect loops
   const prefetch = useCallback((rigUris: string[]) => {
-    const uniqueUris = [...new Set(rigUris.filter((uri) => uri && uri.startsWith("ipfs://")))];
+    const uniqueUris = [...new Set(rigUris.filter((uri) => uri && uri.trim().length > 0))];
 
     uniqueUris.forEach((rigUri) => {
       queryClient.prefetchQuery({
@@ -94,19 +100,11 @@ export function usePrefetchMetadata() {
  * Returns a map of rigUri -> metadata
  */
 export function useBatchMetadata(rigUris: string[]) {
-  const uniqueUris = [...new Set(rigUris.filter(Boolean))];
+  const uniqueUris = [...new Set(rigUris.filter((uri) => typeof uri === "string" && uri.trim().length > 0))];
 
   const { data: metadataMap, isLoading } = useQuery({
     queryKey: ["batchMetadata", uniqueUris.sort().join(",")],
-    queryFn: async () => {
-      const results = await Promise.all(
-        uniqueUris.map(async (uri) => {
-          const metadata = await fetchMetadata(uri);
-          return [uri, metadata] as const;
-        })
-      );
-      return Object.fromEntries(results) as Record<string, TokenMetadata | null>;
-    },
+    queryFn: () => fetchMetadataBatch(uniqueUris),
     enabled: uniqueUris.length > 0,
     staleTime: METADATA_STALE_TIME,
     gcTime: 60 * 60 * 1000,
@@ -117,7 +115,7 @@ export function useBatchMetadata(rigUris: string[]) {
     isLoading,
     getLogoUrl: (rigUri: string) => {
       const metadata = metadataMap?.[rigUri];
-      return metadata?.image ? ipfsToHttp(metadata.image) : null;
+      return metadata?.imageUrl ?? (metadata?.image ? ipfsToHttp(metadata.image) : null);
     },
   };
 }

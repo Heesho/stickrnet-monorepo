@@ -5,10 +5,11 @@ import Link from "next/link";
 import { Search, Flame, Clock, TrendingUp, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { NavBar } from "@/components/nav-bar";
-import { useExploreChannels, type ChannelListItem, type SortOption } from "@/hooks/useAllChannels";
+import { useExploreChannels, type SortOption } from "@/hooks/useAllChannels";
 import { useBatchMetadata } from "@/hooks/useMetadata";
 import { useSparklineData } from "@/hooks/useSparklineData";
 import { useFarcaster } from "@/hooks/useFarcaster";
+import { ipfsToHttp } from "@/lib/constants";
 import { formatMarketCap } from "@/lib/format";
 import { TokenLogo } from "@/components/token-logo";
 
@@ -77,8 +78,8 @@ export default function ExplorePage() {
 
   const { channels, isLoading } = useExploreChannels(sortBy, searchQuery, account);
 
-  // Batch fetch metadata for logos
-  const channelUris = channels.map((c) => c.uri).filter(Boolean);
+  // Fallback metadata fetch for channels that have not populated nested metadata yet
+  const channelUris = channels.filter((c) => !c.imageUri).map((c) => c.uri).filter(Boolean);
   const { getLogoUrl } = useBatchMetadata(channelUris);
 
   // Batch fetch hourly sparkline data (7 days, more granular than daily)
@@ -179,7 +180,7 @@ export default function ExplorePage() {
                       <div className="flex items-center gap-3">
                         <TokenLogo
                           name={channel.tokenName}
-                          logoUrl={getLogoUrl(channel.uri)}
+                          logoUrl={channel.imageUri ? ipfsToHttp(channel.imageUri) : getLogoUrl(channel.uri)}
                           size="md-lg"
                         />
                         <div>

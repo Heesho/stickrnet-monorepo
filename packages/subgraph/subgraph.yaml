@@ -20,6 +20,7 @@ dataSources:
         - Channel
         - Account
         - ContractToChannel
+        - IpfsMetadata
       abis:
         - name: Core
           file: ./abis/Core.json
@@ -56,6 +57,7 @@ templates:
         - ChannelDayData
         - ChannelHourData
         - ChannelMinuteData
+        - IpfsMetadata
       abis:
         - name: Content
           file: ./abis/Content.json
@@ -151,3 +153,16 @@ templates:
         - event: Swap(indexed address,uint256,uint256,uint256,uint256,indexed address)
           handler: handleSwap
       file: ./src/pair.ts
+  - kind: file/ipfs
+    name: IpfsMetadata
+    mapping:
+      kind: file/ipfs
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      file: ./src/metadata.ts
+      handler: handleMetadata
+      entities:
+        - IpfsMetadata
+      abis:
+        - name: Content
+          file: ./abis/Content.json

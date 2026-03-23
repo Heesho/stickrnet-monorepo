@@ -15,6 +15,7 @@ import { AdminModal } from "@/components/admin-modal";
 import { CreateContentModal } from "@/components/create-content-modal";
 import { useChannelState } from "@/hooks/useChannelState";
 import { useTokenMetadata, useBatchMetadata } from "@/hooks/useMetadata";
+import type { TokenMetadata } from "@/hooks/useMetadata";
 import { useContentFeed } from "@/hooks/useContentFeed";
 import { useFarcaster, composeCast } from "@/hooks/useFarcaster";
 import { useDexScreener } from "@/hooks/useDexScreener";
@@ -241,15 +242,41 @@ export default function ChannelDetailPage() {
 
   // Normalize fields
   const coinPrice = coinState?.priceInQuote;
-  const channelUri = coinState?.uri;
+  const channelUri = subgraphChannel?.uri || coinState?.uri;
   const accountCoinBalance = coinState?.accountCoinBalance;
   const accountQuoteBalance = coinState?.accountQuoteBalance;
 
   // Coin address from subgraph
   const coinAddress = subgraphChannel?.coin as `0x${string}` | undefined;
 
-  // Fetch token metadata from IPFS
-  const { metadata, logoUrl } = useTokenMetadata(channelUri);
+  // Prefer subgraph metadata and fall back to the app resolver while metadata backfills
+  const { metadata: fallbackMetadata, logoUrl: fallbackLogoUrl } = useTokenMetadata(
+    subgraphChannel?.metadata ? undefined : channelUri
+  );
+  const metadata = subgraphChannel?.metadata ?? fallbackMetadata;
+  const logoUrl = subgraphChannel?.metadata?.imageUri
+    ? ipfsToHttp(subgraphChannel.metadata.imageUri)
+    : fallbackLogoUrl;
+  const adminMetadata = useMemo<TokenMetadata | undefined>(() => {
+    if (!metadata) return undefined;
+
+    let image: string | undefined;
+    if ("imageUri" in metadata) {
+      image = metadata.imageUri ?? undefined;
+    } else {
+      image = (metadata as TokenMetadata).image ?? undefined;
+    }
+
+    return {
+      name: metadata.name ?? undefined,
+      symbol: metadata.symbol ?? undefined,
+      image: image ?? undefined,
+      description: metadata.description ?? undefined,
+      defaultMessage: metadata.defaultMessage ?? undefined,
+      recipientName: metadata.recipientName ?? undefined,
+      links: metadata.links ?? undefined,
+    };
+  }, [metadata]);
 
   // Fetch DexScreener data for liquidity/volume/price change
   const { pairData } = useDexScreener(contentAddress, coinAddress);
@@ -257,7 +284,10 @@ export default function ChannelDetailPage() {
   // Content feed (stickers) — fast polling after creation to catch subgraph indexing
   const [contentFastPoll, setContentFastPoll] = useState(false);
   const { contents, isLoading: isContentLoading, refetch: refetchContent } = useContentFeed(address, 20, 0, contentFastPoll);
-  const contentUris = useMemo(() => contents.map((c) => c.uri).filter(Boolean), [contents]);
+  const contentUris = useMemo(
+    () => contents.filter((c) => !c.metadata).map((c) => c.uri).filter(Boolean),
+    [contents]
+  );
   const { metadataMap } = useBatchMetadata(contentUris);
 
   // Claim transactions
@@ -564,7 +594,7 @@ export default function ChannelDetailPage() {
           {/* Token Info Section */}
           <div ref={tokenInfoRef} className="flex items-center justify-between py-3">
             <div className="flex items-center gap-3">
-              <TokenLogo name={tokenName} logoUrl={logoUrl} size="lg" />
+              <TokenLogo name={tokenName} logoUrl={logoUrl} size="lg" loading="eager" />
               <div>
                 <div className="text-[13px] text-muted-foreground">{tokenName}</div>
                 <div className="text-[15px] font-medium font-display">{tokenSymbol}</div>
@@ -639,9 +669,12 @@ export default function ChannelDetailPage() {
                       return parseInt(b.createdAt) - parseInt(a.createdAt);
                     })
                     .map((content) => {
-                      const meta = metadataMap[content.uri];
-                      const imageUrl = meta?.image ? ipfsToHttp(meta.image) : null;
-                      const hasText = !!meta?.description && !imageUrl;
+                      const fallbackMeta = metadataMap[content.uri];
+                      const imageUrl = content.metadata?.imageUri
+                        ? ipfsToHttp(content.metadata.imageUri)
+                        : fallbackMeta?.imageUrl ?? (fallbackMeta?.image ? ipfsToHttp(fallbackMeta.image) : null);
+                      const description = content.metadata?.description || fallbackMeta?.description || null;
+                      const hasText = !!description && !imageUrl;
 
                       const livePrice = getDecayedPrice(content.initPrice, content.startTime);
 
@@ -653,7 +686,7 @@ export default function ChannelDetailPage() {
                             setCollectEpochId(BigInt(content.epochId));
                             setCollectPrice(parseUnits(livePrice.toFixed(6), QUOTE_TOKEN_DECIMALS));
                             setCollectImageUrl(imageUrl);
-                            setCollectCaption(meta?.description || null);
+                            setCollectCaption(description);
                             setCollectCreator(content.creator.id);
                             setCollectOwner(content.owner.id);
                             setCollectCreatedAt(content.createdAt);
@@ -666,8 +699,10 @@ export default function ChannelDetailPage() {
                             <div className="relative">
                               <img
                                 src={imageUrl}
-                                alt={meta?.description || "Sticker"}
+                                alt={description || "Sticker"}
                                 className={`w-full object-cover${!content.isApproved ? " opacity-50" : ""}`}
+                                loading="lazy"
+                                decoding="async"
                               />
                               <div className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 bg-black/60 text-[11px] text-white font-mono">
                                 {livePrice > 0 ? `$${formatNumber(livePrice)}` : "Free"}
@@ -684,7 +719,7 @@ export default function ChannelDetailPage() {
                           {hasText && (
                             <div className="p-3">
                               <p className="text-[12px] text-muted-foreground leading-relaxed">
-                                {meta.description}
+                                {description}
                               </p>
                               <div className="mt-2 text-[11px] text-muted-foreground font-mono">
                                 {livePrice > 0 ? `$${formatNumber(livePrice)}` : "Free"}
@@ -693,7 +728,7 @@ export default function ChannelDetailPage() {
                           )}
 
                           {/* Loading placeholder */}
-                          {!imageUrl && !hasText && meta === undefined && (
+                          {!imageUrl && !hasText && !content.metadata && fallbackMeta === undefined && (
                             <div className="aspect-square flex items-center justify-center">
                               <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
                             </div>
@@ -1216,7 +1251,7 @@ export default function ChannelDetailPage() {
           initialTeam={coinState?.launcher ?? ""}
           initialUri={channelUri ?? ""}
           initialIsModerated={coinState?.isModerated ?? false}
-          initialMetadata={metadata ?? undefined}
+          initialMetadata={adminMetadata}
           initialLogoUrl={logoUrl ?? undefined}
           isPositiveTrend={isPositiveTrend}
         />

@@ -67,6 +67,27 @@ export function getChannelMinuteDataId(channelAddress: string, minuteTimestamp: 
   return channelAddress + "-" + minuteTimestamp.toString();
 }
 
+export function extractIpfsPath(uri: string): string | null {
+  if (uri.length == 0) return null;
+
+  if (uri.startsWith("ipfs://")) {
+    let path = uri.slice(7);
+    if (path.startsWith("ipfs/")) {
+      path = path.slice(5);
+    }
+    return path.length > 0 ? path : null;
+  }
+
+  let gatewayMarker = "/ipfs/";
+  let gatewayIndex = uri.indexOf(gatewayMarker);
+  if (gatewayIndex >= 0) {
+    let path = uri.slice(gatewayIndex + gatewayMarker.length);
+    return path.length > 0 ? path : null;
+  }
+
+  return null;
+}
+
 export function getHourIndex(timestamp: BigInt): i32 {
   return timestamp.toI32() / SECONDS_PER_HOUR;
 }

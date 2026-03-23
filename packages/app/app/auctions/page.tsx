@@ -6,6 +6,7 @@ import { Flame, ArrowRight, Check } from "lucide-react";
 import { NavBar } from "@/components/nav-bar";
 import { useAuctions, type AuctionItem } from "@/hooks/useAuctions";
 import { useBatchMetadata } from "@/hooks/useMetadata";
+import { ipfsToHttp } from "@/lib/constants";
 import { TokenLogo } from "@/components/token-logo";
 
 function SkeletonRow() {
@@ -37,9 +38,9 @@ export default function AuctionsPage() {
   const { auctions, isLoading } = useAuctions();
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  // Collect channel URIs for batch metadata fetch
+  // Fallback metadata fetch for auctions that have not populated nested metadata yet
   const channelUris = useMemo(
-    () => auctions.map((a) => a.uri),
+    () => auctions.filter((a) => !a.imageUri).map((a) => a.uri),
     [auctions]
   );
   const { getLogoUrl } = useBatchMetadata(channelUris);
@@ -90,7 +91,7 @@ export default function AuctionsPage() {
                       <div className="relative">
                         <TokenLogo
                           name={auction.tokenName}
-                          logoUrl={getLogoUrl(auction.uri)}
+                          logoUrl={auction.imageUri ? ipfsToHttp(auction.imageUri) : getLogoUrl(auction.uri)}
                           size="md-lg"
                         />
                         {selectedIndex === index && (
@@ -157,7 +158,7 @@ export default function AuctionsPage() {
                     <div className="flex items-center gap-2">
                       <TokenLogo
                         name={selectedAuction.tokenName}
-                        logoUrl={getLogoUrl(selectedAuction.uri)}
+                        logoUrl={selectedAuction.imageUri ? ipfsToHttp(selectedAuction.imageUri) : getLogoUrl(selectedAuction.uri)}
                         size="md-lg"
                       />
                       <div>

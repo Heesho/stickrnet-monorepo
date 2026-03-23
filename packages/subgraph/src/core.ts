@@ -1,9 +1,9 @@
 import { BigInt } from "@graphprotocol/graph-ts";
 import { Core__Launched as CoreLaunchedEvent } from "../generated/Core/Core";
-import { Content as ContentTemplate, Rewarder as RewarderTemplate, Minter as MinterTemplate, UniswapV2Pair as UniswapV2PairTemplate } from "../generated/templates";
+import { Content as ContentTemplate, Rewarder as RewarderTemplate, Minter as MinterTemplate, UniswapV2Pair as UniswapV2PairTemplate, IpfsMetadata as IpfsMetadataTemplate } from "../generated/templates";
 import { Directory, Channel, Account, ContractToChannel } from "../generated/schema";
 import { ZERO_BD, ZERO_BI, ONE_BI, DIRECTORY_ID, BI_18, BI_6 } from "./constants";
-import { convertTokenToDecimal } from "./helpers";
+import { convertTokenToDecimal, extractIpfsPath } from "./helpers";
 
 export function handleCoreLaunched(event: CoreLaunchedEvent): void {
   // Load or create Directory entity (singleton)
@@ -51,6 +51,12 @@ export function handleCoreLaunched(event: CoreLaunchedEvent): void {
   channel.name = event.params.tokenName;
   channel.symbol = event.params.tokenSymbol;
   channel.uri = event.params.uri;
+  let metadataPath = extractIpfsPath(event.params.uri);
+  if (metadataPath != null) {
+    let resolvedMetadataPath = changetype<string>(metadataPath);
+    channel.metadata = resolvedMetadataPath;
+    IpfsMetadataTemplate.create(resolvedMetadataPath);
+  }
 
   // Launch parameters
   channel.quoteAmount = convertTokenToDecimal(event.params.quoteAmount, BI_6);

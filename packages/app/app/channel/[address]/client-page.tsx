@@ -660,7 +660,7 @@ export default function ChannelDetailPage() {
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 items-start gap-2 pb-4">
+                <div className="columns-2 gap-2 pb-2">
                   {contents
                     .filter((c) => c.isApproved || c.creator.id.toLowerCase() === account?.toLowerCase())
                     .sort((a, b) => {
@@ -692,7 +692,7 @@ export default function ChannelDetailPage() {
                             setCollectCreatedAt(content.createdAt);
                             setShowCollectModal(true);
                           }}
-                          className="h-fit w-full self-start rounded-none overflow-hidden bg-secondary text-left"
+                          className="mb-2 block h-fit w-full break-inside-avoid overflow-hidden rounded-none bg-secondary text-left align-top"
                         >
                           {/* Image */}
                           {imageUrl && (

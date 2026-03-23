@@ -133,7 +133,7 @@ function CollectionTile({
   return (
     <Link
       href={`/channel/${item.channelAddress}`}
-      className="block h-fit w-full self-start overflow-hidden rounded-none bg-secondary text-left"
+      className="mb-2 block h-fit w-full break-inside-avoid overflow-hidden rounded-none bg-secondary text-left align-top"
     >
       {imageUrl && (
         <div className="relative">
@@ -568,7 +568,7 @@ export default function ProfilePage() {
                   </Link>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 items-start gap-2 pb-4">
+                <div className="columns-2 gap-2 pb-2">
                   {collection.map((item) => {
                     const fallbackMetadata = metadataMap[item.contentUri];
                     const imageUrl = item.metadata?.imageUri

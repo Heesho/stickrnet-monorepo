@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { X, Loader2, AlertCircle, ImagePlus, Plus } from "lucide-react";
+import { X, Loader2, AlertCircle, ImagePlus } from "lucide-react";
 import { encodeFunctionData } from "viem";
 import { useFarcaster } from "@/hooks/useFarcaster";
 import { useBatchedTransaction, type Call } from "@/hooks/useBatchedTransaction";
@@ -220,19 +220,13 @@ export function CreateContentModal({
         })()
       : null);
   const trendButtonClass = isPositiveTrend ? "slab-button" : "slab-button slab-button-loss";
-  const accentButtonClass = isPositiveTrend
-    ? "bg-primary text-primary-foreground hover:bg-primary/90"
-    : "bg-[hsl(var(--loss))] text-black hover:bg-[hsl(var(--loss))]/90";
-  const accentDisabledClass = isPositiveTrend
-    ? "bg-primary text-primary-foreground opacity-50 cursor-not-allowed"
-    : "bg-[hsl(var(--loss))] text-black opacity-50 cursor-not-allowed";
 
   // Success screen
   if (isSuccess) {
     return (
       <div className="fixed inset-0 z-[220] flex h-screen w-screen items-center justify-center bg-[hsl(var(--background)/0.6)] backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
         <div
-          className="relative flex h-full w-full max-w-[520px] flex-col bg-background items-center justify-center px-6 py-12 lg:h-auto lg:max-h-[85vh] lg:rounded-[var(--radius)] lg:glass-panel"
+          className={`${isPositiveTrend ? "signal-theme-positive" : "signal-theme-negative"} relative flex w-full max-w-[520px] flex-col h-full bg-background items-center justify-center px-6 py-12 lg:h-auto lg:max-h-[85vh] lg:rounded-[var(--radius)] lg:glass-panel`}
         >
           <div className="text-center space-y-6 max-w-xs">
             {mediaPreview && (
@@ -282,18 +276,18 @@ export function CreateContentModal({
   return (
     <div className="fixed inset-0 z-[220] flex h-screen w-screen items-center justify-center bg-[hsl(var(--background)/0.6)] backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div
-        className="relative flex h-full w-full max-w-[520px] flex-col bg-[hsl(var(--surface-container))] lg:h-auto lg:max-h-[85vh] lg:rounded-[var(--radius)] lg:glass-panel"
+        className={`${isPositiveTrend ? "signal-theme-positive" : "signal-theme-negative"} relative flex w-full max-w-[520px] flex-col h-full lg:h-auto lg:max-h-[85vh] lg:rounded-[var(--radius)] bg-background lg:glass-panel`}
         style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)" }}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 pb-2">
           <button
             onClick={onClose}
-            className="p-2 -ml-2 rounded-[var(--radius)] hover:bg-[hsl(var(--foreground)/0.08)] transition-colors"
+            className="border border-[hsl(var(--foreground)/0.1)] rounded-full -ml-2 p-2 transition-colors hover:bg-[hsl(var(--foreground)/0.08)]"
           >
             <X className="w-5 h-5" />
           </button>
-          <span className="text-base font-semibold font-display">Add Sticker</span>
+          <span className="text-base font-semibold font-display">Create Sticker</span>
           <div className="w-9" />
         </div>
 
@@ -304,7 +298,7 @@ export function CreateContentModal({
               {!mediaPreview ? (
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex flex-col items-center justify-center py-12 bg-secondary rounded-[var(--radius)] mb-4 hover:bg-[hsl(var(--foreground)/0.08)] transition-colors"
+                  className="slab-inset flex flex-col items-center justify-center py-12 mb-4 hover:bg-[hsl(var(--foreground)/0.08)] transition-colors"
                 >
                   <ImagePlus className="w-8 h-8 text-muted-foreground mb-2" />
                   <span className="text-[13px] text-muted-foreground">
@@ -345,7 +339,7 @@ export function CreateContentModal({
                 value={caption}
                 onChange={(e) => setCaption(e.target.value)}
                 placeholder="Caption"
-                className="w-full h-12 px-4 rounded-[var(--radius)] bg-secondary text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[hsl(var(--surface-container-high))] text-sm"
+                className="slab-inset w-full h-12 px-4 text-foreground placeholder:text-muted-foreground/60 focus:outline-none text-sm"
               />
             </>
 
@@ -387,25 +381,18 @@ export function CreateContentModal({
           <button
             disabled={!canSubmit}
             onClick={handleSubmit}
-            className={`w-full h-10 rounded-[var(--radius)] font-semibold font-display text-[14px] transition-all flex items-center justify-center gap-2 ${
+            className={`flex h-11 w-full items-center justify-center gap-2 px-4 text-[11px] ${
               !canSubmit
-                ? accentDisabledClass
-                : accentButtonClass
+                ? `${trendButtonClass} opacity-50`
+                : trendButtonClass
             }`}
           >
             {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-            {isPending ? (
-              uploading ? (
-                "Uploading..."
-              ) : (
-                "Submitting..."
-              )
-            ) : (
-              <>
-                <Plus className="w-4 h-4" />
-                Add Sticker
-              </>
-            )}
+            {isPending
+              ? uploading
+                ? "Uploading..."
+                : "Submitting..."
+              : "Create Sticker"}
           </button>
         </div>
       </div>

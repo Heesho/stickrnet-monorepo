@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "appv2",
+      "runtimeExecutable": "yarn",
+      "runtimeArgs": ["workspace", "@stickrnet/appv2", "dev"],
+      "port": 3000
+    }
+  ]
+}

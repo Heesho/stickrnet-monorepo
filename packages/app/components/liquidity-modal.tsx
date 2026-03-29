@@ -236,7 +236,7 @@ export function LiquidityModal({
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.98 }}
         transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-        className={`${colorPositive ? "signal-theme-positive signal-theme-positive" : "signal-theme-negative"} relative flex w-full max-w-[520px] flex-col h-full lg:h-auto lg:max-h-[90vh] lg:rounded-[var(--radius)] bg-background lg:glass-panel`}
+        className={`${colorPositive ? "signal-theme-positive" : "signal-theme-negative"} glass-panel glass-modal-shell lg:max-h-[90vh]`}
         style={{
           paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)",
         }}
@@ -261,6 +261,12 @@ export function LiquidityModal({
             <p className="text-[13px] text-muted-foreground mt-1">
               Provide {tokenSymbol} and USDC to get LP tokens
             </p>
+            <button
+              onClick={() => setTokenAmount(tokenBalance.toFixed(2))}
+              className="mt-1 signal-hover text-[13px] text-muted-foreground font-mono tabular-nums text-left"
+            >
+              {tokenBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })} {tokenSymbol} available
+            </button>
           </div>
 
           {/* Desktop: text input */}
@@ -287,43 +293,43 @@ export function LiquidityModal({
           </div>
 
           {/* Mobile: Token Input */}
-          <div className="lg:hidden slab-inset px-3 py-3">
+          <div className="lg:hidden slab-inset px-3 py-4">
             <div className="flex items-center justify-between">
               <span className="text-[13px] text-muted-foreground font-display">You provide</span>
-              <button
-                onClick={() => setTokenAmount(tokenBalance.toFixed(2))}
-                className="signal-hover text-lg font-semibold font-mono tabular-nums"
-              >
-                {tokenAmount} {tokenSymbol}
-              </button>
+              <span className="text-lg font-semibold font-mono tabular-nums">
+                {tokenAmount}
+              </span>
             </div>
           </div>
 
           {/* Required USDC */}
-          <div className="slab-inset mt-2 px-3 py-3">
+          <div className="slab-inset mt-2 px-3 py-4">
             <div className="flex items-center justify-between">
               <span className="text-[13px] text-muted-foreground font-display">Required USDC</span>
+              <span className="text-lg font-semibold font-mono tabular-nums">
+                {requiredUsdc.toFixed(2)} USDC
+              </span>
+            </div>
+            <div className="flex items-center justify-end mt-1">
               <button
                 onClick={() => {
                   if (tokenPrice <= 0) return;
                   const maxTokenFromUsdc = usdcBalance / tokenPrice;
                   setTokenAmount(Math.min(tokenBalance, maxTokenFromUsdc).toFixed(2));
                 }}
-                className="signal-hover text-lg font-semibold font-mono tabular-nums"
+                className="signal-hover text-[11px] text-muted-foreground font-mono tabular-nums"
               >
-                {requiredUsdc.toFixed(2)} USDC
+                Balance: {usdcBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
               </button>
             </div>
           </div>
 
           {/* LP Output */}
-          {tokenInputAmount > 0 && (
-            <div className="flex items-center justify-end gap-3 py-3 text-[11px] text-muted-foreground font-mono tabular-nums">
-              <span>
-                You receive ~ {lpTokensReceived.toFixed(2)} LP tokens
-              </span>
-            </div>
-          )}
+          <div className="flex items-center justify-end gap-3 py-3 text-[11px] text-muted-foreground font-mono tabular-nums min-h-[44px]">
+            <span>
+              You receive ~ {lpTokensReceived.toFixed(2)} LP tokens
+            </span>
+          </div>
 
           {/* Spacer — mobile only */}
           <div className="flex-1 lg:hidden" />

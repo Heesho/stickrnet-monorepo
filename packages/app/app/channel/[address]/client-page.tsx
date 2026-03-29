@@ -1299,11 +1299,11 @@ export default function ChannelDetailPage() {
               {aboutSection}
               {/* Mobile action buttons */}
               {isConnected && (
-                <div className="flex gap-2 mt-4">
-                  <button onClick={() => setShowLiquidityModal(true)} className={`flex-1 h-10 text-[14px] font-semibold font-display rounded-[var(--radius)] transition-colors ${trendButtonClass}`}>Liquidity</button>
-                  <button onClick={() => setShowAuctionModal(true)} className={`flex-1 h-10 text-[14px] font-semibold font-display rounded-[var(--radius)] transition-colors ${trendButtonClass}`}>Auction</button>
+                <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-[hsl(var(--foreground)/0.1)]">
+                  <button onClick={() => setShowLiquidityModal(true)} className={`h-10 text-[13px] font-semibold font-display rounded-[var(--radius)] transition-colors ${trendButtonClass}`}>Liquidity</button>
+                  <button onClick={() => setShowAuctionModal(true)} className={`h-10 text-[13px] font-semibold font-display rounded-[var(--radius)] transition-colors ${trendButtonClass}`}>Auction</button>
                   {isOwner && (
-                    <button onClick={() => setShowAdminModal(true)} className={`flex-1 h-10 text-[14px] font-semibold font-display rounded-[var(--radius)] transition-colors ${trendButtonClass}`}>Admin</button>
+                    <button onClick={() => setShowAdminModal(true)} className={`h-10 text-[13px] font-semibold font-display rounded-[var(--radius)] transition-colors ${trendButtonClass} col-span-2`}>Admin</button>
                   )}
                 </div>
               )}
@@ -1382,7 +1382,7 @@ export default function ChannelDetailPage() {
         onSuccess={() => { refetchState(); refetchContent(); }}
       />
 
-      {/* Trade Modal (Buy/Sell) */}
+      {/* Trade Modal (Buy/Sell) — Buy always positive, Sell always negative */}
       <TradeModal
         isOpen={showTradeModal}
         onClose={() => setShowTradeModal(false)}
@@ -1393,17 +1393,19 @@ export default function ChannelDetailPage() {
         userQuoteBalance={accountQuoteBalance ?? 0n}
         userUnitBalance={accountCoinBalance ?? 0n}
         logoUrl={logoUrl ?? ""}
+        colorPositive={tradeMode === "buy"}
       />
 
-      {/* Auction Modal */}
+      {/* Auction Modal — follows trend */}
       <AuctionModal
         isOpen={showAuctionModal}
         onClose={() => setShowAuctionModal(false)}
         channelAddress={contentAddress}
         tokenSymbol={tokenSymbol}
+        colorPositive={isPositiveTrend}
       />
 
-      {/* Liquidity Modal */}
+      {/* Liquidity Modal — follows trend */}
       <LiquidityModal
         isOpen={showLiquidityModal}
         onClose={() => setShowLiquidityModal(false)}
@@ -1412,6 +1414,7 @@ export default function ChannelDetailPage() {
         tokenBalance={userCoinBalance}
         usdcBalance={userQuoteBalance}
         tokenPrice={priceUsd}
+        colorPositive={isPositiveTrend}
       />
 
       {/* Admin Modal */}

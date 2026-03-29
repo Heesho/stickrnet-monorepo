@@ -6,13 +6,13 @@ import { motion, AnimatePresence } from "framer-motion";
 const landingPartners = [
   {
     label: "GlazeCorp",
-    href: "https://stickr.net",
+    href: "https://glazecorp.io/",
     logoSrc: "/media/landing-glazecorp-logo.png",
     logoAlt: "GlazeCorp",
   },
   {
     label: "stickr.net",
-    href: "https://stickr.net/",
+    href: "https://givefun.vercel.app/",
     logoSrc: "/media/landing-givefun-logo.png",
     logoAlt: "stickr.net",
   },

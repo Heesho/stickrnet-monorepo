@@ -23,7 +23,7 @@ const PriceChartInner = dynamic(
         className="w-full flex items-center justify-center bg-black"
         style={{ height: 200 }}
       >
-        <div className="text-foreground/40 text-xs">Loading chart...</div>
+        <div className="text-xs text-muted-foreground">Loading chart...</div>
       </div>
     ),
   }

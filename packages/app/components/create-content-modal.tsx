@@ -219,20 +219,20 @@ export function CreateContentModal({
           return "Something went wrong";
         })()
       : null);
+  const trendButtonClass = isPositiveTrend ? "slab-button" : "slab-button slab-button-loss";
   const accentButtonClass = isPositiveTrend
-    ? "bg-[#A78BFA] text-black hover:bg-[#9575D9]"
-    : "bg-[#2DD4BF] text-black hover:bg-[#26B8A5]";
+    ? "bg-primary text-primary-foreground hover:bg-primary/90"
+    : "bg-[hsl(var(--loss))] text-black hover:bg-[hsl(var(--loss))]/90";
   const accentDisabledClass = isPositiveTrend
-    ? "bg-[#A78BFA] text-black/60 opacity-50 cursor-not-allowed"
-    : "bg-[#2DD4BF] text-black/60 opacity-50 cursor-not-allowed";
+    ? "bg-primary text-primary-foreground opacity-50 cursor-not-allowed"
+    : "bg-[hsl(var(--loss))] text-black opacity-50 cursor-not-allowed";
 
   // Success screen
   if (isSuccess) {
     return (
-      <div className="fixed inset-0 z-[100] flex h-screen w-screen justify-center bg-zinc-800">
+      <div className="fixed inset-0 z-[220] flex h-screen w-screen items-center justify-center bg-[hsl(var(--background)/0.6)] backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
         <div
-          className="relative flex h-full w-full max-w-[520px] flex-col bg-background items-center justify-center px-6"
-          style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)" }}
+          className="relative flex h-full w-full max-w-[520px] flex-col bg-background items-center justify-center px-6 py-12 lg:h-auto lg:max-h-[85vh] lg:rounded-[var(--radius)] lg:glass-panel"
         >
           <div className="text-center space-y-6 max-w-xs">
             {mediaPreview && (
@@ -240,13 +240,13 @@ export function CreateContentModal({
                 <img
                   src={mediaPreview}
                   alt={caption || "Sticker"}
-                  className="w-24 h-24 rounded-none object-cover ring-2 ring-zinc-800"
+                  className="w-24 h-24 rounded-[var(--radius)] object-cover ring-2 ring-[hsl(var(--surface-container-high))]"
                 />
               </div>
             )}
 
             <div>
-              <h2 className="text-2xl font-bold text-white mb-2 font-display">
+              <h2 className="text-2xl font-bold text-foreground mb-2 font-display">
                 Sticker Added!
               </h2>
               <p className="text-foreground/60 text-[15px]">
@@ -258,7 +258,7 @@ export function CreateContentModal({
             <div className="space-y-3 pt-2 w-full">
               <button
                 onClick={onClose}
-                className={`block w-full py-3.5 px-4 font-semibold font-display text-[15px] rounded-none transition-colors ${accentButtonClass}`}
+                className={`${trendButtonClass} block w-full py-3.5 px-4 font-semibold font-display text-[15px] rounded-[var(--radius)] transition-colors`}
               >
                 Done
               </button>
@@ -267,7 +267,7 @@ export function CreateContentModal({
                   href={`https://basescan.org/tx/${txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block w-full py-3.5 px-4 bg-zinc-800 text-white font-semibold font-display text-[15px] rounded-none hover:bg-zinc-800/80 transition-colors"
+                  className="block w-full py-3.5 px-4 bg-[hsl(var(--surface-container-high))] text-foreground font-semibold font-display text-[15px] rounded-[var(--radius)] hover:bg-[hsl(var(--foreground)/0.08)] transition-colors"
                 >
                   View on Basescan
                 </a>
@@ -280,16 +280,16 @@ export function CreateContentModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex h-screen w-screen justify-center bg-zinc-800">
+    <div className="fixed inset-0 z-[220] flex h-screen w-screen items-center justify-center bg-[hsl(var(--background)/0.6)] backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div
-        className="relative flex h-full w-full max-w-[520px] flex-col bg-background"
+        className="relative flex h-full w-full max-w-[520px] flex-col bg-[hsl(var(--surface-container))] lg:h-auto lg:max-h-[85vh] lg:rounded-[var(--radius)] lg:glass-panel"
         style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)" }}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 pb-2">
           <button
             onClick={onClose}
-            className="p-2 -ml-2 rounded-none hover:bg-secondary transition-colors"
+            className="p-2 -ml-2 rounded-[var(--radius)] hover:bg-[hsl(var(--foreground)/0.08)] transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -297,41 +297,14 @@ export function CreateContentModal({
           <div className="w-9" />
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex px-4 mb-4 gap-0">
-          <button
-            onClick={() => setTab("media")}
-            className={`flex-1 flex items-center justify-center gap-2 h-10 rounded-none text-[13px] font-medium font-display transition-all ${
-              tab === "media"
-                ? "bg-white text-black"
-                : "bg-secondary text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <ImagePlus className="w-3.5 h-3.5" />
-            Media
-          </button>
-          <button
-            onClick={() => setTab("text")}
-            className={`flex-1 flex items-center justify-center gap-2 h-10 rounded-none text-[13px] font-medium font-display transition-all ${
-              tab === "text"
-                ? "bg-white text-black"
-                : "bg-secondary text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Text
-          </button>
-        </div>
-
         {/* Content Area */}
         <div className="flex-1 flex flex-col px-4 min-h-0 overflow-y-auto scrollbar-hide">
-          {tab === "media" ? (
             <>
               {/* Upload Area */}
               {!mediaPreview ? (
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex flex-col items-center justify-center py-12 bg-secondary rounded-none mb-4 hover:bg-secondary/80 transition-colors"
+                  className="flex flex-col items-center justify-center py-12 bg-secondary rounded-[var(--radius)] mb-4 hover:bg-[hsl(var(--foreground)/0.08)] transition-colors"
                 >
                   <ImagePlus className="w-8 h-8 text-muted-foreground mb-2" />
                   <span className="text-[13px] text-muted-foreground">
@@ -339,11 +312,11 @@ export function CreateContentModal({
                   </span>
                 </button>
               ) : (
-                <div className="relative mb-4 rounded-none overflow-hidden aspect-square">
+                <div className="relative mb-4 rounded-[var(--radius)] overflow-hidden">
                   <img
                     src={mediaPreview}
                     alt="Preview"
-                    className="w-full h-full object-cover"
+                    className="w-full object-contain"
                   />
                   <button
                     onClick={() => {
@@ -351,7 +324,7 @@ export function CreateContentModal({
                       setMediaPreview(null);
                       if (fileInputRef.current) fileInputRef.current.value = "";
                     }}
-                    className="absolute top-2 right-2 p-1.5 bg-black/60 rounded-none hover:bg-black/80 transition-colors"
+                    className="absolute top-2 right-2 p-1.5 bg-black/60 rounded-[var(--radius)] hover:bg-black/80 transition-colors"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -372,53 +345,16 @@ export function CreateContentModal({
                 value={caption}
                 onChange={(e) => setCaption(e.target.value)}
                 placeholder="Caption"
-                className="w-full h-12 px-4 rounded-none bg-secondary text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-zinc-800 text-sm"
+                className="w-full h-12 px-4 rounded-[var(--radius)] bg-secondary text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[hsl(var(--surface-container-high))] text-sm"
               />
             </>
-          ) : (
-            <>
-              {/* Title */}
-              <div className="relative mb-3">
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) =>
-                    e.target.value.length <= TITLE_MAX &&
-                    setTitle(e.target.value)
-                  }
-                  placeholder="Title"
-                  className="w-full h-12 px-4 pr-16 rounded-none bg-secondary text-foreground text-[15px] font-semibold placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-zinc-800"
-                />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground font-mono">
-                  {title.length} / {TITLE_MAX}
-                </span>
-              </div>
-
-              {/* Body */}
-              <div className="relative flex-1">
-                <textarea
-                  value={body}
-                  onChange={(e) =>
-                    e.target.value.length <= BODY_MAX && setBody(e.target.value)
-                  }
-                  placeholder="Post"
-                  className="w-full h-full min-h-[200px] px-4 py-3 rounded-none bg-secondary text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-zinc-800 text-[14px] resize-none"
-                />
-                {body.length > 0 && (
-                  <span className="absolute right-4 bottom-3 text-[11px] text-muted-foreground font-mono">
-                    {body.length} / {BODY_MAX}
-                  </span>
-                )}
-              </div>
-            </>
-          )}
 
           {/* Spacer */}
           <div className="flex-1" />
 
           {/* Moderation Warning */}
           {isModerated && (
-            <div className="px-3 py-2 rounded-none bg-zinc-800/10 border border-border flex items-start gap-2 mb-3 mt-4">
+            <div className="px-3 py-2 rounded-[var(--radius)] bg-[hsl(var(--surface-container-high))] border border-border flex items-start gap-2 mb-3 mt-4">
               <AlertCircle className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
               <div>
                 <span className="text-[12px] font-medium text-foreground block">
@@ -434,7 +370,7 @@ export function CreateContentModal({
 
           {/* Error */}
           {errorMsg && (
-            <div className="px-3 py-2 rounded-none bg-zinc-800/10 border border-zinc-800/20 flex items-start gap-2 mb-3 mt-2">
+            <div className="px-3 py-2 rounded-[var(--radius)] bg-[hsl(var(--surface-container-high))] border border-border flex items-start gap-2 mb-3 mt-2">
               <AlertCircle className="w-4 h-4 text-foreground/60 mt-0.5 flex-shrink-0" />
               <span className="text-[12px] text-foreground/60">{errorMsg}</span>
             </div>
@@ -451,7 +387,7 @@ export function CreateContentModal({
           <button
             disabled={!canSubmit}
             onClick={handleSubmit}
-            className={`w-full h-10 rounded-none font-semibold font-display text-[14px] transition-all flex items-center justify-center gap-2 ${
+            className={`w-full h-10 rounded-[var(--radius)] font-semibold font-display text-[14px] transition-all flex items-center justify-center gap-2 ${
               !canSubmit
                 ? accentDisabledClass
                 : accentButtonClass

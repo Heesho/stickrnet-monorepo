@@ -1,5 +1,15 @@
 import type { NextConfig } from "next";
 import path from "path";
+import fs from "fs";
+
+// Resolve @noble/hashes from whichever node_modules has it (handles different hoisting in monorepo vs Vercel)
+const resolveNobleHashes = () => {
+  const candidates = [
+    path.resolve(process.cwd(), "node_modules/@noble/hashes"),
+    path.resolve(process.cwd(), "../../node_modules/@noble/hashes"),
+  ];
+  return candidates.find((p) => fs.existsSync(p)) || candidates[0];
+};
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -11,6 +21,7 @@ const nextConfig: NextConfig = {
   webpack: (config) => {
     config.resolve.alias = {
       ...config.resolve.alias,
+      "@noble/hashes": resolveNobleHashes(),
       "@react-native-async-storage/async-storage": false,
     };
 

@@ -2,9 +2,9 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "appv2",
+      "name": "app",
       "runtimeExecutable": "yarn",
-      "runtimeArgs": ["workspace", "@stickrnet/appv2", "dev"],
+      "runtimeArgs": ["workspace", "@stickrnet/app", "dev"],
       "port": 3000
     }
   ]

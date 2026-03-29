@@ -1,112 +1,144 @@
 "use client";
 
-import { NavBar } from "@/components/nav-bar";
-
 const INFO_SECTIONS = [
   {
-    title: "What is Stickrnet?",
+    title: "What is stickr.net?",
     content:
-      "A content channel platform on Base. Create channels, post content stickers, and build communities around shared interests. Supporters collect stickers and earn coin rewards through staking.",
+      "A launchpad for content communities on Base. Each community gets a content stream, a community coin with halving emissions, a treasury funded by collection fees, and permanent liquidity on Uniswap V2.",
     bullets: [
-      "Channels are launched with their own coin and liquidity pool",
-      "Content stickers are NFTs that can be collected and staked",
+      "Curators are the miners — own stickers, mine coins",
+      "No algorithm, no committee — just what people are willing to pay to own",
       "All contracts are immutable — nobody can change the rules",
+      "Liquidity is locked forever — LP is burned on launch",
     ],
   },
   {
-    title: "Content & Collecting",
+    title: "Stickers",
     content:
-      "Each channel hosts content stickers (NFTs). Collecting a sticker pays the current owner and creator, with prices set by a Dutch auction mechanism that resets on each collect.",
+      "Every post is a single NFT. One post, one owner. Priced in USDC. A sticker can always be collected from the current owner at the current price. Price 2x's after each collection, then decays toward $0 over 24 hours.",
     bullets: [
-      "Collect stickers to become the new owner",
-      "Owners earn fees when their sticker is collected again",
-      "Creators earn fees on every collect of their content",
-      "Staked stickers earn coin rewards from the rewarder",
+      "Everything is always collectible — just a matter of when the price is right",
+      "Posts nobody cares about drift to $0",
+      "Posts people fight over keep getting collected and repriced",
+      "The feed sorts itself through market dynamics",
     ],
   },
   {
-    title: "Coin Rewards",
+    title: "Curation Mining",
     content:
-      "Channels mint coins over time using a Bitcoin-inspired halving schedule. Coins are distributed to staked content holders proportional to their stake.",
+      "Owning stickers is how you mine the community coin. Your mining weight equals the price you paid to collect. Find good posts early, collect them before they get expensive, hold them to mine.",
     bullets: [
-      "Rewards follow a halving schedule — early stakers earn the most",
-      "Tail rewards ensure coins are minted forever",
-      "Stake more content to earn more coins",
-      "Claim accumulated rewards at any time",
+      "Collecting a sticker automatically stakes it in the mining pool",
+      "More valuable stickers mine at a higher rate",
+      "If someone wants yours, they pay to take it — you get 80% of the price",
+      "Curators are the miners — taste is hashpower",
     ],
   },
   {
-    title: "Fee Distribution",
+    title: "Collection Split",
     content:
-      "When content is collected, fees are split transparently on-chain between participants in the ecosystem.",
+      "When a sticker gets collected, the USDC paid splits across five recipients. Creators get paid every time their post changes hands. Make stuff people want, get paid for it.",
     bullets: [
-      "Owner — the current sticker owner receives the majority",
-      "Creator — the original content creator earns a fee",
-      "Treasury — grows liquidity via auctions",
-      "Team — the channel launcher earns a team fee",
-      "Protocol — small protocol fee",
+      "80% → previous owner",
+      "15% → treasury (defaults to LP buyback/burns)",
+      "3% → creator (paid on every collection, forever)",
+      "1% → team (channel launcher)",
+      "1% → protocol",
+    ],
+  },
+  {
+    title: "Halving Emissions",
+    content:
+      "The community coin follows a Bitcoin-style halving schedule. Early participants mine more. Emissions decrease over time but never stop — perpetual tail rewards ensure ongoing incentives forever.",
+    bullets: [
+      "~50% of total supply is mined in the first month",
+      "Rewards halve every 30 days",
+      "Tail rewards kick in after ~7 months — coins are mined forever",
+      "Anyone can trigger the weekly mint — it's permissionless",
     ],
   },
   {
     title: "Treasury Auctions",
     content:
-      "Treasury fees accumulate as USDC and are auctioned off to LP holders. This permanently deepens liquidity for the coin.",
+      "Treasury fees accumulate as USDC from collection fees. Buyable through a Dutch auction by paying with LP tokens, which get permanently burned — deepening liquidity for everyone.",
     bullets: [
       "Dutch auction — price decays over time",
       "Buy when the price makes it profitable",
-      "LP used in auctions gets burned — liquidity only grows",
-    ],
-  },
-  {
-    title: "For Launchers",
-    content:
-      "Launch a channel in one click. Everything is configured at launch and locked forever — fully immutable.",
-    bullets: [
-      "Bitcoin-style coin rewards with customizable parameters",
-      "Earn team fees from all collecting activity",
-      "Treasury grows liquidity automatically via auctions",
-      "Optional content moderation to curate stickers",
+      "LP tokens used to pay get burned — liquidity only grows",
+      "New auction epoch starts after each purchase at 1.2x the last price",
     ],
   },
 ];
 
 export default function InfoPage() {
   return (
-    <main className="flex h-screen w-screen justify-center bg-zinc-800">
+    <main className="min-h-screen bg-background">
       <div
-        className="relative flex h-full w-full max-w-[520px] flex-col bg-background"
+        className="max-w-[1400px] mx-auto px-4 sm:px-6 md:px-10 lg:px-16"
         style={{
-          paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)",
-          paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)",
+          paddingTop: "calc(env(safe-area-inset-top, 0px) + 76px)",
+          paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 24px)",
         }}
       >
         {/* Header */}
-        <div className="px-5 pb-4">
-          <h1 className="text-2xl font-bold tracking-tight font-display">About</h1>
-          <p className="text-[13px] text-muted-foreground mt-1">How Stickrnet works and why it matters</p>
+        <div className="page-header hidden lg:block pt-[88px]">
+          <div className="mx-auto w-full">
+            <h1 className="page-title">About</h1>
+            <p className="page-subtitle">How stickr.net works — sticker channels, coin mining, and onchain collecting.</p>
+          </div>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto scrollbar-hide px-5">
-          <div className="space-y-0">
+        {/* Mobile: glass cards stacked */}
+        <div className="flex-1 scrollbar-hide pb-3 pt-2 lg:hidden">
+          <div className="mx-auto w-full space-y-4">
             {INFO_SECTIONS.map((section, index) => (
               <div
                 key={index}
-                className={`py-6 ${index > 0 ? "border-t border-border" : ""}`}
+                className="slab-panel rounded-[var(--radius)] px-4 py-4"
               >
-                <h2 className="text-[17px] font-semibold text-foreground mb-3 font-display">
+                <h2 className="mb-2 font-display text-[16px] font-semibold tracking-[-0.02em] text-foreground">
                   {section.title}
                 </h2>
-                <p className="text-[15px] text-muted-foreground leading-relaxed mb-4">
+                <p className="mb-3 text-[14px] leading-relaxed text-muted-foreground">
                   {section.content}
                 </p>
                 <ul className="space-y-2">
                   {section.bullets.map((bullet, i) => (
                     <li
                       key={i}
-                      className="text-[14px] text-muted-foreground flex items-start gap-3 leading-snug"
+                      className="flex items-start gap-3 text-[13px] leading-snug text-muted-foreground"
                     >
-                      <span className="text-foreground/50 mt-0.5 font-mono text-[12px]">•</span>
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                      {bullet}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Desktop: card grid */}
+        <div className="hidden lg:block flex-1 scrollbar-hide pb-6 pt-2">
+          <div className="mx-auto w-full grid grid-cols-2 xl:grid-cols-3 gap-5">
+            {INFO_SECTIONS.map((section, index) => (
+              <div
+                key={index}
+                className="slab-panel rounded-[var(--radius)] px-5 py-5"
+              >
+                <h2 className="mb-3 font-display text-[17px] font-semibold tracking-[-0.02em] text-foreground">
+                  {section.title}
+                </h2>
+                <p className="mb-4 text-[14px] leading-relaxed text-muted-foreground">
+                  {section.content}
+                </p>
+                <ul className="space-y-2">
+                  {section.bullets.map((bullet, i) => (
+                    <li
+                      key={i}
+                      className="flex items-start gap-3 text-[13px] leading-snug text-muted-foreground"
+                    >
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
                       {bullet}
                     </li>
                   ))}
@@ -116,7 +148,6 @@ export default function InfoPage() {
           </div>
         </div>
       </div>
-      <NavBar />
     </main>
   );
 }

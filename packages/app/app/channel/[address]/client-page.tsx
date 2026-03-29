@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ArrowLeftRight, Share2, Loader2, CheckCircle, ImagePlus, Flame, Clock, TrendingUp } from "lucide-react";
+import { ArrowLeft, Loader2, CheckCircle, ImagePlus, Flame, Clock, TrendingUp, Search, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { formatEther, formatUnits, parseUnits } from "viem";
-import { NavBar } from "@/components/nav-bar";
 import { CollectModal } from "@/components/collect-modal";
 import { TradeModal } from "@/components/trade-modal";
 import { AuctionModal } from "@/components/auction-modal";
@@ -25,8 +25,11 @@ import {
   encodeContractCall,
   type Call,
 } from "@/hooks/useBatchedTransaction";
+import { useReadContract } from "wagmi";
+import { base } from "wagmi/chains";
 import {
   QUOTE_TOKEN_DECIMALS,
+  CONTENT_ABI,
 } from "@/lib/contracts";
 import {
   getChannel,
@@ -35,6 +38,7 @@ import {
   type SubgraphContentPosition,
 } from "@/lib/subgraph-launchpad";
 import { ipfsToHttp } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 import { truncateAddress, formatPrice, formatNumber, formatMarketCap } from "@/lib/format";
 import { PriceChart, type HoverData } from "@/components/price-chart";
 import { TokenLogo } from "@/components/token-logo";
@@ -111,44 +115,34 @@ const REWARDER_ABI = [
 // Loading skeleton for the page
 function LoadingSkeleton() {
   return (
-    <main className="flex h-screen w-screen justify-center bg-zinc-800">
-      <div
-        className="relative flex h-full w-full max-w-[520px] flex-col bg-background"
-        style={{
-          paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)",
-          paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 130px)",
-        }}
+    <main className="min-h-screen bg-background">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 md:px-10 lg:px-16 pb-32 lg:pb-8"
+        style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 60px)" }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 pb-2">
-          <Link
-            href="/explore"
-            className="p-2 -ml-2 rounded-none hover:bg-secondary transition-colors"
+      <div className="lg:pt-[88px]">
+        {/* Header skeleton */}
+        <div className="flex items-center gap-3 py-3">
+          <button
+            onClick={() => window.history.back()}
+            className="p-1.5 -ml-1.5 rounded-[var(--radius)] hover:bg-[hsl(var(--foreground)/0.06)] transition-colors flex-shrink-0"
           >
             <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div className="text-center opacity-0">
-            <div className="text-[15px] font-semibold">--</div>
-          </div>
-          <div className="p-2 -mr-2" />
-        </div>
-
-        {/* Content skeleton */}
-        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-4">
-          {/* Token info skeleton */}
-          <div className="flex items-center justify-between py-3">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-none bg-secondary animate-pulse" />
-              <div>
-                <div className="w-16 h-4 bg-secondary rounded animate-pulse mb-1" />
-                <div className="w-24 h-5 bg-secondary rounded animate-pulse" />
-              </div>
+          </button>
+          <div className="w-12 h-12 rounded-[var(--radius)] bg-secondary animate-pulse flex-shrink-0" />
+          <div className="flex items-center gap-3">
+            <div>
+              <div className="w-16 h-4 bg-secondary rounded animate-pulse mb-1" />
+              <div className="w-24 h-5 bg-secondary rounded animate-pulse" />
             </div>
-            <div className="text-right">
+            <div>
               <div className="w-20 h-6 bg-secondary rounded animate-pulse mb-1" />
               <div className="w-14 h-4 bg-secondary rounded animate-pulse" />
             </div>
           </div>
+        </div>
+
+        {/* Content skeleton */}
+        <div className="flex-1 min-h-0">
 
           {/* Chart skeleton */}
           <div className="h-44 mb-2 -mx-4 bg-secondary/30 animate-pulse rounded" />
@@ -156,7 +150,7 @@ function LoadingSkeleton() {
           {/* Timeframe selector skeleton */}
           <div className="flex justify-between mb-5 px-2">
             {["1H", "1D", "1W", "1M", "ALL"].map((tf) => (
-              <div key={tf} className="px-3.5 py-1.5 rounded-none bg-secondary/50 text-[13px] text-muted-foreground">
+              <div key={tf} className="px-3.5 py-1.5 rounded-[var(--radius)] bg-secondary/50 text-[13px] text-muted-foreground">
                 {tf}
               </div>
             ))}
@@ -183,6 +177,7 @@ function LoadingSkeleton() {
           </div>
         </div>
       </div>
+      </div>
     </main>
   );
 }
@@ -194,9 +189,6 @@ export default function ChannelDetailPage() {
 
   // Farcaster context for connected wallet
   const { address: account, isConnected, isInFrame, isConnecting, connect } = useFarcaster();
-  const [view, setView] = useState<"channel" | "trade">("channel");
-  const tradeViewChainRefetchInterval = view === "trade" ? 1_000 : 5_000;
-  const tradeViewSubgraphRefetchInterval = view === "trade" ? 5_000 : 30_000;
 
   // Fetch channel data from subgraph
   const { data: subgraphChannel, isLoading: isSubgraphLoading } = useQuery({
@@ -204,7 +196,7 @@ export default function ChannelDetailPage() {
     queryFn: () => getChannel(address),
     enabled: !!address,
     staleTime: 30_000,
-    refetchInterval: tradeViewSubgraphRefetchInterval,
+    refetchInterval: 15_000,
   });
 
   const { data: channelAccount, refetch: refetchChannelAccount } = useQuery({
@@ -212,7 +204,7 @@ export default function ChannelDetailPage() {
     queryFn: () => getChannelAccount(address, account!),
     enabled: !!address && !!account,
     staleTime: 30_000,
-    refetchInterval: isConnected ? tradeViewSubgraphRefetchInterval : false,
+    refetchInterval: isConnected ? 15_000 : false,
   });
 
   const totalContentCount = Number(subgraphChannel?.contentCount ?? "0");
@@ -230,7 +222,7 @@ export default function ChannelDetailPage() {
     },
     enabled: !!address && !!account && totalContentCount > 0,
     staleTime: 30_000,
-    refetchInterval: view === "trade" ? 15_000 : false,
+    refetchInterval: 15_000,
   });
 
   // Fetch on-chain coin state via multicall
@@ -238,7 +230,7 @@ export default function ChannelDetailPage() {
     coinState,
     refetch: refetchState,
     isLoading: isCoinStateLoading,
-  } = useChannelState(contentAddress, account, true, tradeViewChainRefetchInterval);
+  } = useChannelState(contentAddress, account, true, 5_000);
 
   // Normalize fields
   const coinPrice = coinState?.priceInQuote;
@@ -420,12 +412,36 @@ export default function ChannelDetailPage() {
   // Launcher address from subgraph
   const launcherAddress = subgraphChannel?.launcher?.id || null;
 
+  // Portal: inject ticker + price into GlobalNav center slot on mobile
+  const [navSlot, setNavSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    const el = document.getElementById("nav-center-slot");
+    if (el) setNavSlot(el);
+  }, []);
+
   // Ownership check: compare connected wallet to launcher address
   const isOwner = !!(
     account &&
     launcherAddress &&
     account.toLowerCase() === launcherAddress.toLowerCase()
   );
+
+  // Moderator check: read accountToIsModerator from contract
+  const { data: isModerator } = useReadContract({
+    address: contentAddress,
+    abi: CONTENT_ABI,
+    functionName: "accountToIsModerator",
+    args: account ? [account] : undefined,
+    chainId: base.id,
+    query: {
+      enabled: !!account && !!contentAddress,
+    },
+  });
+
+  // Show moderate features if channel is moderated AND user is owner or moderator
+  // Check both coinState and subgraph for isModerated (either source)
+  const channelIsModerated = !!(coinState?.isModerated || subgraphChannel?.isModerated);
+  const canModerate = !!(channelIsModerated && (isOwner || isModerator));
 
   // Created date from subgraph (needed for chart)
   const createdAtTimestamp = subgraphChannel?.createdAt
@@ -449,6 +465,7 @@ export default function ChannelDetailPage() {
   const { data: chartData } = usePriceHistory(
     contentAddress,
     timeframe,
+    coinAddress,
     priceUsd,
     createdAtTimestamp,
     initialPrice,
@@ -462,24 +479,24 @@ export default function ChannelDetailPage() {
     return ((priceUsd - firstPoint.value) / firstPoint.value) * 100;
   }, [chartData, priceUsd]);
   const isPositiveTrend = displayChange >= 0;
-  const trendColor = isPositiveTrend ? "#A78BFA" : "#2DD4BF";
+  const trendColor = isPositiveTrend ? "hsl(263, 70%, 70%)" : "hsl(195, 80%, 55%)";
   const trendButtonClass = isPositiveTrend
-    ? "bg-[#A78BFA] text-black hover:bg-[#9575D9]"
-    : "bg-[#2DD4BF] text-black hover:bg-[#26B8A5]";
+    ? "slab-button"
+    : "slab-button slab-button-loss";
 
   const [hoverData, setHoverData] = useState<HoverData>(null);
   const handleChartHover = useCallback((data: HoverData) => setHoverData(data), []);
 
-  const [feedSort, setFeedSort] = useState<"bump" | "top" | "new">("bump");
+  const [feedSort, setFeedSort] = useState<"bump" | "top" | "new" | "pending">("bump");
+  const [stickerSearch, setStickerSearch] = useState("");
   const [showCreateContentModal, setShowCreateContentModal] = useState(false);
 
   // Tick every 5s to update decaying prices
   const [, setTick] = useState(0);
   useEffect(() => {
-    if (view !== "channel") return;
     const id = setInterval(() => setTick((t) => t + 1), 5000);
     return () => clearInterval(id);
-  }, [view]);
+  }, []);
   const [showHeaderPrice, setShowHeaderPrice] = useState(false);
   const [showCollectModal, setShowCollectModal] = useState(false);
   const [collectTokenId, setCollectTokenId] = useState<bigint>(0n);
@@ -490,6 +507,7 @@ export default function ChannelDetailPage() {
   const [collectCreator, setCollectCreator] = useState<string | undefined>();
   const [collectOwner, setCollectOwner] = useState<string | undefined>();
   const [collectCreatedAt, setCollectCreatedAt] = useState<string | undefined>();
+  const [collectIsPending, setCollectIsPending] = useState(false);
   const [showTradeModal, setShowTradeModal] = useState(false);
   const [tradeMode, setTradeMode] = useState<"buy" | "sell">("buy");
   const [showAuctionModal, setShowAuctionModal] = useState(false);
@@ -513,12 +531,7 @@ export default function ChannelDetailPage() {
     handleScroll();
     scrollContainer.addEventListener("scroll", handleScroll);
     return () => scrollContainer.removeEventListener("scroll", handleScroll);
-  }, [address, isCoinStateLoading, isSubgraphLoading, view]);
-
-  // Reset scroll position when switching views
-  useEffect(() => {
-    if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
-  }, [view]);
+  }, [address, isCoinStateLoading, isSubgraphLoading]);
 
   // Auto-refetch after token claim success, auto-reset after error
   useEffect(() => {
@@ -556,199 +569,561 @@ export default function ChannelDetailPage() {
     return <LoadingSkeleton />;
   }
 
-  return (
-    <main className="flex h-screen w-screen justify-center bg-zinc-800">
-      <div
-        className="relative flex h-full w-full max-w-[520px] flex-col bg-background"
-        style={{
-          paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)",
-          paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 130px)",
-        }}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 pb-2">
-          <Link
-            href="/explore"
-            className="p-2 -ml-2 rounded-none hover:bg-secondary transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          {/* Center - Price appears on scroll */}
-          <div className={`text-center transition-opacity duration-200 ${showHeaderPrice ? "opacity-100" : "opacity-0"}`}>
-            <div className="text-[15px] font-semibold font-mono">{formatPrice(priceUsd)}</div>
-            <div className="text-[15px] font-semibold font-display">{tokenSymbol}</div>
+  // --- Shared sticker grid content ---
+  const stickerGrid = (columnClass: string) => (
+    <>
+      {isContentLoading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : contents.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <div className="w-12 h-12 rounded-[var(--radius)] bg-secondary flex items-center justify-center mb-3">
+            <ImagePlus className="w-6 h-6 text-muted-foreground" />
           </div>
+          <div className="text-[15px] font-semibold font-display mb-1">No stickers yet</div>
+          <div className="text-[13px] text-muted-foreground max-w-[240px]">
+            Be the first to add a sticker to this channel
+          </div>
+        </div>
+      ) : (
+        <div className={`${columnClass} gap-3 pb-2`}>
+          {contents
+            .filter((c) => {
+              if (feedSort === "pending") return !c.isApproved;
+              return c.isApproved;
+            })
+            .filter((c) => {
+              if (!stickerSearch) return true;
+              const q = stickerSearch.toLowerCase();
+              const desc = c.metadata?.description || metadataMap[c.uri]?.description || "";
+              return desc.toLowerCase().includes(q);
+            })
+            .sort((a, b) => {
+              if (feedSort === "bump") return parseInt(b.startTime) - parseInt(a.startTime);
+              if (feedSort === "top") return parseFloat(b.collectVolume) - parseFloat(a.collectVolume);
+              return parseInt(b.createdAt) - parseInt(a.createdAt);
+            })
+            .map((content) => {
+              const fallbackMeta = metadataMap[content.uri];
+              const imageUrl = content.metadata?.imageUri
+                ? ipfsToHttp(content.metadata.imageUri)
+                : fallbackMeta?.imageUrl ?? (fallbackMeta?.image ? ipfsToHttp(fallbackMeta.image) : null);
+              const description = content.metadata?.description || fallbackMeta?.description || null;
+              const hasText = !!description && !imageUrl;
+
+              const livePrice = getDecayedPrice(content.initPrice, content.startTime);
+
+              return (
+                <button
+                  key={content.id}
+                  onClick={() => {
+                    setCollectTokenId(BigInt(content.tokenId));
+                    setCollectEpochId(BigInt(content.epochId));
+                    setCollectPrice(parseUnits(livePrice.toFixed(6), QUOTE_TOKEN_DECIMALS));
+                    setCollectImageUrl(imageUrl);
+                    setCollectCaption(description);
+                    setCollectCreator(content.creator.id);
+                    setCollectOwner(content.owner.id);
+                    setCollectCreatedAt(content.createdAt);
+                    setCollectIsPending(!content.isApproved && canModerate);
+                    setShowCollectModal(true);
+                  }}
+                  className="group mb-3 block h-fit w-full break-inside-avoid overflow-hidden rounded-[var(--radius)] bg-secondary text-left align-top relative"
+                >
+                  {/* Image */}
+                  {imageUrl && (
+                    <div className="relative">
+                      <img
+                        src={imageUrl}
+                        alt={description || "Sticker"}
+                        className={`w-full object-cover rounded-[var(--radius)]${!content.isApproved ? " opacity-50" : ""}`}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                      {/* Cosmos-style hover overlay */}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-200 rounded-[var(--radius)]" />
+                      {/* Price badge — always visible, bottom-left */}
+                      <div className="absolute bottom-0 left-0 right-0 p-2">
+                        <span className="inline-block px-2 py-0.5 bg-black/70 backdrop-blur-sm rounded-full text-[11px] text-white/90 font-mono">
+                          {livePrice > 0 ? `$${formatNumber(livePrice)}` : "Free"}
+                        </span>
+                      </div>
+                      {/* Collect count on hover — top right */}
+                      {Number(content.collectCount) > 0 && (
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          <span className="inline-block px-2 py-0.5 bg-black/70 backdrop-blur-sm rounded-full text-[10px] text-white/80 font-mono">
+                            {content.collectCount} collect{Number(content.collectCount) !== 1 ? "s" : ""}
+                          </span>
+                        </div>
+                      )}
+                      {!content.isApproved && (
+                        <div className="absolute top-2 left-2">
+                          <span className="inline-block px-2 py-0.5 bg-black/70 backdrop-blur-sm rounded-full text-[10px] text-white/70 font-mono">
+                            Pending
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Text-only sticker */}
+                  {hasText && (
+                    <div className="p-3">
+                      <p className="text-[12px] text-muted-foreground leading-relaxed line-clamp-6">
+                        {description}
+                      </p>
+                      <div className="mt-2">
+                        <span className="inline-block px-2 py-0.5 bg-foreground/10 rounded-full text-[11px] text-muted-foreground font-mono">
+                          {livePrice > 0 ? `$${formatNumber(livePrice)}` : "Free"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Loading placeholder */}
+                  {!imageUrl && !hasText && !content.metadata && fallbackMeta === undefined && (
+                    <div className="aspect-square flex items-center justify-center">
+                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+        </div>
+      )}
+    </>
+  );
+
+  // --- Shared sort tabs ---
+  const sortTabs = (size: "sm" | "md") => {
+    if (contents.length === 0) return null;
+    const h = size === "sm" ? "h-8" : "h-10";
+    const px = size === "sm" ? "px-2.5" : "px-3.5";
+    const text = size === "sm" ? "text-[10px]" : "text-[11px]";
+    const iconSize = size === "sm" ? "h-2.5 w-2.5" : "h-3 w-3";
+    const tabs: { key: "bump" | "new" | "top" | "pending"; label: string; icon: typeof Flame }[] = [
+      { key: "bump", label: "Bump", icon: Flame },
+      { key: "new", label: "New", icon: Clock },
+      { key: "top", label: "Top", icon: TrendingUp },
+    ];
+    // Add Pending tab for moderated channels when user can moderate
+    if (canModerate) {
+      const pendingCount = contents.filter(c => !c.isApproved).length;
+      tabs.push({ key: "pending", label: "Pending", icon: Clock });
+    }
+    return (
+      <div className="flex gap-1">
+        {tabs.map((tab) => (
           <button
-            onClick={() => {
-              const url = typeof window !== "undefined" ? window.location.href : "";
-              composeCast({ text: `Check out $${tokenSymbol} on Stickrnet`, embeds: [url] });
-            }}
-            className="p-2 -mr-2 rounded-none hover:bg-secondary transition-colors"
+            key={tab.key}
+            onClick={() => setFeedSort(tab.key)}
+            className={cn(
+              `flex ${h} items-center gap-1.5 ${px} font-display ${text} font-semibold tracking-[0.02em] transition-all rounded-[var(--radius)] border`,
+              feedSort === tab.key
+                ? `${isPositiveTrend ? "bg-primary text-primary-foreground" : "bg-[hsl(var(--loss))] text-black"} border-transparent shadow-glass`
+                : "bg-[hsl(var(--foreground)/0.04)] border-[hsl(var(--foreground)/0.1)] text-muted-foreground hover:text-foreground hover:bg-[hsl(var(--foreground)/0.08)]"
+            )}
           >
-            <Share2 className="w-5 h-5" />
+            <tab.icon className={iconSize} />
+            {tab.label}
           </button>
+        ))}
+      </div>
+    );
+  };
+
+  // --- Shared About section ---
+  const aboutSection = (
+    <>
+      <div className="flex items-center gap-2 text-[13px] text-muted-foreground mb-2 flex-wrap">
+        <span>Deployed by</span>
+        {launcherAddress ? (
+          <span className="text-foreground font-medium font-mono">
+            <AddressLink address={launcherAddress} />
+          </span>
+        ) : (
+          <span className="text-foreground font-medium">--</span>
+        )}
+        <span className="text-muted-foreground/60">·</span>
+        <span className="text-muted-foreground/60">{launchDateStr}</span>
+        {channelIsModerated && (
+          <>
+            <span className="text-muted-foreground/60">·</span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[hsl(var(--foreground)/0.08)] text-[11px] text-muted-foreground font-medium">
+              Moderated
+            </span>
+          </>
+        )}
+      </div>
+
+      {metadata?.description && (
+        <p className="text-[13px] text-muted-foreground leading-relaxed mb-3">
+          {metadata.description}
+        </p>
+      )}
+      {!metadata?.description && (
+        <p className="text-[13px] text-muted-foreground leading-relaxed mb-3">
+          A Stickrnet channel. Collect content stickers, earn coin rewards through staking.
+        </p>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        {coinAddress && (
+          <a href={`https://basescan.org/token/${coinAddress}`} target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius)] border border-[hsl(var(--foreground)/0.1)] text-[12px] text-muted-foreground hover:text-foreground hover:bg-[hsl(var(--foreground)/0.04)] transition-colors">
+            {tokenSymbol}
+          </a>
+        )}
+        {subgraphChannel?.lpToken && (
+          <a href={`https://basescan.org/address/${subgraphChannel.lpToken}`} target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius)] border border-[hsl(var(--foreground)/0.1)] text-[12px] text-muted-foreground hover:text-foreground hover:bg-[hsl(var(--foreground)/0.04)] transition-colors">
+            {tokenSymbol}-USDC LP
+          </a>
+        )}
+        {metadata?.links && metadata.links.length > 0 && metadata.links.map((link, i) => {
+          let label: string;
+          try {
+            const hostname = new URL(link).hostname.replace("www.", "");
+            if (hostname.includes("twitter.com") || hostname.includes("x.com")) label = "Twitter";
+            else if (hostname.includes("t.me") || hostname.includes("telegram")) label = "Telegram";
+            else if (hostname.includes("discord")) label = "Discord";
+            else if (hostname.includes("github.com")) label = "GitHub";
+            else if (hostname.includes("warpcast.com")) label = "Warpcast";
+            else label = hostname;
+          } catch { label = link; }
+          return (
+            <a key={i} href={link} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius)] border border-[hsl(var(--foreground)/0.1)] text-[12px] text-muted-foreground hover:text-foreground hover:bg-[hsl(var(--foreground)/0.04)] transition-colors">
+              {label}
+            </a>
+          );
+        })}
+      </div>
+    </>
+  );
+
+  // --- Shared Stats grid ---
+  const statsGrid = (
+    <div className="grid grid-cols-2 gap-y-4 gap-x-8">
+      <div>
+        <div className="text-muted-foreground text-[12px] mb-0.5">Market cap</div>
+        <div className="font-semibold text-[15px] tabular-nums font-mono">{formatMarketCap(marketCapUsd)}</div>
+      </div>
+      <div>
+        <div className="text-muted-foreground text-[12px] mb-0.5">Total supply</div>
+        <div className="font-semibold text-[15px] tabular-nums font-mono">{formatNumber(totalSupply)}</div>
+      </div>
+      <div>
+        <div className="text-muted-foreground text-[12px] mb-0.5">Liquidity</div>
+        <div className="font-semibold text-[15px] tabular-nums font-mono">${formatNumber(liquidityUsd)}</div>
+      </div>
+      <div>
+        <div className="text-muted-foreground text-[12px] mb-0.5">24h volume</div>
+        <div className="font-semibold text-[15px] tabular-nums font-mono">${formatNumber(volume24h)}</div>
+      </div>
+      <div>
+        <div className="text-muted-foreground text-[12px] mb-0.5">Treasury</div>
+        <div className="font-semibold text-[15px] tabular-nums font-mono">${treasuryRevenue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+      </div>
+      <div>
+        <div className="text-muted-foreground text-[12px] mb-0.5">Team</div>
+        <div className="font-semibold text-[15px] tabular-nums font-mono">${teamRevenue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+      </div>
+      {subgraphChannel && (
+        <>
+          <div>
+            <div className="text-muted-foreground text-[12px] mb-0.5">Initial UPS</div>
+            <div className="font-semibold text-[15px] tabular-nums font-mono">{formatEmission(subgraphChannel.initialUps)}</div>
+          </div>
+          <div>
+            <div className="text-muted-foreground text-[12px] mb-0.5">Tail UPS</div>
+            <div className="font-semibold text-[15px] tabular-nums font-mono">{formatEmission(subgraphChannel.tailUps)}</div>
+          </div>
+          <div>
+            <div className="text-muted-foreground text-[12px] mb-0.5">Halving</div>
+            <div className="font-semibold text-[15px] tabular-nums font-mono">
+              {formatPeriod(subgraphChannel.halvingPeriod)}
+            </div>
+          </div>
+          <div>
+            <div className="text-muted-foreground text-[12px] mb-0.5">Content count</div>
+            <div className="font-semibold text-[15px] tabular-nums font-mono">{subgraphChannel.contentCount}</div>
+          </div>
+          <div>
+            <div className="text-muted-foreground text-[12px] mb-0.5">Collect count</div>
+            <div className="font-semibold text-[15px] tabular-nums font-mono">{subgraphChannel.collectCount}</div>
+          </div>
+          {coinState?.minter && (
+            <div>
+              <div className="text-muted-foreground text-[12px] mb-0.5">Minter</div>
+              <div className="font-semibold text-[15px] font-mono">
+                <AddressLink address={coinState.minter} />
+              </div>
+            </div>
+          )}
+          {coinState?.rewarder && (
+            <div>
+              <div className="text-muted-foreground text-[12px] mb-0.5">Rewarder</div>
+              <div className="font-semibold text-[15px] font-mono">
+                <AddressLink address={coinState.rewarder} />
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+
+  // --- Position card ---
+  const positionCard = (
+    <div className="slab-panel rounded-[var(--radius)] mb-4 px-4 py-4">
+      <div className="mb-3">
+        <div className="font-semibold text-[18px] font-display">Your Position</div>
+        <div className="text-[12px] text-muted-foreground mt-0.5">Your token balance and current market value</div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-y-4 gap-x-8">
+        <div>
+          <div className="text-muted-foreground text-[12px] mb-1">Balance</div>
+          <div className="font-semibold text-[15px] tabular-nums font-mono flex items-center gap-1.5">
+            <TokenLogo name={tokenName} logoUrl={logoUrl} size="sm" variant="circle" />
+            <span>{formatNumber(userCoinBalance)}</span>
+          </div>
+        </div>
+        <div>
+          <div className="text-muted-foreground text-[12px] mb-1">Value</div>
+          <div className="font-semibold text-[15px] tabular-nums font-mono text-foreground">
+            ${positionBalanceUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // --- Collection card ---
+  const collectionCard = hasCollectionSection ? (
+    <div className="slab-panel rounded-[var(--radius)] mb-4 px-4 py-4">
+      <div className="mb-3">
+        <div className="font-semibold text-[18px] font-display">Your Collection</div>
+        <div className="text-[12px] text-muted-foreground mt-0.5">Stickers you hold, their stake, and the tokens they are mining</div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-y-4 gap-x-8">
+        <div>
+          <div className="text-muted-foreground text-[12px] mb-1">Stickers owned</div>
+          <div className="font-semibold text-[15px] tabular-nums font-mono">
+            {collectionStickerCount}
+          </div>
+        </div>
+        <div>
+          <div className="text-muted-foreground text-[12px] mb-1">Market value</div>
+          <div className="font-semibold text-[15px] tabular-nums font-mono">
+            ${collectionMarketValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+        </div>
+        <div>
+          <div className="text-muted-foreground text-[12px] mb-1">Total spent</div>
+          <div className="font-semibold text-[15px] tabular-nums font-mono">
+            ${totalSpent.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+        </div>
+        <div>
+          <div className="text-muted-foreground text-[12px] mb-1">Total earned</div>
+          <div className="font-semibold text-[15px] tabular-nums font-mono">
+            ${ownerEarned.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+        </div>
+        <div>
+          <div className="text-muted-foreground text-[12px] mb-1">Total mined</div>
+          <div className="font-semibold text-[15px] tabular-nums font-mono flex items-center gap-1.5">
+            <TokenLogo name={tokenName} logoUrl={logoUrl} size="sm" variant="circle" />
+            <span>{formatNumber(totalMined)}</span>
+          </div>
+        </div>
+        <div>
+          <div className="text-muted-foreground text-[12px] mb-1">Claimable</div>
+          <div className="font-semibold text-[15px] tabular-nums font-mono flex items-center gap-1.5">
+            <TokenLogo name={tokenName} logoUrl={logoUrl} size="sm" variant="circle" />
+            <span>{formatNumber(coinEarned)}</span>
+          </div>
+        </div>
+      </div>
+
+      {coinEarned > 0 && (
+        <button
+          onClick={handleCollectionClaim}
+          disabled={tokenClaimStatus === "pending" || tokenClaimStatus === "confirming" || tokenClaimStatus === "success"}
+          className={`w-full mt-4 h-10 text-[14px] font-semibold font-display rounded-[var(--radius)] transition-all flex items-center justify-center gap-1.5 ${
+            tokenClaimStatus === "success"
+              ? "bg-foreground text-black"
+              : tokenClaimStatus === "error"
+              ? "bg-[hsl(var(--surface-container))] text-white"
+              : tokenClaimStatus === "pending" || tokenClaimStatus === "confirming"
+              ? "bg-[hsl(var(--surface-container))] text-foreground/60 cursor-not-allowed"
+              : trendButtonClass
+          }`}
+        >
+          {(tokenClaimStatus === "pending" || tokenClaimStatus === "confirming") && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+          {tokenClaimStatus === "success" && <CheckCircle className="w-3.5 h-3.5" />}
+          {tokenClaimStatus === "pending" || tokenClaimStatus === "confirming"
+            ? "Claiming..."
+            : tokenClaimStatus === "success"
+            ? "Claimed!"
+            : tokenClaimStatus === "error"
+            ? tokenClaimError?.message?.includes("cancelled") ? "Rejected" : "Failed"
+            : "Claim"}
+        </button>
+      )}
+    </div>
+  ) : null;
+
+  // --- Creations card ---
+  const creationsCard = isConnected ? (
+    <div className="slab-panel rounded-[var(--radius)] mb-4 px-4 py-4">
+      <div className="mb-3">
+        <div className="font-semibold text-[18px] font-display">Your Creations</div>
+        <div className="text-[12px] text-muted-foreground mt-0.5">Stickers you made, their current value, and the earnings they generated</div>
+      </div>
+
+      {hasCreationsSection && (
+        <div className="grid grid-cols-2 gap-y-4 gap-x-8 mb-4">
+          <div>
+            <div className="text-muted-foreground text-[12px] mb-1">Stickers created</div>
+            <div className="font-semibold text-[15px] tabular-nums font-mono">
+              {creationStickerCount}
+            </div>
+          </div>
+          <div>
+            <div className="text-muted-foreground text-[12px] mb-1">Market value</div>
+            <div className="font-semibold text-[15px] tabular-nums font-mono">
+              ${creationsMarketValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+          </div>
+          <div>
+            <div className="text-muted-foreground text-[12px] mb-1">Collects</div>
+            <div className="font-semibold text-[15px] tabular-nums font-mono">
+              {creationsCollectCount}
+            </div>
+          </div>
+          <div>
+            <div className="text-muted-foreground text-[12px] mb-1">Total earned</div>
+            <div className="font-semibold text-[15px] tabular-nums font-mono">
+              ${creatorEarned.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <button
+        onClick={() => setShowCreateContentModal(true)}
+        className={`w-full h-10 text-[14px] font-semibold font-display rounded-[var(--radius)] transition-colors ${trendButtonClass}`}
+      >
+        Create Sticker
+      </button>
+    </div>
+  ) : null;
+
+  // --- Action buttons (Liquidity/Auction/Admin) ---
+  const actionButtons = isConnected ? (
+    <div className="slab-panel rounded-[var(--radius)] mb-4 px-4 py-4">
+      <div className="grid grid-cols-2 gap-2">
+        <button onClick={() => setShowLiquidityModal(true)} className={`h-10 text-[13px] font-semibold font-display rounded-[var(--radius)] transition-colors ${trendButtonClass}`}>Liquidity</button>
+        <button onClick={() => setShowAuctionModal(true)} className={`h-10 text-[13px] font-semibold font-display rounded-[var(--radius)] transition-colors ${trendButtonClass}`}>Auction</button>
+        {isOwner && (
+          <button onClick={() => setShowAdminModal(true)} className={`h-10 text-[13px] font-semibold font-display rounded-[var(--radius)] transition-colors ${trendButtonClass} col-span-2`}>Admin</button>
+        )}
+      </div>
+    </div>
+  ) : null;
+
+  return (
+    <main className="min-h-screen bg-background">
+      {/* Ticker + price in nav center slot (mobile) */}
+      {navSlot && createPortal(
+        <div className="text-center">
+          <div className="font-display text-[14px] font-bold uppercase tracking-[-0.01em] text-black leading-none">{tokenSymbol}</div>
+          <div className="font-mono text-[11px] font-medium tabular-nums text-black/50 leading-none mt-0.5">{formatPrice(priceUsd)}</div>
+        </div>,
+        navSlot
+      )}
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 md:px-10 lg:px-16 pb-32 lg:pb-8"
+        style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 60px)" }}
+      >
+      <div className="lg:pt-[88px]">
+        {/* Mobile top bar — matches stickrnet layout */}
+        <div ref={tokenInfoRef} className="lg:hidden flex items-center justify-between mb-2 py-1">
+          <div className="flex items-center gap-2.5">
+            <button onClick={() => window.history.back()} className="text-muted-foreground hover:text-foreground transition-colors">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <TokenLogo name={tokenName} logoUrl={logoUrl} size="md" loading="eager" />
+            <div>
+              <div className="font-display text-[15px] font-semibold uppercase tracking-[-0.02em] leading-none">{tokenSymbol}</div>
+              <div className="text-[12px] text-muted-foreground leading-none mt-1">{tokenName}</div>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="font-mono text-[18px] font-semibold tabular-nums leading-none">
+              {hoverData && hoverData.value > 0
+                ? formatPrice(hoverData.value)
+                : formatPrice(priceUsd)}
+            </div>
+            {hoverData ? (
+              <div className="text-[12px] font-mono font-medium leading-none mt-1 text-foreground/50">
+                {new Date(hoverData.time * 1000).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+              </div>
+            ) : (
+              <div className={`text-[12px] font-mono font-medium leading-none mt-1 ${isPositiveTrend ? "positive-value" : "negative-value"}`}>
+                {`${isPositiveTrend ? "+" : ""}${displayChange.toFixed(2)}%`}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Content */}
-        <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-4 pb-28">
-          {/* Token Info Section */}
-          <div ref={tokenInfoRef} className="flex items-center justify-between py-3">
-            <div className="flex items-center gap-3">
-              <TokenLogo name={tokenName} logoUrl={logoUrl} size="lg" loading="eager" />
-              <div>
-                <div className="text-[13px] text-muted-foreground">{tokenName}</div>
-                <div className="text-[15px] font-medium font-display">{tokenSymbol}</div>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="price-large">
-                {hoverData && hoverData.value > 0
-                  ? formatPrice(hoverData.value)
-                  : formatPrice(priceUsd)}
-              </div>
-              {hoverData ? (
-                <div className="text-[13px] font-medium font-mono text-foreground/60">
-                  {new Date(hoverData.time * 1000).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                </div>
-              ) : (
-                <div className={`text-[13px] font-medium font-mono ${isPositiveTrend ? "text-[#A78BFA]" : "text-[#2DD4BF]"}`}>
-                  {`${isPositiveTrend ? "+" : ""}${displayChange.toFixed(2)}%`}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Channel View — sticker feed */}
-          {view === "channel" && (
-            <>
-              {/* Sort tabs */}
-              {contents.length > 0 && (
-                <div className="flex pb-3">
-                  {[
-                    { key: "bump" as const, label: "Bump", icon: Flame },
-                    { key: "new" as const, label: "New", icon: Clock },
-                    { key: "top" as const, label: "Top", icon: TrendingUp },
-                  ].map((tab) => (
-                    <button
-                      key={tab.key}
-                      onClick={() => setFeedSort(tab.key)}
-                      className={`flex-1 flex items-center justify-center gap-1 h-10 rounded-none text-[12px] font-medium transition-all ${
-                        feedSort === tab.key
-                          ? "bg-white text-black"
-                          : "bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80"
-                      }`}
-                    >
-                      <tab.icon className="w-3 h-3" />
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {isContentLoading ? (
-                <div className="flex items-center justify-center py-16">
-                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                </div>
-              ) : contents.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-24 text-center">
-                  <div className="w-12 h-12 rounded-none bg-secondary flex items-center justify-center mb-3">
-                    <ImagePlus className="w-6 h-6 text-muted-foreground" />
-                  </div>
-                  <div className="text-[15px] font-semibold font-display mb-1">No stickers yet</div>
-                  <div className="text-[13px] text-muted-foreground max-w-[240px]">
-                    Be the first to add a sticker to this channel
+        {/* Content area */}
+        <div ref={scrollContainerRef} className="flex-1 min-h-0">
+          {/* === DESKTOP layout (lg+): two columns === */}
+          <div className="hidden lg:flex lg:gap-6">
+            {/* Left column — header + chart + timeframes + stickers */}
+            <div className="flex-1 min-w-0">
+              {/* Desktop header — inside left column like stickrnet */}
+              <div className="flex items-center justify-between py-3 pb-5">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => window.history.back()}
+                    className="p-1.5 -ml-1.5 rounded-[var(--radius)] hover:bg-[hsl(var(--foreground)/0.06)] transition-colors flex-shrink-0"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <div className="min-w-0">
+                    <div className="text-[22px] font-bold font-display leading-tight">{tokenSymbol}</div>
+                    <div className="text-[13px] text-muted-foreground truncate">{tokenName}</div>
                   </div>
                 </div>
-              ) : (
-                <div className="columns-2 gap-2 pb-2">
-                  {contents
-                    .filter((c) => c.isApproved || c.creator.id.toLowerCase() === account?.toLowerCase())
-                    .sort((a, b) => {
-                      if (feedSort === "bump") return parseInt(b.startTime) - parseInt(a.startTime);
-                      if (feedSort === "top") return parseFloat(b.collectVolume) - parseFloat(a.collectVolume);
-                      return parseInt(b.createdAt) - parseInt(a.createdAt);
-                    })
-                    .map((content) => {
-                      const fallbackMeta = metadataMap[content.uri];
-                      const imageUrl = content.metadata?.imageUri
-                        ? ipfsToHttp(content.metadata.imageUri)
-                        : fallbackMeta?.imageUrl ?? (fallbackMeta?.image ? ipfsToHttp(fallbackMeta.image) : null);
-                      const description = content.metadata?.description || fallbackMeta?.description || null;
-                      const hasText = !!description && !imageUrl;
-
-                      const livePrice = getDecayedPrice(content.initPrice, content.startTime);
-
-                      return (
-                        <button
-                          key={content.id}
-                          onClick={() => {
-                            setCollectTokenId(BigInt(content.tokenId));
-                            setCollectEpochId(BigInt(content.epochId));
-                            setCollectPrice(parseUnits(livePrice.toFixed(6), QUOTE_TOKEN_DECIMALS));
-                            setCollectImageUrl(imageUrl);
-                            setCollectCaption(description);
-                            setCollectCreator(content.creator.id);
-                            setCollectOwner(content.owner.id);
-                            setCollectCreatedAt(content.createdAt);
-                            setShowCollectModal(true);
-                          }}
-                          className="mb-2 block h-fit w-full break-inside-avoid overflow-hidden rounded-none bg-secondary text-left align-top"
-                        >
-                          {/* Image */}
-                          {imageUrl && (
-                            <div className="relative">
-                              <img
-                                src={imageUrl}
-                                alt={description || "Sticker"}
-                                className={`w-full object-cover${!content.isApproved ? " opacity-50" : ""}`}
-                                loading="lazy"
-                                decoding="async"
-                              />
-                              <div className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 bg-black/60 text-[11px] text-white font-mono">
-                                {livePrice > 0 ? `$${formatNumber(livePrice)}` : "Free"}
-                              </div>
-                              {!content.isApproved && (
-                                <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 bg-black/60 text-[10px] text-white/70 font-mono">
-                                  Pending
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Text-only sticker */}
-                          {hasText && (
-                            <div className="p-3">
-                              <p className="text-[12px] text-muted-foreground leading-relaxed">
-                                {description}
-                              </p>
-                              <div className="mt-2 text-[11px] text-muted-foreground font-mono">
-                                {livePrice > 0 ? `$${formatNumber(livePrice)}` : "Free"}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Loading placeholder */}
-                          {!imageUrl && !hasText && !content.metadata && fallbackMeta === undefined && (
-                            <div className="aspect-square flex items-center justify-center">
-                              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
+                <div className="flex-shrink-0 text-right">
+                  <div className="price-large">
+                    {hoverData && hoverData.value > 0
+                      ? formatPrice(hoverData.value)
+                      : formatPrice(priceUsd)}
+                  </div>
+                  {hoverData ? (
+                    <div className="text-[13px] font-medium font-mono text-foreground/50">
+                      {new Date(hoverData.time * 1000).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                  ) : (
+                    <div className={`text-[13px] font-medium font-mono ${isPositiveTrend ? "positive-value" : "negative-value"}`}>
+                      {`${isPositiveTrend ? "+" : ""}${displayChange.toFixed(2)}%`}
+                    </div>
+                  )}
                 </div>
-              )}
-            </>
-          )}
+              </div>
 
-          {/* === Trade View === */}
-          {view === "trade" && (
-            <>
-              {/* Chart */}
-              <div className="mb-2 -mx-4">
+              {/* Chart (280px desktop) */}
+              <div className="mb-2">
                 <PriceChart
                   data={chartData}
-                  height={176}
+                  height={280}
                   color={trendColor}
                   onHover={handleChartHover}
                   tokenFirstActiveTime={timeframe !== "ALL" ? createdAtTimestamp : undefined}
@@ -756,430 +1131,234 @@ export default function ChannelDetailPage() {
                 />
               </div>
 
-              {/* Timeframe Selector */}
-              <div className="flex justify-between mb-5 px-2">
+              {/* Timeframe selector + inline Buy/Sell */}
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex gap-1">
+                  {(["1H", "1D", "1W", "1M", "ALL"] as Timeframe[]).map((tf) => (
+                    <button
+                      key={tf}
+                      onClick={() => setTimeframe(tf)}
+                      className={`px-3.5 py-1.5 rounded-[var(--radius)] text-[13px] font-medium font-mono transition-all ${
+                        timeframe === tf
+                          ? isPositiveTrend
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-[hsl(var(--loss))] text-black"
+                          : isPositiveTrend
+                            ? "positive-value hover:bg-primary/10"
+                            : "negative-value hover:bg-[hsl(var(--loss))]/10"
+                      }`}
+                    >
+                      {tf}
+                    </button>
+                  ))}
+                </div>
+                {/* Inline Buy/Sell */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setTradeMode("buy"); setShowTradeModal(true); }}
+                    className="h-9 w-[120px] text-[13px] font-semibold font-display rounded-[var(--radius)] slab-button transition-colors"
+                  >
+                    Buy
+                  </button>
+                  <button
+                    onClick={() => { setTradeMode("sell"); setShowTradeModal(true); }}
+                    className="h-9 w-[120px] text-[13px] font-semibold font-display rounded-[var(--radius)] slab-button slab-button-loss transition-colors"
+                  >
+                    Sell
+                  </button>
+                </div>
+              </div>
+
+              {/* Stickers section */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="font-semibold text-[18px] font-display">Stickers</div>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-shrink-0">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <input
+                        type="text"
+                        placeholder="Search stickers..."
+                        value={stickerSearch}
+                        onChange={(e) => setStickerSearch(e.target.value)}
+                        className="h-10 w-[200px] rounded-[var(--radius)] bg-[hsl(var(--foreground)/0.04)] border border-[hsl(var(--foreground)/0.1)] pl-10 pr-9 text-[13px] text-foreground placeholder:text-muted-foreground/60 backdrop-blur-sm transition-all focus:outline-none focus:w-[260px] focus:border-[hsl(var(--primary)/0.4)] focus:bg-[hsl(var(--foreground)/0.06)]"
+                      />
+                      {stickerSearch && (
+                        <button
+                          onClick={() => setStickerSearch("")}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    {sortTabs("md")}
+                  </div>
+                </div>
+                {stickerGrid("columns-2 sm:columns-3 lg:columns-4")}
+              </div>
+            </div>
+
+            {/* Right column (380px sidebar) — aligned to top */}
+            <div className="lg:w-[380px] flex-shrink-0">
+              {/* Token Image — aligned with top of left column header */}
+              {logoUrl && (
+                <div className="mb-4 rounded-[var(--radius)] overflow-hidden mt-3">
+                  <img src={logoUrl} alt={tokenName} className="w-full aspect-square object-cover" />
+                </div>
+              )}
+
+              {/* Creations card — with Create button */}
+              {creationsCard}
+
+              {/* Collection card */}
+              {collectionCard}
+
+              {/* Position card */}
+              {positionCard}
+
+              {/* About card — with action buttons inside */}
+              <div className="slab-panel rounded-[var(--radius)] mb-4 px-4 py-4">
+                <div className="mb-3">
+                  <div className="font-semibold text-[18px] font-display">About</div>
+                </div>
+                {aboutSection}
+                {/* Action buttons inside About */}
+                {isConnected && (
+                  <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-[hsl(var(--foreground)/0.1)]">
+                    <button onClick={() => setShowLiquidityModal(true)} className={`h-10 text-[13px] font-semibold font-display rounded-[var(--radius)] transition-colors ${trendButtonClass}`}>Liquidity</button>
+                    <button onClick={() => setShowAuctionModal(true)} className={`h-10 text-[13px] font-semibold font-display rounded-[var(--radius)] transition-colors ${trendButtonClass}`}>Auction</button>
+                    {isOwner && (
+                      <button onClick={() => setShowAdminModal(true)} className={`h-10 text-[13px] font-semibold font-display rounded-[var(--radius)] transition-colors ${trendButtonClass} col-span-2`}>Admin</button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Stats card */}
+              <div className="slab-panel rounded-[var(--radius)] mb-4 px-4 py-4">
+                <div className="mb-3">
+                  <div className="font-semibold text-[18px] font-display">Stats</div>
+                </div>
+                {statsGrid}
+              </div>
+            </div>
+          </div>
+
+          {/* === MOBILE layout (< lg): single column === */}
+          <div className="lg:hidden">
+            {/* Chart (176px mobile) */}
+            <div className="mb-2 -mx-4">
+              <PriceChart
+                data={chartData}
+                height={176}
+                color={trendColor}
+                onHover={handleChartHover}
+                tokenFirstActiveTime={timeframe !== "ALL" ? createdAtTimestamp : undefined}
+                initialPrice={timeframe !== "ALL" ? initialPrice : undefined}
+              />
+            </div>
+
+            {/* Timeframe selector */}
+            <div className="flex items-center justify-between mb-5 px-2">
+              <div className="flex gap-1">
                 {(["1H", "1D", "1W", "1M", "ALL"] as Timeframe[]).map((tf) => (
                   <button
                     key={tf}
                     onClick={() => setTimeframe(tf)}
-                    className={`px-3.5 py-1.5 rounded-none text-[13px] font-medium font-mono transition-all ${
+                    className={`px-3.5 py-1.5 rounded-[var(--radius)] text-[13px] font-medium font-mono transition-all ${
                       timeframe === tf
                         ? isPositiveTrend
-                          ? "bg-[#A78BFA] text-black"
-                          : "bg-[#2DD4BF] text-black"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-[hsl(var(--loss))] text-black"
                         : isPositiveTrend
-                          ? "text-[#A78BFA] hover:bg-[#A78BFA]/10"
-                          : "text-[#2DD4BF] hover:bg-[#2DD4BF]/10"
+                          ? "positive-value hover:bg-primary/10"
+                          : "negative-value hover:bg-[hsl(var(--loss))]/10"
                     }`}
                   >
                     {tf}
                   </button>
                 ))}
               </div>
+            </div>
 
-              {/* Your Position Section */}
-              <div className="mb-6">
-                <div className="mb-3">
-                  <div className="font-semibold text-[18px] font-display">Your Position</div>
-                  <div className="text-[12px] text-muted-foreground mt-0.5">Your token balance and current market value</div>
-                </div>
+            {/* Creations card — with Create button */}
+            {creationsCard}
 
-                <div className="grid grid-cols-2 gap-y-4 gap-x-8">
-                  <div>
-                    <div className="text-muted-foreground text-[12px] mb-1">Token balance</div>
-                    <div className="font-semibold text-[15px] tabular-nums font-mono flex items-center gap-1.5">
-                      <TokenLogo name={tokenName} logoUrl={logoUrl} size="sm" variant="circle" />
-                      <span>{formatNumber(userCoinBalance)}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground text-[12px] mb-1">Market value</div>
-                    <div className="font-semibold text-[15px] tabular-nums font-mono text-foreground">
-                      ${positionBalanceUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
-                  </div>
-                </div>
+            {/* Collection card */}
+            {collectionCard}
+
+            {/* Position card */}
+            {isConnected && positionCard}
+
+            {/* About section */}
+            <div className="slab-panel rounded-[var(--radius)] mb-4 px-4 py-4">
+              <div className="mb-3">
+                <div className="font-semibold text-[18px] font-display">About</div>
               </div>
-
-              {/* Your Collection Section */}
-              {hasCollectionSection && (
-                <div className="mb-6">
-                  <div className="mb-3">
-                    <div className="font-semibold text-[18px] font-display">Your Collection</div>
-                    <div className="text-[12px] text-muted-foreground mt-0.5">Stickers you hold, their stake, and the tokens they are mining</div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-y-4 gap-x-8">
-                    <div>
-                      <div className="text-muted-foreground text-[12px] mb-1">Stickers owned</div>
-                      <div className="font-semibold text-[15px] tabular-nums font-mono">
-                        {collectionStickerCount}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground text-[12px] mb-1">Market value</div>
-                      <div className="font-semibold text-[15px] tabular-nums font-mono">
-                        ${collectionMarketValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground text-[12px] mb-1">Total spent</div>
-                      <div className="font-semibold text-[15px] tabular-nums font-mono">
-                        ${totalSpent.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground text-[12px] mb-1">Total earned</div>
-                      <div className="font-semibold text-[15px] tabular-nums font-mono">
-                        ${ownerEarned.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground text-[12px] mb-1">Total mined</div>
-                      <div className="font-semibold text-[15px] tabular-nums font-mono flex items-center gap-1.5">
-                        <TokenLogo name={tokenName} logoUrl={logoUrl} size="sm" variant="circle" />
-                        <span>{formatNumber(totalMined)}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground text-[12px] mb-1">Claimable</div>
-                      <div className="font-semibold text-[15px] tabular-nums font-mono flex items-center gap-1.5">
-                        <TokenLogo name={tokenName} logoUrl={logoUrl} size="sm" variant="circle" />
-                        <span>{formatNumber(coinEarned)}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {coinEarned > 0 && (
-                    <button
-                      onClick={handleCollectionClaim}
-                      disabled={tokenClaimStatus === "pending" || tokenClaimStatus === "confirming" || tokenClaimStatus === "success"}
-                      className={`w-full mt-4 h-10 text-[14px] font-semibold font-display rounded-none transition-all flex items-center justify-center gap-1.5 ${
-                        tokenClaimStatus === "success"
-                          ? "bg-foreground text-black"
-                          : tokenClaimStatus === "error"
-                          ? "bg-zinc-800 text-white"
-                          : tokenClaimStatus === "pending" || tokenClaimStatus === "confirming"
-                          ? "bg-zinc-800 text-foreground/60 cursor-not-allowed"
-                          : trendButtonClass
-                      }`}
-                    >
-                      {(tokenClaimStatus === "pending" || tokenClaimStatus === "confirming") && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                      {tokenClaimStatus === "success" && <CheckCircle className="w-3.5 h-3.5" />}
-                      {tokenClaimStatus === "pending" || tokenClaimStatus === "confirming"
-                        ? "Claiming..."
-                        : tokenClaimStatus === "success"
-                        ? "Claimed!"
-                        : tokenClaimStatus === "error"
-                        ? tokenClaimError?.message?.includes("cancelled") ? "Rejected" : "Failed"
-                        : "Claim"}
-                    </button>
+              {aboutSection}
+              {/* Mobile action buttons */}
+              {isConnected && (
+                <div className="flex gap-2 mt-4">
+                  <button onClick={() => setShowLiquidityModal(true)} className={`flex-1 h-10 text-[14px] font-semibold font-display rounded-[var(--radius)] transition-colors ${trendButtonClass}`}>Liquidity</button>
+                  <button onClick={() => setShowAuctionModal(true)} className={`flex-1 h-10 text-[14px] font-semibold font-display rounded-[var(--radius)] transition-colors ${trendButtonClass}`}>Auction</button>
+                  {isOwner && (
+                    <button onClick={() => setShowAdminModal(true)} className={`flex-1 h-10 text-[14px] font-semibold font-display rounded-[var(--radius)] transition-colors ${trendButtonClass}`}>Admin</button>
                   )}
                 </div>
               )}
+            </div>
 
-              {/* Your Creations Section */}
-              {hasCreationsSection && (
-                <div className="mb-6">
-                  <div className="mb-3">
-                    <div className="font-semibold text-[18px] font-display">Your Creations</div>
-                    <div className="text-[12px] text-muted-foreground mt-0.5">Stickers you made, their current value, and the earnings they generated</div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-y-4 gap-x-8">
-                    <div>
-                      <div className="text-muted-foreground text-[12px] mb-1">Stickers created</div>
-                      <div className="font-semibold text-[15px] tabular-nums font-mono">
-                        {creationStickerCount}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground text-[12px] mb-1">Market value</div>
-                      <div className="font-semibold text-[15px] tabular-nums font-mono">
-                        ${creationsMarketValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground text-[12px] mb-1">Collects</div>
-                      <div className="font-semibold text-[15px] tabular-nums font-mono">
-                        {creationsCollectCount}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground text-[12px] mb-1">Total earned</div>
-                      <div className="font-semibold text-[15px] tabular-nums font-mono">
-                        ${creatorEarned.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* About Section */}
-              <div className="mb-6">
-                <div className="mb-3">
-                  <div className="font-semibold text-[18px] font-display">About</div>
-                  <div className="text-[12px] text-muted-foreground mt-0.5">Channel details, links, and team actions</div>
-                </div>
-
-                <div className="flex items-center gap-2 text-[13px] text-muted-foreground mb-2">
-                  <span>Deployed by</span>
-                  {launcherAddress ? (
-                    <span className="text-foreground font-medium font-mono">
-                      <AddressLink address={launcherAddress} />
-                    </span>
-                  ) : (
-                    <span className="text-foreground font-medium">--</span>
-                  )}
-                  <span className="text-muted-foreground/60">·</span>
-                  <span className="text-muted-foreground/60">{launchDateStr}</span>
-                </div>
-
-                {metadata?.description && (
-                  <p className="text-[13px] text-muted-foreground leading-relaxed mb-2">
-                    {metadata.description}
-                  </p>
-                )}
-                {!metadata?.description && (
-                  <p className="text-[13px] text-muted-foreground leading-relaxed mb-2">
-                    A Stickrnet channel. Collect content stickers, earn coin rewards through staking.
-                  </p>
-                )}
-
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {coinAddress && (
-                    <a
-                      href={`https://basescan.org/token/${coinAddress}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-none bg-secondary text-[12px] text-muted-foreground hover:bg-secondary/80 transition-colors"
-                    >
-                      {tokenSymbol}
-                    </a>
-                  )}
-                  {subgraphChannel?.lpToken && (
-                    <a
-                      href={`https://basescan.org/address/${subgraphChannel.lpToken}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-none bg-secondary text-[12px] text-muted-foreground hover:bg-secondary/80 transition-colors"
-                    >
-                      {tokenSymbol}-USDC LP
-                    </a>
-                  )}
-                  {metadata?.links && metadata.links.length > 0 && metadata.links.map((link, i) => {
-                    let label: string;
-                    try {
-                      const hostname = new URL(link).hostname.replace("www.", "");
-                      if (hostname.includes("twitter.com") || hostname.includes("x.com")) label = "Twitter";
-                      else if (hostname.includes("t.me") || hostname.includes("telegram")) label = "Telegram";
-                      else if (hostname.includes("discord")) label = "Discord";
-                      else if (hostname.includes("github.com")) label = "GitHub";
-                      else if (hostname.includes("warpcast.com")) label = "Warpcast";
-                      else label = hostname;
-                    } catch {
-                      label = link;
-                    }
-                    return (
-                      <a
-                        key={i}
-                        href={link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-none bg-secondary text-[12px] text-muted-foreground hover:bg-secondary/80 transition-colors"
-                      >
-                        {label}
-                      </a>
-                    );
-                  })}
-                </div>
-
-                {/* Action Buttons */}
-                {isConnected && (
-                  <div className="flex">
-                    <button
-                      onClick={() => setShowLiquidityModal(true)}
-                      className={`flex-1 h-10 text-[14px] font-semibold font-display rounded-none transition-colors ${trendButtonClass}`}
-                    >
-                      Liquidity
-                    </button>
-                    <button
-                      onClick={() => setShowAuctionModal(true)}
-                      className={`flex-1 h-10 text-[14px] font-semibold font-display rounded-none transition-colors ${trendButtonClass}`}
-                    >
-                      Auction
-                    </button>
-                    {isOwner && (
-                      <button
-                        onClick={() => setShowAdminModal(true)}
-                        className={`flex-1 h-10 text-[14px] font-semibold font-display rounded-none transition-colors ${trendButtonClass}`}
-                      >
-                        Admin
-                      </button>
-                    )}
-                  </div>
-                )}
+            {/* Stats section */}
+            <div className="slab-panel rounded-[var(--radius)] mb-4 px-4 py-4">
+              <div className="mb-3">
+                <div className="font-semibold text-[18px] font-display">Stats</div>
               </div>
+              {statsGrid}
+            </div>
 
-              {/* Stats Grid */}
-              <div className="mb-6">
-                <div className="mb-3">
-                  <div className="font-semibold text-[18px] font-display">Stats</div>
-                  <div className="text-[12px] text-muted-foreground mt-0.5">Key metrics and coin economics for this channel</div>
-                </div>
-                <div className="grid grid-cols-2 gap-y-4 gap-x-8">
-                  <div>
-                    <div className="text-muted-foreground text-[12px] mb-0.5">Market cap</div>
-                    <div className="font-semibold text-[15px] tabular-nums font-mono">
-                      {formatMarketCap(marketCapUsd)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground text-[12px] mb-0.5">Total supply</div>
-                    <div className="font-semibold text-[15px] tabular-nums font-mono">
-                      {formatNumber(totalSupply)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground text-[12px] mb-0.5">Liquidity</div>
-                    <div className="font-semibold text-[15px] tabular-nums font-mono">
-                      ${formatNumber(liquidityUsd)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground text-[12px] mb-0.5">24h volume</div>
-                    <div className="font-semibold text-[15px] tabular-nums font-mono">
-                      ${formatNumber(volume24h)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground text-[12px] mb-0.5">Treasury</div>
-                    <div className="font-semibold text-[15px] tabular-nums font-mono">
-                      ${treasuryRevenue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground text-[12px] mb-0.5">Team</div>
-                    <div className="font-semibold text-[15px] tabular-nums font-mono">
-                      ${teamRevenue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
-                  </div>
-                  {subgraphChannel && (
-                    <>
-                      <div>
-                        <div className="text-muted-foreground text-[12px] mb-0.5">Initial UPS</div>
-                        <div className="font-semibold text-[15px] tabular-nums font-mono">{formatEmission(subgraphChannel.initialUps)}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground text-[12px] mb-0.5">Tail UPS</div>
-                        <div className="font-semibold text-[15px] tabular-nums font-mono">{formatEmission(subgraphChannel.tailUps)}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground text-[12px] mb-0.5">Halving</div>
-                        <div className="font-semibold text-[15px] tabular-nums font-mono">
-                          {formatPeriod(subgraphChannel.halvingPeriod)}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground text-[12px] mb-0.5">Content count</div>
-                        <div className="font-semibold text-[15px] tabular-nums font-mono">{subgraphChannel.contentCount}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground text-[12px] mb-0.5">Collect count</div>
-                        <div className="font-semibold text-[15px] tabular-nums font-mono">{subgraphChannel.collectCount}</div>
-                      </div>
-                      {coinState?.minter && (
-                        <div>
-                          <div className="text-muted-foreground text-[12px] mb-0.5">Minter</div>
-                          <div className="font-semibold text-[15px] font-mono">
-                            <AddressLink address={coinState.minter} />
-                          </div>
-                        </div>
-                      )}
-                      {coinState?.rewarder && (
-                        <div>
-                          <div className="text-muted-foreground text-[12px] mb-0.5">Rewarder</div>
-                          <div className="font-semibold text-[15px] font-mono">
-                            <AddressLink address={coinState.rewarder} />
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-
+            {/* Stickers section — sort tabs + grid, no card wrapper */}
+            <div className="mb-3 flex items-center justify-between">
+              <div className="font-semibold text-[18px] font-display">Stickers</div>
+              {sortTabs("sm")}
+            </div>
+            {stickerGrid("columns-2")}
+          </div>
         </div>
 
 
-        {/* Bottom Action Bar */}
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-zinc-800 flex justify-center" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 72px)" }}>
-          <div className="flex items-center w-full max-w-[520px] px-4 py-2 bg-background">
+        {/* Mobile Bottom Action Bar — hidden on desktop */}
+        <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden">
+          <div className="flex items-center gap-2 w-full px-4 pt-3 bg-background" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 24px)" }}>
             {!isConnected ? (
               <button
                 onClick={() => connect()}
                 disabled={isConnecting || isInFrame === true}
-                className="flex-1 h-10 text-[14px] font-semibold font-display rounded-none bg-white text-black hover:bg-zinc-200 transition-colors disabled:opacity-50"
+                className="flex-1 h-11 text-[14px] font-semibold font-display rounded-[var(--radius)] bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
                 {isConnecting ? "Connecting..." : "Connect Wallet"}
               </button>
             ) : (
               <>
                 <button
-                  onClick={() => setView(view === "channel" ? "trade" : "channel")}
-                  className="flex-1 h-10 text-[14px] font-semibold font-display rounded-none bg-white text-black hover:bg-zinc-200 transition-colors flex items-center justify-center gap-1.5"
+                  onClick={() => { setTradeMode("sell"); setShowTradeModal(true); }}
+                  className="flex-1 h-11 text-[14px] font-semibold font-display rounded-[var(--radius)] slab-button slab-button-loss transition-colors"
                 >
-                  <ArrowLeftRight className="w-4 h-4" />
-                  {view === "channel" ? "Trade" : "Channel"}
+                  Sell
                 </button>
-                {view === "channel" ? (
-                  <button
-                    onClick={() => setShowCreateContentModal(true)}
-                    className="flex-[2] h-10 text-[14px] font-semibold font-display rounded-none bg-[#A78BFA] text-black hover:bg-[#9575D9] transition-colors"
-                  >
-                    Create
-                  </button>
-                ) : userCoinBalance > 0 ? (
-                  <>
-                    <button
-                      onClick={() => {
-                        setTradeMode("sell");
-                        setShowTradeModal(true);
-                      }}
-                      className="flex-1 h-10 text-[14px] font-semibold font-display rounded-none bg-[#2DD4BF] text-black hover:bg-[#26B8A5] transition-colors"
-                    >
-                      Sell
-                    </button>
-                    <button
-                      onClick={() => {
-                        setTradeMode("buy");
-                        setShowTradeModal(true);
-                      }}
-                      className="flex-1 h-10 text-[14px] font-semibold font-display rounded-none bg-[#A78BFA] text-black hover:bg-[#9575D9] transition-colors"
-                    >
-                      Buy
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setTradeMode("buy");
-                      setShowTradeModal(true);
-                    }}
-                    className="flex-[2] h-10 text-[14px] font-semibold font-display rounded-none bg-[#A78BFA] text-black hover:bg-[#9575D9] transition-colors"
-                  >
-                    Buy
-                  </button>
-                )}
+                <button
+                  onClick={() => { setTradeMode("buy"); setShowTradeModal(true); }}
+                  className="flex-1 h-11 text-[14px] font-semibold font-display rounded-[var(--radius)] slab-button transition-colors"
+                >
+                  Buy
+                </button>
               </>
             )}
           </div>
         </div>
 
       </div>
-      <NavBar />
+      </div>
 
       {/* Collect Modal */}
       <CollectModal
@@ -1199,7 +1378,8 @@ export default function ChannelDetailPage() {
         createdAt={collectCreatedAt}
         priceUsd={priceUsd}
         isPositiveTrend={isPositiveTrend}
-        onSuccess={() => refetchState()}
+        isPendingApproval={collectIsPending}
+        onSuccess={() => { refetchState(); refetchContent(); }}
       />
 
       {/* Trade Modal (Buy/Sell) */}
@@ -1254,8 +1434,10 @@ export default function ChannelDetailPage() {
           initialMetadata={adminMetadata}
           initialLogoUrl={logoUrl ?? undefined}
           isPositiveTrend={isPositiveTrend}
+          currentModerators={(subgraphChannel?.moderators ?? []).map(m => ({ address: m.account.id }))}
         />
       )}
+
 
       {/* Create Content Modal */}
       <CreateContentModal

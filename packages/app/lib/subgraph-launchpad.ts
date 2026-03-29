@@ -63,6 +63,7 @@ export type SubgraphChannel = {
   auctionPriceMultiplier: string;
   auctionMinInitPrice: string;
   isModerated: boolean;
+  moderators?: { id: string; account: { id: string }; assignedAt: string }[];
   txCount: string;
   contentCount: string;
   collectCount: string;
@@ -199,6 +200,11 @@ const CHANNEL_FIELDS = `
   auctionPriceMultiplier
   auctionMinInitPrice
   isModerated
+  moderators(where: { isModerator: true }) {
+    id
+    account { id }
+    assignedAt
+  }
   txCount
   contentCount
   collectCount

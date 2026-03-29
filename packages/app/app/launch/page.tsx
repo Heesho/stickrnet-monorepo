@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Upload, X } from "lucide-react";
 import { parseUnits, formatUnits, parseEventLogs } from "viem";
 import { useReadContract, useWaitForTransactionReceipt } from "wagmi";
-import { NavBar } from "@/components/nav-bar";
+import { Particles } from "@/components/ui/particles";
 import { useFarcaster } from "@/hooks/useFarcaster";
 import {
   useBatchedTransaction,
@@ -63,8 +63,6 @@ export default function LaunchPage() {
   const { address: account, isConnected, isConnecting, connect } = useFarcaster();
   const { execute, status: txStatus, txHash, batchReceipts, error: txError, reset: resetTx } = useBatchedTransaction();
 
-  // Extract content address from tx receipt
-  const [launchedContentAddress, setLaunchedContentAddress] = useState<string | null>(null);
   const { data: txReceipt } = useWaitForTransactionReceipt({
     hash: txHash as `0x${string}` | undefined,
   });
@@ -86,26 +84,23 @@ export default function LaunchPage() {
     return null;
   };
 
-  // Parse from sequential tx receipt
-  useEffect(() => {
-    if (!txReceipt?.logs || launchedContentAddress) return;
-    const addr = extractContentAddress(txReceipt.logs);
-    if (addr) setLaunchedContentAddress(addr);
-  }, [txReceipt, launchedContentAddress]);
+  const launchedContentAddress = useMemo(() => {
+    if (txReceipt?.logs) {
+      const addr = extractContentAddress(txReceipt.logs);
+      if (addr) return addr;
+    }
 
-  // Parse from EIP-5792 batch receipts (batch mode may not populate txHash)
-  useEffect(() => {
-    if (!batchReceipts || launchedContentAddress) return;
+    if (!batchReceipts) return null;
+
     for (const receipt of batchReceipts) {
       if (receipt.logs) {
         const addr = extractContentAddress(receipt.logs as never);
-        if (addr) {
-          setLaunchedContentAddress(addr);
-          break;
-        }
+        if (addr) return addr;
       }
     }
-  }, [batchReceipts, launchedContentAddress]);
+
+    return null;
+  }, [batchReceipts, txReceipt]);
 
   // Read user's USDC balance
   const { data: usdcBalance } = useReadContract({
@@ -218,7 +213,7 @@ export default function LaunchPage() {
     if (!launcher) {
       try {
         launcher = await connect();
-      } catch (err) {
+      } catch {
         setLaunchError("Wallet connection failed.");
         return;
       }
@@ -243,11 +238,9 @@ export default function LaunchPage() {
       const auctionLpPrice = DEFAULTS.auctionTargetUsd / (2_000_000 * Math.sqrt(usdcAmount / coinAmount));
       const auctionInitPriceWei = parseUnits(auctionLpPrice.toFixed(18), 18);
       const auctionMinInitPriceWei = auctionInitPriceWei;
-      const auctionEpochPeriodWei = LAUNCH_DEFAULTS.auctionEpochPeriod;
-      const auctionPriceMultiplierWei = LAUNCH_DEFAULTS.auctionPriceMultiplier;
 
-      const multicallAddress = CONTRACT_ADDRESSES.multicall as `0x${string}`;
       const quoteToken = CONTRACT_ADDRESSES.usdc as `0x${string}`;
+      const multicallAddress = CONTRACT_ADDRESSES.multicall as `0x${string}`;
 
       const launchParams = {
         launcher,
@@ -262,8 +255,8 @@ export default function LaunchPage() {
         contentMinInitPrice: LAUNCH_DEFAULTS.contentMinInitPrice,
         contentIsModerated,
         auctionInitPrice: auctionInitPriceWei,
-        auctionEpochPeriod: auctionEpochPeriodWei,
-        auctionPriceMultiplier: auctionPriceMultiplierWei,
+        auctionEpochPeriod: LAUNCH_DEFAULTS.auctionEpochPeriod,
+        auctionPriceMultiplier: LAUNCH_DEFAULTS.auctionPriceMultiplier,
         auctionMinInitPrice: auctionMinInitPriceWei,
       };
 
@@ -286,213 +279,320 @@ export default function LaunchPage() {
     return n.toString();
   };
 
+  // Shared launch button JSX
+  const launchButtonBlock = (
+    <div className="flex items-center gap-4">
+      <div className="flex shrink-0 items-center gap-4">
+        <div>
+          <div className="text-[10px] tracking-[0.02em] text-muted-foreground">Pay</div>
+          <div className="mt-0.5 font-mono text-[15px] font-semibold tabular-nums">
+            ${formatNumber(usdcAmount)}
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] tracking-[0.02em] text-muted-foreground">Balance</div>
+          <div className="mt-0.5 font-mono text-[15px] font-semibold tabular-nums">
+            ${formatNumber(usdcBalance ? Number(formatUnits(usdcBalance, QUOTE_TOKEN_DECIMALS)) : 0)}
+          </div>
+        </div>
+      </div>
+      {!isConnected ? (
+        <button
+          onClick={() => connect()}
+          disabled={isConnecting}
+          className="slab-button flex-1 text-[11px] disabled:opacity-50"
+        >
+          {isConnecting ? "Connecting..." : "Connect Wallet"}
+        </button>
+      ) : (
+        <button
+          onClick={handleLaunch}
+          disabled={!isFormValid || isLaunching || isUploading}
+          className={`flex-1 px-4 text-[11px] ${
+            launchError || txStatus === "error"
+              ? "slab-button-ghost text-muted-foreground"
+              : !isFormValid || isLaunching || isUploading
+              ? "slab-button opacity-50"
+              : "slab-button"
+          }`}
+        >
+          {launchError || txStatus === "error"
+            ? txError?.message?.includes("cancelled") ? "Rejected" : "Failed"
+            : isUploading
+            ? "Uploading..."
+            : isLaunching
+            ? "Launching..."
+            : "Launch"}
+        </button>
+      )}
+    </div>
+  );
+
+  // Content moderation section JSX
+  const moderationSection = (
+    <div>
+      <button
+        type="button"
+        onClick={() => setContentIsModerated(!contentIsModerated)}
+        className="flex w-full items-center justify-between gap-3"
+      >
+        <div className="min-w-0 text-left">
+          <div className="section-kicker">Content Moderation</div>
+          <div className="mt-1 text-[13px] text-foreground font-display font-medium">Moderate stickers</div>
+          <div className="text-[11px] text-muted-foreground">Approve stickers before they appear in the channel.</div>
+        </div>
+        <div className="toggle-track shrink-0" data-state={contentIsModerated ? "on" : "off"}>
+          <div className="toggle-thumb" />
+        </div>
+      </button>
+    </div>
+  );
+
+  // Shared links section JSX
+  const linksSection = (
+    <div>
+      <button
+        type="button"
+        onClick={() => {
+          const next = !showLinks;
+          setShowLinks(next);
+          if (next && links.length === 0) setLinks([""]);
+        }}
+        className="flex w-full items-center justify-between gap-3"
+      >
+        <div className="min-w-0 text-left">
+          <div className="section-kicker">Outbound Links</div>
+          <div className="mt-1 text-[13px] text-foreground font-display font-medium">Add links</div>
+          <div className="text-[11px] text-muted-foreground">Website, social profiles, or docs.</div>
+        </div>
+        <div className="toggle-track shrink-0" data-state={showLinks ? "on" : "off"}>
+          <div className="toggle-thumb" />
+        </div>
+      </button>
+
+      {showLinks && (
+        <div className="mt-3 space-y-2">
+          {links.map((link, i) => (
+            <div key={i} className="flex gap-2">
+              <input
+                type="url"
+                placeholder="https://..."
+                value={link}
+                onChange={(e) => {
+                  const updated = [...links];
+                  updated[i] = e.target.value;
+                  setLinks(updated);
+                }}
+                className="field-input h-10 flex-1 text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (links.length <= 1) {
+                    setLinks([""]);
+                    return;
+                  }
+                  setLinks(links.filter((_, j) => j !== i));
+                }}
+                className="border border-[hsl(var(--foreground)/0.1)] rounded-[var(--radius)] flex h-10 w-10 items-center justify-center text-muted-foreground transition-colors hover:text-loss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+          {links.length < 5 && (
+            <button
+              type="button"
+              onClick={() => setLinks([...links, ""])}
+              className="text-[12px] font-display tracking-[0.02em] text-muted-foreground transition-colors hover:text-primary"
+            >
+              + Add another
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  // Identity section JSX (shared)
+  const identitySection = (
+    <div className="space-y-3">
+      <div>
+        <div className="section-kicker">Identity</div>
+        <div className="mt-1 text-[13px] text-muted-foreground">
+          Set the coin identity and channel details.
+        </div>
+      </div>
+
+      <div className="flex items-start gap-3">
+        <label className="cursor-pointer flex-shrink-0">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleLogoChange}
+            className="hidden"
+          />
+          <div className="field-input !p-0 flex h-[88px] w-[88px] items-center justify-center overflow-hidden transition-colors hover:bg-[hsl(var(--foreground)/0.08)]">
+            {logoPreview ? (
+              <img
+                src={logoPreview}
+                alt="Coin logo"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <Upload className="h-6 w-6 text-muted-foreground" />
+            )}
+          </div>
+        </label>
+
+        <div className="flex-1 min-w-0 space-y-2">
+          <input
+            type="text"
+            placeholder="Coin name"
+            value={tokenName}
+            onChange={(e) => setTokenName(e.target.value)}
+            className="field-input h-10 text-sm"
+          />
+          <input
+            type="text"
+            placeholder="SYMBOL"
+            value={tokenSymbol}
+            onChange={(e) => setTokenSymbol(e.target.value.toUpperCase())}
+            maxLength={10}
+            className="field-input h-10 text-sm"
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-2">
+        <input
+          type="text"
+          placeholder="Description"
+          value={tokenDescription}
+          onChange={(e) => setTokenDescription(e.target.value)}
+          className="field-input h-10 text-sm"
+        />
+      </div>
+    </div>
+  );
+
   // Main form layout
   return (
-    <main className="flex h-screen w-screen justify-center bg-zinc-800">
+    <main className="min-h-screen bg-background">
+      <Particles className="!fixed inset-0 -z-10 bg-transparent" quantity={40} size={0.5} />
       <div
-        className="relative flex h-full w-full max-w-[520px] flex-col bg-background"
+        className="max-w-[1400px] mx-auto px-4 sm:px-6 md:px-10 lg:px-16"
         style={{
-          paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)",
-          paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 60px)",
+          paddingTop: "calc(env(safe-area-inset-top, 0px) + 76px)",
+          paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 140px)",
         }}
       >
         {/* Header */}
-        <div className="px-4 pb-2">
-          <h1 className="text-2xl font-bold tracking-tight font-display">Launch</h1>
-          <p className="text-[13px] text-muted-foreground mt-1">Create a channel and start collecting content</p>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto scrollbar-hide px-4 pt-2">
-          {/* All form fields -- uniform 8px gap */}
-          <div className="space-y-2">
-            {/* Logo + Name + Symbol Row */}
-            <div className="flex items-start gap-2">
-              <label className="cursor-pointer flex-shrink-0">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleLogoChange}
-                  className="hidden"
-                />
-                <div className="w-[88px] h-[88px] rounded-none bg-secondary flex items-center justify-center overflow-hidden hover:bg-secondary/80 transition-colors">
-                  {logoPreview ? (
-                    <img
-                      src={logoPreview}
-                      alt="Coin logo"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <Upload className="w-6 h-6 text-foreground/50" />
-                  )}
-                </div>
-              </label>
-              <div className="flex-1 min-w-0 space-y-2">
-                <input
-                  type="text"
-                  placeholder="Coin name"
-                  value={tokenName}
-                  onChange={(e) => setTokenName(e.target.value)}
-                  className="w-full h-10 px-3 rounded-none bg-secondary text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-white/20 text-sm"
-                />
-                <input
-                  type="text"
-                  placeholder="SYMBOL"
-                  value={tokenSymbol}
-                  onChange={(e) => setTokenSymbol(e.target.value.toUpperCase())}
-                  maxLength={10}
-                  className="w-full h-10 px-3 rounded-none bg-secondary text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-white/20 text-sm"
-                />
-              </div>
-            </div>
-            <input
-              type="text"
-              placeholder="Description"
-              value={tokenDescription}
-              onChange={(e) => setTokenDescription(e.target.value)}
-              className="w-full h-10 px-3 rounded-none bg-secondary text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-white/20 text-sm"
-            />
-          </div>
-
-          {/* Content moderation toggle */}
-          <div className="mt-4">
-            <button
-              type="button"
-              onClick={() => setContentIsModerated(!contentIsModerated)}
-              className="flex items-center justify-between w-full py-2"
-            >
-              <div className="flex items-center gap-2.5">
-                <span className="text-[13px] text-foreground font-display font-medium">Moderated content</span>
-                <span className="text-[11px] text-muted-foreground">require approval for new stickers</span>
-              </div>
-              <div className={`w-9 h-5 rounded-none transition-colors relative ${contentIsModerated ? "bg-white" : "bg-zinc-800"}`}>
-                <div className={`absolute top-0.5 w-4 h-4 rounded-none transition-all ${contentIsModerated ? "left-[18px] bg-black" : "left-0.5 bg-zinc-800"}`} />
-              </div>
-            </button>
-          </div>
-
-          {/* Links toggle */}
-          <div className="mt-2">
-            <button
-              type="button"
-              onClick={() => {
-                const next = !showLinks;
-                setShowLinks(next);
-                if (next && links.length === 0) setLinks([""]);
-              }}
-              className="flex items-center justify-between w-full py-2"
-            >
-              <div className="flex items-center gap-2.5">
-                <span className="text-[13px] text-foreground font-display font-medium">Add links</span>
-                <span className="text-[11px] text-muted-foreground">websites, socials</span>
-              </div>
-              <div className={`w-9 h-5 rounded-none transition-colors relative ${showLinks ? "bg-white" : "bg-zinc-800"}`}>
-                <div className={`absolute top-0.5 w-4 h-4 rounded-none transition-all ${showLinks ? "left-[18px] bg-black" : "left-0.5 bg-zinc-800"}`} />
-              </div>
-            </button>
-
-            {showLinks && (
-              <div className="space-y-2 mt-2">
-                {links.map((link, i) => (
-                  <div key={i} className="flex gap-2">
-                    <input
-                      type="url"
-                      placeholder="https://..."
-                      value={link}
-                      onChange={(e) => {
-                        const updated = [...links];
-                        updated[i] = e.target.value;
-                        setLinks(updated);
-                      }}
-                      className="flex-1 h-10 px-3 rounded-none bg-secondary text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-white/20 text-sm"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (links.length <= 1) {
-                          setLinks([""]);
-                          return;
-                        }
-                        setLinks(links.filter((_, j) => j !== i));
-                      }}
-                      className="px-2 text-foreground/50 hover:text-foreground/70 transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-                {links.length < 5 && (
-                  <button
-                    type="button"
-                    onClick={() => setLinks([...links, ""])}
-                    className="text-[12px] text-foreground/50 hover:text-foreground/70 transition-colors"
-                  >
-                    + Add another
-                  </button>
-                )}
-              </div>
-            )}
+        <div className="page-header hidden lg:block pt-[88px]">
+          <div className="mx-auto w-full">
+            <h1 className="page-title">Launch</h1>
+            <p className="page-subtitle">Create a new sticker channel with its own coin and community.</p>
           </div>
         </div>
 
-        {/* Bottom Action Bar */}
-        <div className="mt-auto px-4 py-3 bg-background">
-          <div className="flex items-center gap-4 w-full">
-            <div className="flex items-center gap-5 shrink-0">
-              <div>
-                <div className="text-muted-foreground text-[12px]">Pay</div>
-                <div className="font-semibold text-[17px] tabular-nums font-mono">
-                  ${formatNumber(usdcAmount)}
-                </div>
+        {/* Mobile: single column */}
+        <div className="flex-1 overflow-y-auto scrollbar-hide pt-2 lg:hidden">
+          <div className="mx-auto w-full max-w-[1040px] space-y-4 pb-6">
+            <div className="slab-panel rounded-[var(--radius)] px-4 py-4 space-y-3">
+              {identitySection}
+            </div>
+            <div className="slab-panel rounded-[var(--radius)] px-4 py-4 space-y-3">
+              {moderationSection}
+            </div>
+            <div className="slab-panel rounded-[var(--radius)] px-4 py-4 space-y-3">
+              {linksSection}
+            </div>
+          </div>
+        </div>
+
+        {/* Desktop: two-column layout */}
+        <div className="hidden lg:block flex-1 overflow-y-auto scrollbar-hide pt-2">
+          <div className="mx-auto w-full space-y-6 pb-10">
+            <div className="grid grid-cols-2 gap-6">
+              {/* Left column — Identity */}
+              <div className="slab-panel rounded-[var(--radius)] px-5 py-5 space-y-4">
+                {identitySection}
               </div>
-              <div>
-                <div className="text-muted-foreground text-[12px]">Balance</div>
-                <div className="font-semibold text-[17px] tabular-nums font-mono">
-                  ${formatNumber(usdcBalance ? Number(formatUnits(usdcBalance, QUOTE_TOKEN_DECIMALS)) : 0)}
+
+              {/* Right column — Recipient, Links */}
+              <div className="slab-panel rounded-[var(--radius)] px-5 py-5 space-y-5">
+                {moderationSection}
+                <div className="border-t border-[hsl(var(--foreground)/0.1)] pt-5">
+                  {linksSection}
                 </div>
               </div>
             </div>
-            {!isConnected ? (
-              <button
-                onClick={() => connect()}
-                disabled={isConnecting}
-                className="flex-1 h-10 text-[14px] font-semibold font-display rounded-none bg-white text-black hover:bg-zinc-200 transition-colors disabled:opacity-50"
-              >
-                {isConnecting ? "Connecting..." : "Connect Wallet"}
-              </button>
-            ) : (
-              <button
-                onClick={handleLaunch}
-                disabled={!isFormValid || isLaunching || isUploading}
-                className={`flex-1 h-10 text-[15px] font-semibold font-display rounded-none transition-all ${
-                  launchError || txStatus === "error"
-                    ? "bg-zinc-800 text-foreground/70"
-                  : !isFormValid || isLaunching || isUploading
-                    ? "bg-[#A78BFA] text-black/60 opacity-50 cursor-not-allowed"
-                    : "bg-[#A78BFA] text-black hover:bg-[#9575D9]"
-                }`}
-              >
-                {launchError || txStatus === "error"
-                  ? txError?.message?.includes("cancelled") ? "Rejected" : "Failed"
-                  : isUploading
-                  ? "Uploading..."
-                  : isLaunching
-                  ? "Launching..."
-                  : "Launch"}
-              </button>
-            )}
+
+            {/* Full-width Launch bar */}
+            <div className="slab-panel rounded-[var(--radius)] px-5 py-5">
+              {launchButtonBlock}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Nav Bar */}
-      <NavBar />
+      {/* Mobile Bottom Action Bar — solid black, no border */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-50 bg-black lg:hidden"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
+      >
+        <div className="flex w-full max-w-[520px] mx-auto items-center gap-3 px-4 py-3">
+          <div className="flex shrink-0 items-center gap-4">
+            <div>
+              <div className="text-[10px] tracking-[0.02em] text-muted-foreground">Pay</div>
+              <div className="mt-0.5 font-mono text-[15px] font-semibold tabular-nums">
+                ${formatNumber(usdcAmount)}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] tracking-[0.02em] text-muted-foreground">Balance</div>
+              <div className="mt-0.5 font-mono text-[15px] font-semibold tabular-nums">
+                ${formatNumber(usdcBalance ? Number(formatUnits(usdcBalance, QUOTE_TOKEN_DECIMALS)) : 0)}
+              </div>
+            </div>
+          </div>
+          {!isConnected ? (
+            <button
+              onClick={() => connect()}
+              disabled={isConnecting}
+              className="slab-button flex-1 text-[11px] disabled:opacity-50"
+            >
+              {isConnecting ? "Connecting..." : "Connect Wallet"}
+            </button>
+          ) : (
+            <button
+              onClick={handleLaunch}
+              disabled={!isFormValid || isLaunching || isUploading}
+              className={`flex-1 px-4 text-[11px] ${
+                launchError || txStatus === "error"
+                  ? "slab-button-ghost text-muted-foreground"
+                  : !isFormValid || isLaunching || isUploading
+                  ? "slab-button opacity-50"
+                  : "slab-button"
+              }`}
+            >
+              {launchError || txStatus === "error"
+                ? txError?.message?.includes("cancelled") ? "Rejected" : "Failed"
+                : isUploading
+                ? "Uploading..."
+                : isLaunching
+                ? "Launching..."
+                : "Launch"}
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Success */}
       {txStatus === "success" && txHash && (
-        <div className="fixed inset-0 bottom-[70px] z-[50] flex w-screen justify-center bg-zinc-800">
+        <div className="fixed inset-0 bottom-[70px] z-[50] flex w-screen justify-center bg-background/80 backdrop-blur-xl">
           <div
-            className="relative flex h-full w-full max-w-[520px] flex-col bg-background items-center justify-center px-6"
+            className="glass-panel relative flex h-full w-full max-w-[520px] flex-col items-center justify-center px-6"
             style={{
               paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)",
             }}
@@ -501,15 +601,15 @@ export default function LaunchPage() {
               {/* Token preview */}
               {logoPreview && (
                 <div className="flex justify-center">
-                  <img src={logoPreview} alt={tokenName} className="w-24 h-24 rounded-none object-cover ring-2 ring-zinc-800" />
+                  <img src={logoPreview} alt={tokenName} className="border border-[hsl(var(--foreground)/0.1)] rounded-[var(--radius)] h-24 w-24 object-cover" />
                 </div>
               )}
 
               {/* Message */}
               <div>
-                <h2 className="text-2xl font-bold text-white mb-2 font-display">Channel Launched!</h2>
-                <p className="text-foreground/60 text-[15px]">
-                  <span className="font-semibold text-white font-display">{tokenName}</span>
+                <h2 className="mb-2 font-display text-2xl font-bold tracking-[-0.04em] text-foreground">Channel Launched!</h2>
+                <p className="text-[15px] text-muted-foreground">
+                  <span className="font-display font-semibold text-foreground">{tokenName}</span>
                   {" "}({tokenSymbol}) is now live
                 </p>
               </div>
@@ -518,7 +618,7 @@ export default function LaunchPage() {
               <div className="space-y-3 pt-2 w-full">
                 <Link
                   href={launchedContentAddress ? `/channel/${launchedContentAddress}` : "/explore"}
-                  className="block w-full py-3.5 px-4 bg-white text-black font-semibold font-display text-[15px] rounded-none hover:bg-zinc-200 transition-colors"
+                  className="slab-button block w-full px-4 py-3.5 text-[11px]"
                 >
                   View Channel
                 </Link>
@@ -526,7 +626,7 @@ export default function LaunchPage() {
                   href={`https://basescan.org/tx/${txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block w-full py-3.5 px-4 bg-zinc-800 text-white font-semibold font-display text-[15px] rounded-none hover:bg-zinc-800/80 transition-colors"
+                  className="slab-button-ghost block w-full px-4 py-3.5 text-[11px]"
                 >
                   View on Basescan
                 </a>

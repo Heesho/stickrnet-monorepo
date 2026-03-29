@@ -16,10 +16,12 @@ import {
   encodeContractCall,
   type Call,
 } from "@/hooks/useBatchedTransaction";
+import { encodeFunctionData } from "viem";
 import {
   CONTRACT_ADDRESSES,
   ERC20_ABI,
   MULTICALL_ABI,
+  CONTENT_ABI,
   QUOTE_TOKEN_DECIMALS,
 } from "@/lib/contracts";
 import { DEADLINE_BUFFER_SECONDS } from "@/lib/constants";
@@ -46,6 +48,7 @@ type CollectModalProps = {
   createdAt?: string; // Unix timestamp string
   priceUsd?: number; // Coin price in USD for revenue conversion
   isPositiveTrend?: boolean;
+  isPendingApproval?: boolean; // Show Approve instead of Collect
   onSuccess?: () => void;
 };
 
@@ -70,6 +73,7 @@ export function CollectModal({
   createdAt,
   priceUsd = 0,
   isPositiveTrend = true,
+  isPendingApproval = false,
   onSuccess,
 }: CollectModalProps) {
   const { address: account } = useFarcaster();
@@ -150,6 +154,17 @@ export function CollectModal({
     query: { enabled: !!account && maxPrice > 0n },
   });
 
+  // Execute approve (for moderators approving pending content)
+  const handleApprove = useCallback(async () => {
+    if (!contentAddress || tokenId === undefined) return;
+    const data = encodeFunctionData({
+      abi: CONTENT_ABI,
+      functionName: "approveContents",
+      args: [[tokenId]],
+    });
+    await execute([{ to: contentAddress, data, value: 0n }]);
+  }, [contentAddress, tokenId, execute]);
+
   // Execute collect
   const handleConfirm = useCallback(async () => {
     if (!account || status === "pending") return;
@@ -217,14 +232,14 @@ export function CollectModal({
   const isSuccess = status === "success";
   const buttonDisabled = isPending;
   const accentButtonClass = isPositiveTrend
-    ? "bg-[#A78BFA] text-black hover:bg-[#9575D9]"
-    : "bg-[#2DD4BF] text-black hover:bg-[#26B8A5]";
+    ? "bg-primary text-primary-foreground hover:bg-primary/90"
+    : "bg-[hsl(var(--loss))] text-black hover:bg-[hsl(var(--loss)/0.9)]";
   const accentSolidClass = isPositiveTrend
-    ? "bg-[#A78BFA] text-black"
-    : "bg-[#2DD4BF] text-black";
+    ? "bg-primary text-primary-foreground"
+    : "bg-[hsl(var(--loss))] text-primary-foreground";
   const accentDisabledClass = isPositiveTrend
-    ? "bg-[#A78BFA] text-black/60 opacity-50 cursor-not-allowed"
-    : "bg-[#2DD4BF] text-black/60 opacity-50 cursor-not-allowed";
+    ? "bg-primary text-primary-foreground/60 opacity-50 cursor-not-allowed"
+    : "bg-[hsl(var(--loss))] text-primary-foreground/60 opacity-50 cursor-not-allowed";
 
   const errorMsg = txError
     ? (() => {
@@ -241,9 +256,9 @@ export function CollectModal({
     : null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex h-screen w-screen justify-center bg-zinc-800">
+    <div className="fixed inset-0 z-[220] flex h-screen w-screen items-center justify-center bg-[hsl(var(--background)/0.6)] backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div
-        className="relative flex h-full w-full max-w-[520px] flex-col bg-background"
+        className="relative flex h-full w-full max-w-[520px] flex-col bg-background lg:h-auto lg:max-h-[85vh] lg:rounded-[var(--radius)] lg:glass-panel"
         style={{
           paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)",
         }}
@@ -252,7 +267,7 @@ export function CollectModal({
         <div className="flex items-center justify-between px-4 pb-2">
           <button
             onClick={onClose}
-            className="p-2 -ml-2 rounded-none hover:bg-secondary transition-colors"
+            className="p-2 -ml-2 rounded-[var(--radius)] hover:bg-[hsl(var(--foreground)/0.08)] transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -281,11 +296,11 @@ export function CollectModal({
         <div className="flex-1 flex flex-col min-h-0 overflow-y-auto scrollbar-hide">
           {/* Full-size image */}
           {imageUrl && (
-            <div className="w-full">
+            <div className="w-full flex-shrink-0">
               <img
                 src={imageUrl}
                 alt={caption || "Sticker"}
-                className="w-full object-contain"
+                className="w-full max-h-[50vh] object-contain"
               />
             </div>
           )}
@@ -318,7 +333,7 @@ export function CollectModal({
             <div>
               <div className="text-muted-foreground text-[12px] mb-0.5">Created</div>
               <div className="font-semibold text-[15px] font-mono">
-                {dateDisplay ?? "—"}
+                {dateDisplay ?? "\u2014"}
               </div>
             </div>
             <div>
@@ -326,7 +341,7 @@ export function CollectModal({
               <div className="flex items-center gap-1.5 mt-0.5">
                 <Avatar className="h-4 w-4 flex-shrink-0">
                   <AvatarImage src={creatorAvatar} alt={creatorName} />
-                  <AvatarFallback className="bg-zinc-700 text-white text-[7px]">
+                  <AvatarFallback className="bg-[hsl(var(--surface-container-high))] text-foreground text-[7px]">
                     {liveCreator?.slice(2, 4).toUpperCase() ?? "??"}
                   </AvatarFallback>
                 </Avatar>
@@ -338,7 +353,7 @@ export function CollectModal({
               <div className="flex items-center gap-1.5 mt-0.5">
                 <Avatar className="h-4 w-4 flex-shrink-0">
                   <AvatarImage src={ownerAvatar} alt={ownerName} />
-                  <AvatarFallback className="bg-zinc-700 text-white text-[7px]">
+                  <AvatarFallback className="bg-[hsl(var(--surface-container-high))] text-foreground text-[7px]">
                     {liveOwner?.slice(2, 4).toUpperCase() ?? "??"}
                   </AvatarFallback>
                 </Avatar>
@@ -349,7 +364,7 @@ export function CollectModal({
 
           {/* Error */}
           {errorMsg && (
-            <div className="mx-4 mt-3 px-3 py-2 rounded-none bg-zinc-800/10 border border-zinc-800/20 flex items-start gap-2">
+            <div className="mx-4 mt-3 px-3 py-2 rounded-[var(--radius)] bg-[hsl(var(--surface-container)/0.1)] border border-[hsl(var(--surface-container)/0.2)] flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-foreground/60 mt-0.5 flex-shrink-0" />
               <span className="text-[12px] text-foreground/60">{errorMsg}</span>
             </div>
@@ -361,9 +376,9 @@ export function CollectModal({
 
         {/* Bottom bar: Price + Balance | Collect button */}
         <div
-          className="px-4 pb-4"
+          className="px-4 pt-3 pb-4 flex-shrink-0"
           style={{
-            paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 32px)",
+            paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)",
           }}
         >
           <div className="flex items-center gap-4 w-full">
@@ -389,27 +404,41 @@ export function CollectModal({
               </div>
             </div>
 
-            <button
-              disabled={buttonDisabled}
-              onClick={handleConfirm}
-              className={`flex-1 h-10 rounded-none font-semibold font-display text-[15px] transition-all flex items-center justify-center gap-2 ${
-                buttonDisabled
-                  ? accentDisabledClass
+            {isPendingApproval ? (
+              <button
+                disabled={isPending}
+                onClick={handleApprove}
+                className={`flex-1 h-10 font-semibold font-display text-[15px] rounded-[var(--radius)] transition-all flex items-center justify-center gap-2 ${
+                  isPending ? accentDisabledClass : isSuccess ? accentSolidClass : accentButtonClass
+                }`}
+              >
+                {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                {isSuccess && <CheckCircle className="w-4 h-4" />}
+                {isPending ? "Approving..." : isSuccess ? "Approved!" : status === "error" ? "Try Again" : "Approve"}
+              </button>
+            ) : (
+              <button
+                disabled={buttonDisabled}
+                onClick={handleConfirm}
+                className={`flex-1 h-10 font-semibold font-display text-[15px] rounded-[var(--radius)] transition-all flex items-center justify-center gap-2 ${
+                  buttonDisabled
+                    ? accentDisabledClass
+                    : isSuccess
+                      ? accentSolidClass
+                      : accentButtonClass
+                }`}
+              >
+                {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                {isSuccess && <CheckCircle className="w-4 h-4" />}
+                {isPending
+                  ? "Collecting..."
                   : isSuccess
-                    ? accentSolidClass
-                    : accentButtonClass
-              }`}
-            >
-              {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              {isSuccess && <CheckCircle className="w-4 h-4" />}
-              {isPending
-                ? "Collecting..."
-                : isSuccess
-                  ? "Collected!"
-                  : status === "error"
-                    ? "Try Again"
-                    : "Collect"}
-            </button>
+                    ? "Collected!"
+                    : status === "error"
+                      ? "Try Again"
+                      : "Collect"}
+              </button>
+            )}
           </div>
         </div>
       </div>

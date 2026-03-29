@@ -212,6 +212,7 @@ async function fetchCandlePriceHistory(
 export function usePriceHistory(
   channelAddress: string,
   timeframe: Timeframe,
+  coinAddress?: string,
   currentPrice: number = 0,
   createdAt?: number,
   initialPrice?: number,
@@ -219,11 +220,9 @@ export function usePriceHistory(
   const config = getTimeframeConfig(timeframe, createdAt);
 
   const { data: rawData, isLoading } = useQuery({
-    queryKey: ["priceHistory", channelAddress, timeframe],
+    queryKey: ["priceHistory", channelAddress, timeframe, coinAddress],
     queryFn: () =>
-      channelAddress
-        ? fetchCandlePriceHistory(channelAddress.toLowerCase(), timeframe, createdAt)
-        : Promise.resolve([]),
+      fetchCandlePriceHistory(channelAddress.toLowerCase(), timeframe, createdAt),
     enabled: !!channelAddress,
     staleTime: config.refetchInterval,
     refetchInterval: config.refetchInterval,

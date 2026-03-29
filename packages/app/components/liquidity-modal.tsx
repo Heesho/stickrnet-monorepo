@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { X, Delete, Loader2, CheckCircle } from "lucide-react";
-import { parseUnits, parseEther, formatEther, formatUnits } from "viem";
+import { parseUnits, parseEther } from "viem";
 import { useReadContract } from "wagmi";
 import { useFarcaster } from "@/hooks/useFarcaster";
 import {
@@ -24,11 +25,10 @@ type LiquidityModalProps = {
   onClose: () => void;
   unitAddress: `0x${string}`;
   tokenSymbol?: string;
-  tokenName?: string;
   tokenBalance?: number;
   usdcBalance?: number;
   tokenPrice?: number; // Token price in USDC
-  isPositiveTrend?: boolean;
+  colorPositive?: boolean;
 };
 
 // Number pad button component
@@ -44,7 +44,7 @@ function NumPadButton({
   return (
     <button
       onClick={() => onClick(value)}
-      className="flex-1 h-14 flex items-center justify-center text-xl font-mono font-medium text-white hover:bg-zinc-800/50 active:bg-zinc-800/50 rounded-none transition-colors"
+      className="border border-[hsl(var(--foreground)/0.1)] rounded-[var(--radius)] flex h-12 flex-1 items-center justify-center text-lg font-mono font-medium text-foreground transition-colors hover:bg-[hsl(var(--foreground)/0.08)] active:bg-[hsl(var(--foreground)/0.08)] sm:h-14 sm:text-xl"
     >
       {children}
     </button>
@@ -56,18 +56,31 @@ export function LiquidityModal({
   onClose,
   unitAddress,
   tokenSymbol = "TOKEN",
-  tokenName = "Token",
   tokenBalance = 0,
   usdcBalance = 0,
   tokenPrice = 0,
-  isPositiveTrend = true,
+  colorPositive = true,
 }: LiquidityModalProps) {
   const { address: account } = useFarcaster();
-  const { execute, status: txStatus, txHash, error: txError, reset: resetTx } = useBatchedTransaction();
+  const { execute, status: txStatus, error: txError, reset: resetTx } = useBatchedTransaction();
   const [tokenAmount, setTokenAmount] = useState("0");
 
+  // Lock scroll and restore position when modal opens (useLayoutEffect to run before paint)
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const scrollY = window.scrollY;
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    // Restore scroll position synchronously (browser may have jumped)
+    window.scrollTo(0, scrollY);
+    return () => {
+      document.documentElement.style.overflow = "";
+      document.body.style.overflow = "";
+      window.scrollTo(0, scrollY);
+    };
+  }, [isOpen]);
+
   // Reset when modal opens/closes
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (isOpen) {
       setTokenAmount("0");
@@ -82,7 +95,6 @@ export function LiquidityModal({
     const timer = setTimeout(() => resetTx(), isRejection ? 2000 : 5000);
     return () => clearTimeout(timer);
   }, [txStatus, txError, resetTx]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Handle number pad input
   const handleNumPadPress = useCallback((value: string) => {
@@ -129,15 +141,6 @@ export function LiquidityModal({
   const isPending = txStatus === "pending" || txStatus === "confirming";
   const isSuccess = txStatus === "success";
   const isError = txStatus === "error";
-  const accentButtonClass = isPositiveTrend
-    ? "bg-[#A78BFA] text-black hover:bg-[#9575D9]"
-    : "bg-[#2DD4BF] text-black hover:bg-[#26B8A5]";
-  const accentSolidClass = isPositiveTrend
-    ? "bg-[#A78BFA] text-black"
-    : "bg-[#2DD4BF] text-black";
-  const accentDisabledClass = isPositiveTrend
-    ? "bg-[#A78BFA] text-black/60 opacity-50 cursor-not-allowed"
-    : "bg-[#2DD4BF] text-black/60 opacity-50 cursor-not-allowed";
 
   // Auto-close on success after short delay
   const onCloseRef = useRef(onClose);
@@ -227,9 +230,13 @@ export function LiquidityModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex h-screen w-screen justify-center bg-zinc-800">
-      <div
-        className="relative flex h-full w-full max-w-[520px] flex-col bg-background"
+    <div className="fixed inset-0 z-[220] flex items-center justify-center overflow-hidden overscroll-none bg-[hsl(var(--background)/0.6)] backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.98 }}
+        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+        className={`${colorPositive ? "signal-theme-positive signal-theme-positive" : "signal-theme-negative"} relative flex w-full max-w-[520px] flex-col h-full lg:h-auto lg:max-h-[90vh] lg:rounded-[var(--radius)] bg-background lg:glass-panel`}
         style={{
           paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)",
         }}
@@ -238,7 +245,7 @@ export function LiquidityModal({
         <div className="flex items-center justify-between px-4 pb-2">
           <button
             onClick={onClose}
-            className="p-2 -ml-2 rounded-none hover:bg-secondary transition-colors"
+            className="border border-[hsl(var(--foreground)/0.1)] rounded-full -ml-2 p-2 transition-colors hover:bg-[hsl(var(--foreground)/0.08)]"
           >
             <X className="w-5 h-5" />
           </button>
@@ -247,7 +254,7 @@ export function LiquidityModal({
         </div>
 
         {/* Content */}
-        <div className="flex-1 flex flex-col px-4">
+        <div className="flex-1 min-h-0 flex flex-col px-4">
           {/* Title */}
           <div className="mt-4 mb-6">
             <h1 className="text-2xl font-semibold font-display tracking-tight">Add Liquidity</h1>
@@ -256,8 +263,31 @@ export function LiquidityModal({
             </p>
           </div>
 
-          {/* Token Input */}
-          <div className="py-4 border-b border-border">
+          {/* Desktop: text input */}
+          <div className="hidden lg:block mb-4">
+            <div className="slab-inset px-3 py-3">
+              <label className="text-[12px] text-muted-foreground font-display mb-1.5 block">Amount ({tokenSymbol})</label>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={tokenAmount === "0" ? "" : tokenAmount}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9.]/g, "");
+                  const parts = val.split(".");
+                  if (parts.length > 2) return;
+                  if (parts[1] && parts[1].length > 6) return;
+                  if (val.length > 12) return;
+                  setTokenAmount(val || "0");
+                }}
+                placeholder="0"
+                className="w-full bg-transparent text-[20px] font-mono font-semibold tabular-nums text-foreground outline-none placeholder:text-muted-foreground/40"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          {/* Mobile: Token Input */}
+          <div className="lg:hidden slab-inset px-3 py-4">
             <div className="flex items-center justify-between">
               <span className="text-[13px] text-muted-foreground font-display">You provide</span>
               <span className="text-lg font-semibold font-mono tabular-nums">
@@ -268,7 +298,7 @@ export function LiquidityModal({
               <span className="text-[11px] text-muted-foreground">{tokenSymbol}</span>
               <button
                 onClick={() => setTokenAmount(tokenBalance.toFixed(2))}
-                className="text-[11px] text-muted-foreground hover:text-foreground/70 transition-colors font-mono tabular-nums"
+                className="signal-hover text-[11px] text-muted-foreground font-mono tabular-nums"
               >
                 Balance: {tokenBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
               </button>
@@ -276,7 +306,7 @@ export function LiquidityModal({
           </div>
 
           {/* Required USDC */}
-          <div className="py-4 border-b border-border">
+          <div className="slab-inset mt-2 px-3 py-4">
             <div className="flex items-center justify-between">
               <span className="text-[13px] text-muted-foreground font-display">Required USDC</span>
               <span className="text-lg font-semibold font-mono tabular-nums">
@@ -291,7 +321,7 @@ export function LiquidityModal({
                   const maxTokenFromUsdc = usdcBalance / tokenPrice;
                   setTokenAmount(Math.min(tokenBalance, maxTokenFromUsdc).toFixed(2));
                 }}
-                className="text-[11px] text-muted-foreground hover:text-foreground/70 transition-colors font-mono tabular-nums"
+                className="signal-hover text-[11px] text-muted-foreground font-mono tabular-nums"
               >
                 Balance: {usdcBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
               </button>
@@ -307,21 +337,21 @@ export function LiquidityModal({
             </div>
           )}
 
-          {/* Spacer */}
-          <div className="flex-1" />
+          {/* Spacer — mobile only */}
+          <div className="flex-1 lg:hidden" />
 
           {/* Action button */}
           <button
             onClick={handleAddLiquidity}
             disabled={!canCreate || isPending || isSuccess}
-            className={`w-full h-10 rounded-none font-semibold font-display text-[14px] transition-all mb-4 flex items-center justify-center gap-2 ${
+            className={`mb-3 flex h-11 w-full items-center justify-center gap-2 px-4 text-[11px] sm:mb-4 lg:mt-2 ${
               isSuccess
-                ? accentSolidClass
+                ? colorPositive ? "slab-button opacity-70" : "slab-button slab-button-loss opacity-70"
                 : isError
-                ? "bg-zinc-800 text-white"
+                ? "slab-button-ghost text-loss"
                 : !canCreate || isPending
-                ? accentDisabledClass
-                : accentButtonClass
+                ? colorPositive ? "slab-button opacity-50" : "slab-button slab-button-loss opacity-50"
+                : colorPositive ? "slab-button" : "slab-button slab-button-loss"
             }`}
           >
             {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -343,12 +373,12 @@ export function LiquidityModal({
               : "Add Liquidity"}
           </button>
 
-          {/* Number pad */}
+          {/* Number pad — mobile only */}
           <div
-            className="pb-4"
-            style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 32px)" }}
+            className="pb-4 lg:hidden"
+            style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)" }}
           >
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
               {["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "backspace"].map(
                 (key) => (
                   <NumPadButton key={key} value={key} onClick={handleNumPadPress}>
@@ -362,8 +392,10 @@ export function LiquidityModal({
               )}
             </div>
           </div>
+          {/* Desktop: bottom padding */}
+          <div className="hidden lg:block lg:pb-5" />
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

@@ -101,18 +101,18 @@ async function fetchDexScreenerData(
 }
 
 export function useDexScreener(
-  contentAddress: `0x${string}` | undefined,
+  channelAddress: `0x${string}` | undefined,
   coinAddress?: `0x${string}`,
 ) {
   // Get LP token address from Core
   const { data: lpAddress, isLoading: isLoadingLp } = useReadContract({
     address: CONTRACT_ADDRESSES.core as `0x${string}`,
     abi: CORE_ABI,
-    functionName: "contentToLP",
-    args: contentAddress ? [contentAddress] : undefined,
+    functionName: "fundraiserToLP",
+    args: channelAddress ? [channelAddress] : undefined,
     chainId: base.id,
     query: {
-      enabled: !!contentAddress,
+      enabled: !!channelAddress,
     },
   });
 

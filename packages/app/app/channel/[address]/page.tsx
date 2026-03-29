@@ -14,22 +14,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { address } = await params;
   const channelAddress = address.toLowerCase();
 
-  // Fetch channel info from subgraph
   const channel = await getChannel(channelAddress);
 
   const tokenName = channel?.name || "Channel";
   const tokenSymbol = channel?.symbol || "TOKEN";
   const channelUrl = `${appDomain}/channel/${channelAddress}`;
 
-  // Mini app embed with channel-specific URL
   const miniAppEmbed = {
     version: "1",
     imageUrl: heroImageUrl,
     button: {
-      title: `$${tokenSymbol} on Stickrnet`,
+      title: `$${tokenSymbol} on stickr.net`,
       action: {
         type: "launch_miniapp" as const,
-        name: "Stickrnet",
+        name: "stickr.net",
         url: channelUrl,
         splashImageUrl,
         splashBackgroundColor: "#000000",
@@ -44,11 +42,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: `${tokenSymbol} | stickr.net`,
       description: `${tokenName} (${tokenSymbol}) on stickr.net. Collect content and earn rewards!`,
       url: channelUrl,
-      images: [
-        {
-          url: heroImageUrl,
-        },
-      ],
+      images: [{ url: heroImageUrl }],
     },
     other: {
       "fc:miniapp": JSON.stringify(miniAppEmbed),

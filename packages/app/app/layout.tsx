@@ -1,24 +1,32 @@
+import "@fontsource/metropolis/400.css";
+import "@fontsource/metropolis/500.css";
+import "@fontsource/metropolis/600.css";
+import "@fontsource/metropolis/700.css";
 import "@/app/globals.css";
 import type { Metadata } from "next";
+import { JetBrains_Mono } from "next/font/google";
 import { Providers } from "@/components/providers";
-import { Inter, Archivo, IBM_Plex_Mono } from "next/font/google";
-
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
-const archivo = Archivo({ subsets: ["latin"], variable: "--font-display", weight: ["400", "500", "600", "700"] });
-const ibmPlexMono = IBM_Plex_Mono({ subsets: ["latin"], variable: "--font-mono", weight: ["400", "500", "600"] });
+import { GlobalNav } from "@/components/global-nav";
+import { PageTransition } from "@/components/page-transition";
 
 const appDomain = process.env.NEXT_PUBLIC_APP_URL || "https://stickrnet.vercel.app";
 const heroImageUrl = `${appDomain}/media/hero.png`;
 const splashImageUrl = `${appDomain}/media/splash.png`;
 
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
+});
+
 const miniAppEmbed = {
   version: "1",
   imageUrl: heroImageUrl,
   button: {
-    title: "Explore channels",
+    title: "Start funding",
     action: {
       type: "launch_miniapp" as const,
-      name: "Stickrnet",
+      name: "stickr.net",
       url: appDomain,
       splashImageUrl,
       splashBackgroundColor: "#000000",
@@ -28,14 +36,10 @@ const miniAppEmbed = {
 
 export const metadata: Metadata = {
   title: "stickr.net",
-  description: "Create content channels on Base. Collect stickers, earn coin rewards, and trade.",
-  icons: {
-    icon: "/media/icon.png",
-    apple: "/media/icon.png",
-  },
+  description: "Create sticker channels, collect stickers, and trade tokens on Base.",
   openGraph: {
     title: "stickr.net",
-    description: "Create content channels on Base. Collect stickers, earn coin rewards, and trade.",
+    description: "Create sticker channels, collect stickers, and trade tokens on Base.",
     url: appDomain,
     images: [
       {
@@ -55,9 +59,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${archivo.variable} ${ibmPlexMono.variable}`}>
-      <body>
-        <Providers>{children}</Providers>
+    <html lang="en">
+      <body className={`${mono.variable}`}>
+        <Providers>
+          <GlobalNav />
+          <PageTransition>{children}</PageTransition>
+        </Providers>
       </body>
     </html>
   );

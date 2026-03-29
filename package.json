@@ -5,6 +5,7 @@
     "packages/*"
   ],
   "scripts": {
+    "app": "yarn workspace @stickrnet/app",
     "hardhat": "yarn workspace @stickrnet/hardhat",
     "subgraph": "yarn workspace @stickrnet/subgraph"
   },

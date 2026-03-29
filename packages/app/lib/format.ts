@@ -55,6 +55,29 @@ export function formatPrice(price: number): string {
   return `$${price.toFixed(12)}`;
 }
 
+export function formatTokenAmount(value: number, maxDecimals: number = 8): string {
+  if (!Number.isFinite(value) || value === 0) return "0";
+  if (value >= 1_000_000) {
+    return value.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  }
+  if (value >= 1) {
+    return value.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: Math.min(maxDecimals, 4),
+    });
+  }
+  if (value >= 0.01) {
+    return value.toLocaleString("en-US", {
+      minimumFractionDigits: 4,
+      maximumFractionDigits: Math.min(maxDecimals, 6),
+    });
+  }
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: 6,
+    maximumFractionDigits: maxDecimals,
+  });
+}
+
 export function formatCoin(n: number): string {
   if (n >= 1000000) return `${(n / 1000000).toFixed(2)}M`;
   if (n >= 1000) return `${(n / 1000).toFixed(2)}K`;

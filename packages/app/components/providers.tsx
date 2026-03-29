@@ -44,14 +44,16 @@ function NetworkGuard({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-function FarcasterReady() {
+function AutoConnect() {
   const readyRef = useRef(false);
+
   useEffect(() => {
     if (!readyRef.current) {
       readyRef.current = true;
       sdk.actions.ready().catch(() => {});
     }
   }, []);
+
   return null;
 }
 
@@ -61,7 +63,7 @@ export function Providers({ children }: ProvidersProps) {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <FarcasterReady />
+        <AutoConnect />
         <NetworkGuard>{children}</NetworkGuard>
       </QueryClientProvider>
     </WagmiProvider>

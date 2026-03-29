@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { X, Delete, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { useReadContract } from "wagmi";
 import { formatUnits, formatEther, parseUnits } from "viem";
@@ -32,12 +33,12 @@ type TradeModalProps = {
   onClose: () => void;
   mode: "buy" | "sell";
   tokenSymbol: string;
-  tokenName: string;
   unitAddress: `0x${string}`;
   marketPrice: number;
   userQuoteBalance: bigint;
   userUnitBalance: bigint;
   logoUrl?: string;
+  colorPositive?: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -75,7 +76,7 @@ function NumPadButton({
   return (
     <button
       onClick={() => onClick(value)}
-      className="flex-1 h-14 flex items-center justify-center text-xl font-mono font-medium text-white hover:bg-zinc-800/50 active:bg-zinc-800/50 rounded-none transition-colors"
+      className="border border-[hsl(var(--foreground)/0.1)] rounded-[var(--radius)] flex h-12 flex-1 items-center justify-center text-lg font-mono font-medium text-foreground transition-colors hover:bg-[hsl(var(--foreground)/0.08)] active:bg-[hsl(var(--foreground)/0.08)] sm:h-14 sm:text-xl"
     >
       {children}
     </button>
@@ -91,21 +92,36 @@ export function TradeModal({
   onClose,
   mode,
   tokenSymbol,
-  tokenName,
   unitAddress,
   marketPrice,
   userQuoteBalance,
   userUnitBalance,
   logoUrl,
+  colorPositive = true,
 }: TradeModalProps) {
   // ---- Local state --------------------------------------------------------
   const [amount, setAmount] = useState("0");
 
   const { address: taker } = useFarcaster();
-  const { execute, status, txHash, error: txError, reset } = useBatchedTransaction();
+  const { execute, status, error: txError, reset } = useBatchedTransaction();
 
   const isBuy = mode === "buy";
   const usdcAddress = CONTRACT_ADDRESSES.usdc as `0x${string}`;
+
+  // Lock scroll and restore position when modal opens (useLayoutEffect to run before paint)
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const scrollY = window.scrollY;
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    // Restore scroll position synchronously (browser may have jumped)
+    window.scrollTo(0, scrollY);
+    return () => {
+      document.documentElement.style.overflow = "";
+      document.body.style.overflow = "";
+      window.scrollTo(0, scrollY);
+    };
+  }, [isOpen]);
 
   // Reset input when modal opens / mode changes
   useEffect(() => {
@@ -230,35 +246,37 @@ export function TradeModal({
 
   // Price impact = (spotOutput - actualOutput) / spotOutput
   const priceImpactBps = useMemo(() => {
-    if (!spotOutputWei || spotOutputWei === 0n || !buyAmountWei) return null;
+    if (!spotOutputWei || spotOutputWei === 0n || buyAmountWei === null) return null;
     // Basis points: (spot - actual) * 10000 / spot
     const diff = spotOutputWei - buyAmountWei;
     if (diff <= 0n) return 0;
-    return Number((diff * 10000n) / spotOutputWei);
+    const rawBps = Number((diff * 10000n) / spotOutputWei);
+    if (!Number.isFinite(rawBps)) return 10000;
+    return Math.min(Math.max(rawBps, 0), 10000);
   }, [spotOutputWei, buyAmountWei]);
 
   // Auto slippage = price impact + buffer
   const autoSlippageBps = useMemo(() => {
     if (priceImpactBps === null) return SLIPPAGE_BUFFER_BPS;
-    return priceImpactBps + SLIPPAGE_BUFFER_BPS;
+    return Math.min(priceImpactBps + SLIPPAGE_BUFFER_BPS, 10000);
   }, [priceImpactBps]);
 
-  // Minimum output: spot output * (1 - autoSlippage)
+  // Minimum output should follow the quoted output, not the idealized spot output.
   const amountOutMin = useMemo(() => {
-    if (!spotOutputWei || spotOutputWei === 0n) return null;
-    return (spotOutputWei * BigInt(10000 - autoSlippageBps)) / 10000n;
-  }, [spotOutputWei, autoSlippageBps]);
+    if (buyAmountWei === null) return null;
+    return (buyAmountWei * BigInt(10000 - autoSlippageBps)) / 10000n;
+  }, [buyAmountWei, autoSlippageBps]);
 
   // ---- Display values -----------------------------------------------------
   const estimatedOutput = useMemo(() => {
-    if (buyAmountWei) return formatUnits(buyAmountWei, outDecimals);
+    if (buyAmountWei !== null) return formatUnits(buyAmountWei, outDecimals);
     return null;
   }, [buyAmountWei, outDecimals]);
 
   const pricePerToken = spotPrice ?? marketPrice;
 
   const minReceivedDisplay = useMemo(() => {
-    if (!amountOutMin) return null;
+    if (amountOutMin === null) return null;
     return Number(formatUnits(amountOutMin, outDecimals));
   }, [amountOutMin, outDecimals]);
 
@@ -306,7 +324,7 @@ export function TradeModal({
 
   // ---- Execute swap -------------------------------------------------------
   const handleConfirm = useCallback(async () => {
-    if (!buyAmountWei || !amountOutMin || !taker) return;
+    if (buyAmountWei === null || buyAmountWei <= 0n || amountOutMin === null || !taker) return;
 
     const deadline = BigInt(Math.floor(Date.now() / 1000) + 1200); // 20 min
     const path = [sellToken, buyToken] as readonly `0x${string}`[];
@@ -352,8 +370,9 @@ export function TradeModal({
   const buttonDisabled =
     parsedInput === 0n ||
     insufficientBalance ||
-    !buyAmountWei ||
-    !amountOutMin ||
+    buyAmountWei === null ||
+    buyAmountWei <= 0n ||
+    amountOutMin === null ||
     isQuoteLoading ||
     status === "pending";
 
@@ -364,7 +383,7 @@ export function TradeModal({
     if (insufficientBalance) return "Insufficient balance";
     if (isQuoteLoading && parsedInput > 0n) return "Fetching quote...";
     if (parsedInput === 0n) return isBuy ? "Buy" : "Sell";
-    if (!buyAmountWei) return "No liquidity";
+    if (buyAmountWei === null || buyAmountWei <= 0n) return "No liquidity";
     return isBuy ? "Buy" : "Sell";
   }, [
     status,
@@ -374,15 +393,6 @@ export function TradeModal({
     buyAmountWei,
     isBuy,
   ]);
-  const actionButtonClass = isBuy
-    ? "bg-[#A78BFA] text-black hover:bg-[#9575D9]"
-    : "bg-[#2DD4BF] text-black hover:bg-[#26B8A5]";
-  const actionSolidClass = isBuy
-    ? "bg-[#A78BFA] text-black"
-    : "bg-[#2DD4BF] text-black";
-  const actionDisabledClass = isBuy
-    ? "bg-[#A78BFA] text-black/60 opacity-50 cursor-not-allowed"
-    : "bg-[#2DD4BF] text-black/60 opacity-50 cursor-not-allowed";
 
   // ---- Render -------------------------------------------------------------
   if (!isOpen) return null;
@@ -391,18 +401,25 @@ export function TradeModal({
   const isSuccess = status === "success";
 
   return (
-    <div className="fixed inset-0 z-[100] flex h-screen w-screen justify-center bg-zinc-800">
-      <div
-        className="relative flex h-full w-full max-w-[520px] flex-col bg-background"
+    <div
+      className="fixed inset-0 z-[220] flex items-center justify-center overflow-hidden overscroll-none bg-[hsl(var(--background)/0.6)] backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.98 }}
+        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+        className={`${colorPositive ? "signal-theme-positive signal-theme-positive" : "signal-theme-negative"} relative flex w-full max-w-[520px] flex-col h-full lg:h-auto lg:max-h-[90vh] lg:rounded-[var(--radius)] bg-background lg:glass-panel`}
         style={{
           paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)",
         }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 pb-2">
+        <div className="flex items-center justify-between px-4 pb-2 lg:px-5 lg:pb-3 lg:pt-2">
           <button
             onClick={onClose}
-            className="p-2 -ml-2 rounded-none hover:bg-secondary transition-colors"
+            className="border border-[hsl(var(--foreground)/0.1)] rounded-full -ml-2 p-2 transition-colors hover:bg-[hsl(var(--foreground)/0.08)]"
           >
             <X className="w-5 h-5" />
           </button>
@@ -411,10 +428,10 @@ export function TradeModal({
         </div>
 
         {/* Content */}
-        <div className="flex-1 flex flex-col px-4">
+        <div className="flex-1 min-h-0 flex flex-col px-4 lg:px-5 lg:flex-initial">
           {/* Title */}
-          <div className="mt-4 mb-6">
-            <h1 className="text-2xl font-semibold font-display tracking-tight">
+          <div className="mt-4 mb-6 lg:mt-2 lg:mb-4">
+            <h1 className="text-2xl font-semibold font-display tracking-tight lg:text-xl">
               {isBuy ? "Buy" : "Sell"} {tokenSymbol}
             </h1>
             <p className="text-[13px] text-muted-foreground mt-1 font-mono tabular-nums">
@@ -422,8 +439,39 @@ export function TradeModal({
             </p>
           </div>
 
-          {/* Amount input display */}
-          <div className="py-4 border-b border-border">
+          {/* Desktop: text input for amount */}
+          <div className="hidden lg:block mb-4">
+            <div className="slab-inset px-3 py-3">
+              <label className="text-[12px] text-muted-foreground font-display mb-1.5 block">
+                {isBuy ? "Amount (USD)" : `Amount (${tokenSymbol})`}
+              </label>
+              <div className="flex items-center gap-2">
+                <span className="text-[15px] text-muted-foreground">{isBuy ? "$" : ""}</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={amount === "0" ? "" : amount}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9.]/g, "");
+                    // Enforce decimal limits
+                    const maxDecimals = isBuy ? 2 : 6;
+                    const parts = val.split(".");
+                    if (parts.length > 2) return;
+                    if (parts[1] && parts[1].length > maxDecimals) return;
+                    if (val.length > 12) return;
+                    setAmount(val || "0");
+                  }}
+                  placeholder="0"
+                  className="flex-1 bg-transparent text-[20px] font-mono font-semibold tabular-nums text-foreground outline-none placeholder:text-muted-foreground/40"
+                  autoFocus
+                />
+                {!isBuy && <TokenLogo name={tokenSymbol} logoUrl={logoUrl} size="sm" variant="circle" />}
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile: amount display (driven by numpad) */}
+          <div className="lg:hidden slab-inset px-3 py-2.5">
             <div className="flex items-center justify-between">
               <span className="text-[13px] text-muted-foreground font-display">Pay</span>
               <span className="text-lg font-semibold font-mono tabular-nums flex items-center gap-1.5">
@@ -438,7 +486,7 @@ export function TradeModal({
           </div>
 
           {/* Market price */}
-          <div className="py-4 border-b border-border">
+          <div className="slab-inset mt-2 px-3 py-2.5 lg:py-3">
             <div className="flex items-center justify-between">
               <span className="text-[13px] text-muted-foreground font-display">Market price</span>
               <span className="text-[13px] font-medium font-mono tabular-nums">
@@ -448,7 +496,7 @@ export function TradeModal({
           </div>
 
           {/* Estimated output */}
-          <div className="py-4 border-b border-border">
+          <div className="slab-inset mt-2 px-3 py-2.5 lg:py-3">
             <div className="flex items-center justify-between">
               <span className="text-[13px] text-muted-foreground font-display">Est. received</span>
               <span className="text-[13px] font-medium font-mono tabular-nums">
@@ -485,9 +533,9 @@ export function TradeModal({
 
           {/* Error messages */}
           {(quoteError || txError) && (
-            <div className="px-3 py-2 rounded-none bg-zinc-800/10 border border-zinc-800/20 flex items-start gap-2 mb-3">
-              <AlertCircle className="w-4 h-4 text-foreground/60 mt-0.5 flex-shrink-0" />
-              <span className="text-[12px] text-foreground/60">
+            <div className="slab-inset mb-3 flex items-start gap-2 px-3 py-2">
+              <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-loss" />
+              <span className="text-[12px] text-loss">
                 {(() => {
                   const msg = txError?.message || quoteError?.message || "";
                   if (msg.includes("rejected") || msg.includes("denied")) return "Transaction cancelled";
@@ -499,19 +547,19 @@ export function TradeModal({
             </div>
           )}
 
-          {/* Spacer */}
-          <div className="flex-1" />
+          {/* Spacer — mobile only */}
+          <div className="flex-1 lg:hidden" />
 
           {/* Action button */}
           <button
             disabled={buttonDisabled}
             onClick={handleConfirm}
-            className={`w-full h-10 rounded-none font-semibold font-display text-[14px] transition-all mb-4 flex items-center justify-center gap-2 ${
+            className={`mb-3 flex h-11 w-full items-center justify-center gap-2 px-4 text-[11px] sm:mb-4 lg:mt-2 ${
               buttonDisabled
-                ? actionDisabledClass
+                ? isBuy ? "slab-button opacity-50" : "slab-button slab-button-loss opacity-50"
                 : isSuccess
-                ? actionSolidClass
-                : actionButtonClass
+                ? isBuy ? "slab-button opacity-70" : "slab-button slab-button-loss opacity-70"
+                : isBuy ? "slab-button" : "slab-button slab-button-loss"
             }`}
           >
             {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -519,12 +567,12 @@ export function TradeModal({
             {buttonLabel}
           </button>
 
-          {/* Number pad */}
+          {/* Number pad — mobile only */}
           <div
-            className="pb-4"
-            style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 32px)" }}
+            className="pb-4 lg:hidden"
+            style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)" }}
           >
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
               {["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "backspace"].map(
                 (key) => (
                   <NumPadButton key={key} value={key} onClick={handleNumPadPress}>
@@ -538,8 +586,11 @@ export function TradeModal({
               )}
             </div>
           </div>
+
+          {/* Desktop: bottom padding */}
+          <div className="hidden lg:block lg:pb-5" />
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

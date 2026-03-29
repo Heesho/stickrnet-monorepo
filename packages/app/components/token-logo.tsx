@@ -8,6 +8,7 @@ const sizeClasses = {
   md: { container: "w-7 h-7 text-xs", img: "w-7 h-7" },
   "md-lg": { container: "w-12 h-12 text-base", img: "w-12 h-12" },
   lg: { container: "w-12 h-12 text-base", img: "w-12 h-12" },
+  xl: { container: "w-24 h-24 text-[30px]", img: "w-24 h-24" },
 } as const;
 
 export type TokenLogoSize = keyof typeof sizeClasses;
@@ -18,7 +19,6 @@ type TokenLogoProps = {
   size?: TokenLogoSize;
   /** "square" for standard display, "circle" for inline currency usage */
   variant?: "square" | "circle";
-  loading?: "eager" | "lazy";
 };
 
 export function TokenLogo({
@@ -26,20 +26,20 @@ export function TokenLogo({
   logoUrl,
   size = "md-lg",
   variant = "square",
-  loading = "lazy",
 }: TokenLogoProps) {
   const [imgError, setImgError] = useState(false);
   const classes = sizeClasses[size];
-  const rounding = variant === "circle" ? "rounded-full" : "rounded-none";
+  const shapeClasses =
+    variant === "circle"
+      ? "rounded-full border border-[hsl(var(--foreground)/0.1)] bg-[hsl(var(--foreground)/0.04)]"
+      : "rounded-full border border-[hsl(var(--foreground)/0.1)] bg-[hsl(var(--foreground)/0.04)]";
 
   if (logoUrl && !imgError) {
     return (
       <img
         src={logoUrl}
         alt={name}
-        className={`${classes.img} ${rounding} object-cover`}
-        loading={loading}
-        decoding="async"
+        className={`${classes.img} ${shapeClasses} object-cover`}
         onError={() => setImgError(true)}
       />
     );
@@ -47,7 +47,7 @@ export function TokenLogo({
 
   return (
     <div
-      className={`${classes.container} ${rounding} flex items-center justify-center font-semibold bg-zinc-800 text-foreground/60`}
+      className={`${classes.container} ${shapeClasses} flex items-center justify-center font-semibold text-muted-foreground`}
     >
       {name.charAt(0).toUpperCase()}
     </div>

@@ -93,16 +93,42 @@ export function useFarcaster() {
   }, [connectAsync, isConnected, isConnecting, farcasterConnector, isInFrame]);
 
   // Connect wallet manually
-  const connect = useCallback(async () => {
+  const connect = useCallback(async (): Promise<`0x${string}` | undefined> => {
+    if (address) {
+      return address;
+    }
+
     if (!primaryConnector) {
       throw new Error("Wallet connector not available");
     }
-    const result = await connectAsync({
-      connector: primaryConnector,
-      chainId: base.id,
-    });
-    return result.accounts[0];
-  }, [connectAsync, primaryConnector]);
+
+    try {
+      const result = await connectAsync({
+        connector: primaryConnector,
+        chainId: base.id,
+      });
+      return result.accounts[0];
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.name === "ConnectorAlreadyConnectedError"
+      ) {
+        if (address) {
+          return address;
+        }
+
+        if (typeof primaryConnector.getAccounts === "function") {
+          const accounts = await primaryConnector.getAccounts().catch(() => []);
+          if (accounts[0]) {
+            return accounts[0];
+          }
+        }
+
+        return undefined;
+      }
+      throw error;
+    }
+  }, [address, connectAsync, primaryConnector]);
 
   return {
     context,
@@ -164,33 +190,33 @@ export async function composeCast(options: {
 }
 
 /**
- * Share a content collection to Farcaster
+ * Share a mining achievement to Farcaster
  */
-export async function shareCollection(options: {
+export async function shareMiningAchievement(options: {
   tokenSymbol: string;
   tokenName: string;
-  price: string;
-  channelUrl: string;
+  amountMined: string;
+  rigUrl: string;
   message?: string;
 }): Promise<boolean> {
-  const { tokenName, price, channelUrl, message } = options;
+  const { tokenSymbol, tokenName, amountMined, rigUrl, message } = options;
 
-  let text = `Just collected content on ${tokenName}! Price: ${price} USDC`;
+  let text = `⛏️ Just mined ${amountMined} $${tokenSymbol} on ${tokenName}!`;
 
   if (message) {
     text += `\n\n"${message}"`;
   }
 
-  text += `\n\nCollect with me`;
+  text += `\n\nMine with me 👇`;
 
   return composeCast({
     text,
-    embeds: [channelUrl],
+    embeds: [rigUrl],
   });
 }
 
 /**
- * Share a new channel launch to Farcaster
+ * Share a new token launch to Farcaster
  */
 export async function shareLaunch(options: {
   tokenSymbol: string;
@@ -199,7 +225,7 @@ export async function shareLaunch(options: {
 }): Promise<boolean> {
   const { tokenSymbol, tokenName, appUrl } = options;
 
-  const text = `Just launched a channel! $${tokenSymbol} (${tokenName}) is now live.`;
+  const text = `🎉 Just opened a franchise!\n\n$${tokenSymbol} (${tokenName}) is now live.\n\nCome mine with me 👇`;
 
   return composeCast({
     text,

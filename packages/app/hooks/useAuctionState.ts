@@ -7,20 +7,18 @@ import {
   type AuctionState,
 } from "@/lib/contracts";
 
-const LP_PRICE_SCALE = 10n ** 18n;
-
 export function useAuctionState(
-  contentAddress: `0x${string}` | undefined,
+  channelAddress: `0x${string}` | undefined,
   account: `0x${string}` | undefined,
 ) {
   const { data: rawAuctionState, refetch, isLoading, error } = useReadContract({
     address: CONTRACT_ADDRESSES.multicall as `0x${string}`,
     abi: MULTICALL_ABI,
-    functionName: "getAuctionState",
-    args: contentAddress ? [contentAddress, account ?? zeroAddress] : undefined,
+    functionName: "getAuction",
+    args: channelAddress ? [channelAddress, account ?? zeroAddress] : undefined,
     chainId: base.id,
     query: {
-      enabled: !!contentAddress,
+      enabled: !!channelAddress,
       refetchInterval: 15_000,
       refetchOnWindowFocus: false,
     },
@@ -37,21 +35,21 @@ export function useAuctionState(
 }
 
 export type AuctionListItem = {
-  contentAddress: `0x${string}`;
+  channelAddress: `0x${string}`;
   auctionState: AuctionState;
   profitLoss: bigint; // Quote value - LP cost in USDC equivalent
   isProfitable: boolean;
 };
 
 export function useAllAuctionStates(
-  contentAddresses: `0x${string}`[],
+  channelAddresses: `0x${string}`[],
   account: `0x${string}` | undefined,
 ) {
   const multicallAddr = CONTRACT_ADDRESSES.multicall as `0x${string}`;
-  const contracts = contentAddresses.map((address) => ({
+  const contracts = channelAddresses.map((address) => ({
     address: multicallAddr,
     abi: MULTICALL_ABI,
-    functionName: "getAuctionState" as const,
+    functionName: "getAuction" as const,
     args: [address, account ?? zeroAddress] as const,
     chainId: base.id,
   }));
@@ -59,7 +57,7 @@ export function useAllAuctionStates(
   const { data: states, isLoading, error, refetch } = useReadContracts({
     contracts,
     query: {
-      enabled: contentAddresses.length > 0,
+      enabled: channelAddresses.length > 0,
       refetchInterval: 30_000,
       refetchOnWindowFocus: false,
     },
@@ -71,12 +69,13 @@ export function useAllAuctionStates(
       if (!state) return null;
 
       const lpCostInQuote =
-        (state.price * state.paymentTokenPrice) / LP_PRICE_SCALE;
-      const profitLoss = state.quoteAccumulated - lpCostInQuote;
+        (state.price * state.lpTokenPrice) / BigInt(1e18);
+      const lpCostScaled = lpCostInQuote / BigInt(1e12);
+      const profitLoss = state.quoteAccumulated - lpCostScaled;
       const isProfitable = profitLoss > 0n;
 
       return {
-        contentAddress: contentAddresses[index],
+        channelAddress: channelAddresses[index],
         auctionState: state,
         profitLoss,
         isProfitable,

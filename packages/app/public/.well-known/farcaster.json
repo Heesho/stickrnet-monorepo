@@ -1,30 +1,29 @@
 {
   "accountAssociation": {
     "header": "eyJmaWQiOjI3MjEwOSwidHlwZSI6ImF1dGgiLCJrZXkiOiIweDQ5REI1QTFjOWZlRjBFMkY5OTVCNDZiMEI3MWJFQmJEOTEyQkYwZTMifQ",
-    "payload": "eyJkb21haW4iOiJzdGlja3JuZXQudmVyY2VsLmFwcCJ9",
-    "signature": "m+DpKNnGkvZzKvSwlXcwbR75OUZOcQRhSZSTO4e5HshAWyNh/2AT1a3RpWwhIrpz6+JHUgFpGtrLsbdVYsUMBRw="
+    "payload": "eyJkb21haW4iOiJnaXZlZG90ZnVuLnZlcmNlbC5hcHAifQ",
+    "signature": "Ed8lQTfkXsZSB47YT1d3ZclauqXMIzcSororZcsRfSNuBbiOwv6cfHUl9OBlBdYuoKPxdJUWRWacquefBNUE9Rs="
   },
   "miniapp": {
     "version": "1",
     "name": "stickr.net",
-    "tagline": "Content channels on Base",
-    "description": "Launch content channels on Base. Contribute content to earn and curate content to mine Community Coins.",
+    "tagline": "Sticker channels on Base",
+    "description": "Create sticker channels on Base. Collect onchain stickers and mine coins.",
     "iconUrl": "https://stickrnet.vercel.app/media/icon.png",
     "homeUrl": "https://stickrnet.vercel.app/",
     "splashImageUrl": "https://stickrnet.vercel.app/media/splash.png",
     "splashBackgroundColor": "#000000",
     "heroImageUrl": "https://stickrnet.vercel.app/media/hero.png",
-    "buttonTitle": "Explore channels",
+    "buttonTitle": "Start collecting",
     "ogTitle": "stickr.net",
-    "ogDescription": "Content channels on Base. Contribute to earn, curate to mine Community Coins.",
+    "ogDescription": "Sticker channels on Base. Collect onchain stickers and mine coins.",
     "ogImageUrl": "https://stickrnet.vercel.app/media/hero.png",
     "requiredChains": [
       "eip155:8453"
     ],
-    "primaryCategory": "social",
+    "primaryCategory": "finance",
     "tags": [
-      "content",
-      "nft",
+      "stickers",
       "base",
       "rewards"
     ]

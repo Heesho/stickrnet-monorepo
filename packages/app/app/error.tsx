@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 export default function Error({
   error,
   reset,
@@ -7,6 +9,10 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    console.error(error);
+  }, [error]);
+
   return (
     <div className="flex h-screen w-screen items-center justify-center bg-background">
       <div className="text-center px-6">
@@ -16,7 +22,7 @@ export default function Error({
         </p>
         <button
           onClick={reset}
-          className="px-6 py-2 rounded-none bg-white text-black text-sm font-semibold hover:bg-zinc-200 transition-colors"
+          className="slab-button px-6 text-[11px]"
         >
           Try again
         </button>

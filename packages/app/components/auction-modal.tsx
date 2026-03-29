@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, CheckCircle } from "lucide-react";
 import { formatEther, formatUnits } from "viem";
 import { useReadContract } from "wagmi";
@@ -19,58 +20,62 @@ import {
   QUOTE_TOKEN_DECIMALS,
 } from "@/lib/contracts";
 import { DEADLINE_BUFFER_SECONDS } from "@/lib/constants";
-
-const LP_PRICE_SCALE = 10n ** 18n;
-
-function formatLpAmount(value: string): string {
-  const amount = Number(value);
-  if (!Number.isFinite(amount)) return "0";
-  if (amount === 0) return "0";
-  if (amount < 0.001) return amount.toFixed(8);
-  if (amount < 0.01) return amount.toFixed(6);
-  if (amount < 1) return amount.toFixed(4);
-  return amount.toFixed(3);
-}
+import { formatPrice, formatTokenAmount } from "@/lib/format";
 
 type AuctionModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  contentAddress: `0x${string}`;
+  channelAddress: `0x${string}`;
   tokenSymbol: string;
-  tokenName: string;
-  isPositiveTrend?: boolean;
+  colorPositive?: boolean;
 };
 
 export function AuctionModal({
   isOpen,
   onClose,
-  contentAddress,
+  channelAddress,
   tokenSymbol,
-  tokenName,
-  isPositiveTrend = true,
+  colorPositive = true,
 }: AuctionModalProps) {
   const { address: account } = useFarcaster();
   const multicallAddr = CONTRACT_ADDRESSES.multicall as `0x${string}`;
 
   const { auctionState, isLoading, refetch: refetchAuction } = useAuctionState(
-    contentAddress,
+    channelAddress,
     account
   );
 
-  const { execute, status, txHash, error, reset } = useBatchedTransaction();
+  const { execute, status, error, reset } = useBatchedTransaction();
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
-  // Allowance check -- skip approve when sufficient
-  const paymentTokenAddress = auctionState?.paymentToken;
+  // Allowance check — skip approve when sufficient
+  const lpTokenAddress = auctionState?.lpToken;
   const auctionPrice = auctionState?.price ?? 0n;
   const { data: currentAllowance } = useReadContract({
-    address: paymentTokenAddress!,
+    address: lpTokenAddress!,
     abi: ERC20_ABI,
     functionName: "allowance",
     args: [account!, multicallAddr],
     query: {
-      enabled: !!account && !!paymentTokenAddress && auctionPrice > 0n,
+      enabled: !!account && !!lpTokenAddress && auctionPrice > 0n,
     },
   });
+
+  // Lock scroll and restore position when modal opens (useLayoutEffect to run before paint)
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const scrollY = window.scrollY;
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    // Restore scroll position synchronously (browser may have jumped)
+    window.scrollTo(0, scrollY);
+    return () => {
+      document.documentElement.style.overflow = "";
+      document.body.style.overflow = "";
+      window.scrollTo(0, scrollY);
+    };
+  }, [isOpen]);
 
   // Reset transaction state when modal opens/closes
   useEffect(() => {
@@ -87,56 +92,39 @@ export function AuctionModal({
     return () => clearTimeout(timer);
   }, [status, error, reset]);
 
-  // Auto-refetch after successful tx
+  // Auto-refetch and close after successful tx
   useEffect(() => {
     if (status === "success") {
       const timer = setTimeout(() => {
         refetchAuction();
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [status, refetchAuction]);
-
-  // Auto-close on success after a short delay
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-  useEffect(() => {
-    if (status === "success") {
-      const timer = setTimeout(() => {
         onCloseRef.current();
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [status]);
+  }, [status, refetchAuction]);
 
   // Derived display values
-  const paymentPriceFormatted = auctionState
-    ? formatEther(auctionState.price)
-    : "0";
-  const paymentPriceDisplay = formatLpAmount(paymentPriceFormatted);
+  const lpPrice = auctionState ? Number(formatEther(auctionState.price)) : 0;
+  const userLpBalance = auctionState ? Number(formatEther(auctionState.accountLpTokenBalance)) : 0;
+  const treasuryUsdc = auctionState ? Number(formatUnits(auctionState.quoteAccumulated, QUOTE_TOKEN_DECIMALS)) : 0;
+  const lpCostUsd = useMemo(() => {
+    if (!auctionState) return 0;
 
-  const userPaymentTokenBalance = auctionState
-    ? formatEther(auctionState.accountPaymentTokenBalance)
-    : "0";
+    const lpCostInQuote = (auctionState.price * auctionState.lpTokenPrice) / (10n ** 18n);
+    const lpCostScaled = lpCostInQuote / (10n ** 12n);
 
-  const treasuryUsdc = auctionState
-    ? formatUnits(auctionState.quoteAccumulated, QUOTE_TOKEN_DECIMALS)
-    : "0";
+    return Number(formatUnits(lpCostScaled, QUOTE_TOKEN_DECIMALS));
+  }, [auctionState]);
 
-  const lpCostInQuoteRaw = auctionState
-    ? (auctionState.price * auctionState.paymentTokenPrice) / LP_PRICE_SCALE
-    : 0n;
-  const lpCostUsd = Number(formatUnits(lpCostInQuoteRaw, QUOTE_TOKEN_DECIMALS));
-
-  const hasEnoughPaymentToken = auctionState
-    ? auctionState.price === 0n || auctionState.accountPaymentTokenBalance >= auctionState.price
+  const hasEnoughLp = auctionState
+    ? auctionState.price === 0n || auctionState.accountLpTokenBalance >= auctionState.price
     : false;
 
   const isAuctionActive = auctionState
     ? auctionState.startTime > 0n
     : false;
 
-  // Buy handler -- approve payment token then call buy on multicall
+  // Buy handler -- approve LP token then call buy on multicall
   const handleBuy = useCallback(async () => {
     if (!auctionState || !account) return;
 
@@ -145,51 +133,46 @@ export function AuctionModal({
       Math.floor(Date.now() / 1000) + DEADLINE_BUFFER_SECONDS
     );
 
-    // Approve payment token spending (skip if price is 0 or allowance is sufficient)
+    // Approve LP token spending (skip if price is 0 or allowance is sufficient)
     const needsApproval = auctionState.price > 0n && (currentAllowance === undefined || currentAllowance < auctionState.price);
     if (needsApproval) {
       calls.push(
         encodeApproveCall(
-          auctionState.paymentToken,
+          auctionState.lpToken,
           multicallAddr,
           auctionState.price
         )
       );
     }
 
-    // Buy call: buy(content, epochId, deadline, maxPaymentTokenAmount)
+    // Buy call: buy(channel, epochId, deadline, maxPaymentTokenAmount)
     calls.push(
       encodeContractCall(
         multicallAddr,
         MULTICALL_ABI,
         "buy",
-        [contentAddress, auctionState.epochId, deadline, auctionState.price],
+        [channelAddress, auctionState.epochId, deadline, auctionState.price],
         0n
       )
     );
 
     await execute(calls);
-  }, [auctionState, account, multicallAddr, contentAddress, execute, currentAllowance]);
+  }, [auctionState, account, multicallAddr, channelAddress, execute, currentAllowance]);
 
   if (!isOpen) return null;
 
   const isPending = status === "pending";
   const isSuccess = status === "success";
   const isError = status === "error";
-  const accentButtonClass = isPositiveTrend
-    ? "bg-[#A78BFA] text-black hover:bg-[#9575D9]"
-    : "bg-[#2DD4BF] text-black hover:bg-[#26B8A5]";
-  const accentSolidClass = isPositiveTrend
-    ? "bg-[#A78BFA] text-black"
-    : "bg-[#2DD4BF] text-black";
-  const accentDisabledClass = isPositiveTrend
-    ? "bg-[#A78BFA] text-black/60 opacity-50 cursor-not-allowed"
-    : "bg-[#2DD4BF] text-black/60 opacity-50 cursor-not-allowed";
 
   return (
-    <div className="fixed inset-0 z-[100] flex h-screen w-screen justify-center bg-zinc-800">
-      <div
-        className="relative flex h-full w-full max-w-[520px] flex-col bg-background"
+    <div className="fixed inset-0 z-[220] flex items-center justify-center overflow-hidden overscroll-none bg-[hsl(var(--background)/0.6)] backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.98 }}
+        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+        className={`${colorPositive ? "signal-theme-positive signal-theme-positive" : "signal-theme-negative"} relative flex w-full max-w-[520px] flex-col h-full lg:h-auto lg:max-h-[90vh] lg:rounded-[var(--radius)] bg-background lg:glass-panel`}
         style={{
           paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)",
         }}
@@ -198,7 +181,7 @@ export function AuctionModal({
         <div className="flex items-center justify-between px-4 pb-2">
           <button
             onClick={onClose}
-            className="p-2 -ml-2 rounded-none hover:bg-secondary transition-colors"
+            className="border border-[hsl(var(--foreground)/0.1)] rounded-full -ml-2 p-2 transition-colors hover:bg-[hsl(var(--foreground)/0.08)]"
           >
             <X className="w-5 h-5" />
           </button>
@@ -223,34 +206,34 @@ export function AuctionModal({
                   Buy USDC
                 </h1>
                 <p className="text-[13px] text-muted-foreground mt-1 font-mono tabular-nums">
-                  {Number(userPaymentTokenBalance).toFixed(8)} {tokenSymbol}-USDC LP available
+                  {formatTokenAmount(userLpBalance)} {tokenSymbol}-USDC LP available
                 </p>
               </div>
 
               {/* You Pay */}
-              <div className="py-4 border-b border-border">
+              <div className="slab-inset px-3 py-4">
                 <div className="flex items-center justify-between">
                   <span className="text-[13px] text-muted-foreground font-display">You pay</span>
                   <span className="text-lg font-semibold font-mono tabular-nums">
-                    {isAuctionActive ? `${paymentPriceDisplay} LP` : "\u2014"}
+                    {isAuctionActive ? `${formatTokenAmount(lpPrice)} LP` : "—"}
                   </span>
                 </div>
                 <div className="flex items-center justify-between mt-1">
                   <span className="text-[11px] text-muted-foreground">{tokenSymbol}-USDC LP</span>
                   {isAuctionActive && auctionState && (
                     <span className="text-[11px] text-muted-foreground font-mono tabular-nums">
-                      ~${lpCostUsd.toFixed(2)}
+                      ~{formatPrice(lpCostUsd)}
                     </span>
                   )}
                 </div>
               </div>
 
               {/* You Receive */}
-              <div className="py-4 border-b border-border">
+              <div className="slab-inset mt-2 px-3 py-4">
                 <div className="flex items-center justify-between">
                   <span className="text-[13px] text-muted-foreground font-display">You receive</span>
                   <span className="text-lg font-semibold font-mono tabular-nums">
-                    {isAuctionActive ? `$${Number(treasuryUsdc).toFixed(2)}` : "\u2014"}
+                    {isAuctionActive ? `$${treasuryUsdc.toFixed(2)}` : "—"}
                   </span>
                 </div>
                 <div className="flex items-center justify-between mt-1">
@@ -263,8 +246,7 @@ export function AuctionModal({
                 <div className="flex items-center justify-end gap-3 py-3 text-[11px] text-muted-foreground font-mono tabular-nums">
                   <span>
                     {(() => {
-                      const usdcReceive = Number(treasuryUsdc);
-                      const profit = usdcReceive - lpCostUsd;
+                      const profit = treasuryUsdc - lpCostUsd;
                       return `${profit >= 0 ? "+" : ""}${profit.toFixed(2)} ${profit >= 0 ? "profit" : "loss"}`;
                     })()}
                   </span>
@@ -286,15 +268,15 @@ export function AuctionModal({
               >
                 <button
                   onClick={handleBuy}
-                  disabled={!account || !isAuctionActive || !hasEnoughPaymentToken || isPending || isSuccess}
-                  className={`w-full h-10 rounded-none font-semibold font-display text-[14px] transition-all flex items-center justify-center gap-2 ${
+                  disabled={!account || !isAuctionActive || !hasEnoughLp || isPending || isSuccess}
+                  className={`flex h-11 w-full items-center justify-center gap-2 px-4 text-[11px] ${
                     isSuccess
-                      ? accentSolidClass
+                      ? colorPositive ? "slab-button opacity-70" : "slab-button slab-button-loss opacity-70"
                       : isError
-                      ? "bg-zinc-800 text-white"
-                      : !account || !isAuctionActive || !hasEnoughPaymentToken || isPending
-                      ? accentDisabledClass
-                      : accentButtonClass
+                      ? "slab-button-ghost text-loss"
+                      : !account || !isAuctionActive || !hasEnoughLp || isPending
+                      ? colorPositive ? "slab-button opacity-50" : "slab-button slab-button-loss opacity-50"
+                      : colorPositive ? "slab-button" : "slab-button slab-button-loss"
                   }`}
                 >
                   {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -309,7 +291,7 @@ export function AuctionModal({
                     ? "Connect wallet"
                     : !isAuctionActive
                     ? "No active auction"
-                    : !hasEnoughPaymentToken
+                    : !hasEnoughLp
                     ? "Insufficient LP"
                     : "Sell LP"}
                 </button>
@@ -317,7 +299,7 @@ export function AuctionModal({
             </>
           )}
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

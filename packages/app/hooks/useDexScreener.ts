@@ -108,7 +108,7 @@ export function useDexScreener(
   const { data: lpAddress, isLoading: isLoadingLp } = useReadContract({
     address: CONTRACT_ADDRESSES.core as `0x${string}`,
     abi: CORE_ABI,
-    functionName: "fundraiserToLP",
+    functionName: "contentToLP",
     args: channelAddress ? [channelAddress] : undefined,
     chainId: base.id,
     query: {

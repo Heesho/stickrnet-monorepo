@@ -50,7 +50,7 @@ export function AuctionModal({
   onCloseRef.current = onClose;
 
   // Allowance check — skip approve when sufficient
-  const lpTokenAddress = auctionState?.lpToken;
+  const lpTokenAddress = auctionState?.paymentToken;
   const auctionPrice = auctionState?.price ?? 0n;
   const { data: currentAllowance } = useReadContract({
     address: lpTokenAddress!,
@@ -105,19 +105,19 @@ export function AuctionModal({
 
   // Derived display values
   const lpPrice = auctionState ? Number(formatEther(auctionState.price)) : 0;
-  const userLpBalance = auctionState ? Number(formatEther(auctionState.accountLpTokenBalance)) : 0;
+  const userLpBalance = auctionState ? Number(formatEther(auctionState.accountPaymentTokenBalance)) : 0;
   const treasuryUsdc = auctionState ? Number(formatUnits(auctionState.quoteAccumulated, QUOTE_TOKEN_DECIMALS)) : 0;
   const lpCostUsd = useMemo(() => {
     if (!auctionState) return 0;
 
-    const lpCostInQuote = (auctionState.price * auctionState.lpTokenPrice) / (10n ** 18n);
+    const lpCostInQuote = (auctionState.price * auctionState.paymentTokenPrice) / (10n ** 18n);
     const lpCostScaled = lpCostInQuote / (10n ** 12n);
 
     return Number(formatUnits(lpCostScaled, QUOTE_TOKEN_DECIMALS));
   }, [auctionState]);
 
   const hasEnoughLp = auctionState
-    ? auctionState.price === 0n || auctionState.accountLpTokenBalance >= auctionState.price
+    ? auctionState.price === 0n || auctionState.accountPaymentTokenBalance >= auctionState.price
     : false;
 
   const isAuctionActive = auctionState
@@ -138,7 +138,7 @@ export function AuctionModal({
     if (needsApproval) {
       calls.push(
         encodeApproveCall(
-          auctionState.lpToken,
+          auctionState.paymentToken,
           multicallAddr,
           auctionState.price
         )

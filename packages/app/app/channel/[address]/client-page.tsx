@@ -1388,22 +1388,19 @@ export default function ChannelDetailPage() {
         onClose={() => setShowTradeModal(false)}
         mode={tradeMode}
         tokenSymbol={tokenSymbol}
-        tokenName={tokenName}
         unitAddress={(coinAddress ?? "0x0") as `0x${string}`}
         marketPrice={priceUsd}
         userQuoteBalance={accountQuoteBalance ?? 0n}
         userUnitBalance={accountCoinBalance ?? 0n}
-        logoUrl={logoUrl ?? undefined}
+        logoUrl={logoUrl ?? ""}
       />
 
       {/* Auction Modal */}
       <AuctionModal
         isOpen={showAuctionModal}
         onClose={() => setShowAuctionModal(false)}
-        contentAddress={contentAddress}
+        channelAddress={contentAddress}
         tokenSymbol={tokenSymbol}
-        tokenName={tokenName}
-        isPositiveTrend={isPositiveTrend}
       />
 
       {/* Liquidity Modal */}
@@ -1412,11 +1409,9 @@ export default function ChannelDetailPage() {
         onClose={() => setShowLiquidityModal(false)}
         unitAddress={(coinAddress ?? "0x0") as `0x${string}`}
         tokenSymbol={tokenSymbol}
-        tokenName={tokenName}
         tokenBalance={userCoinBalance}
         usdcBalance={userQuoteBalance}
         tokenPrice={priceUsd}
-        isPositiveTrend={isPositiveTrend}
       />
 
       {/* Admin Modal */}

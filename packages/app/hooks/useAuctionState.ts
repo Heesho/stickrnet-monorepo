@@ -14,7 +14,7 @@ export function useAuctionState(
   const { data: rawAuctionState, refetch, isLoading, error } = useReadContract({
     address: CONTRACT_ADDRESSES.multicall as `0x${string}`,
     abi: MULTICALL_ABI,
-    functionName: "getAuction",
+    functionName: "getAuctionState",
     args: channelAddress ? [channelAddress, account ?? zeroAddress] : undefined,
     chainId: base.id,
     query: {
@@ -49,7 +49,7 @@ export function useAllAuctionStates(
   const contracts = channelAddresses.map((address) => ({
     address: multicallAddr,
     abi: MULTICALL_ABI,
-    functionName: "getAuction" as const,
+    functionName: "getAuctionState" as const,
     args: [address, account ?? zeroAddress] as const,
     chainId: base.id,
   }));
@@ -69,7 +69,7 @@ export function useAllAuctionStates(
       if (!state) return null;
 
       const lpCostInQuote =
-        (state.price * state.lpTokenPrice) / BigInt(1e18);
+        (state.price * state.paymentTokenPrice) / BigInt(1e18);
       const lpCostScaled = lpCostInQuote / BigInt(1e12);
       const profitLoss = state.quoteAccumulated - lpCostScaled;
       const isProfitable = profitLoss > 0n;

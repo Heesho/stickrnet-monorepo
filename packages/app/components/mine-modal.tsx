@@ -82,7 +82,7 @@ export function MineModal({
   const { execute, status, error: txError, reset } = useBatchedTransaction();
 
   const { channelState } = useChannelState(channelAddress, account);
-  const { metadata } = useTokenMetadata(channelState?.fundraiserUri);
+  const { metadata } = useTokenMetadata(channelState?.uri);
   const defaultMessage = metadata?.defaultMessage || "gm";
 
   // Lock scroll and restore position when modal opens (useLayoutEffect to run before paint)
@@ -133,11 +133,9 @@ export function MineModal({
   const insufficientBalance = parsedInput > 0n && parsedInput > userBalance;
 
   // Current epoch pool stats
-  const todayTotalDonated = channelState
-    ? Number(formatUnits(channelState.currentEpochTotalDonated, QUOTE_TOKEN_DECIMALS))
-    : 0;
+  const todayTotalDonated = 0;
   const todayEmission = channelState
-    ? Number(formatEther(channelState.currentEpochEmission))
+    ? Number(formatEther(channelState.contentRewardForDuration))
     : 0;
   const parsedAmount = parseFloat(amount) || 0;
   const costPerToken = todayEmission > 0 ? (todayTotalDonated + parsedAmount) / todayEmission : 0;

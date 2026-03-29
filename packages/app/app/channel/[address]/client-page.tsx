@@ -227,7 +227,7 @@ export default function ChannelDetailPage() {
 
   // Fetch on-chain coin state via multicall
   const {
-    coinState,
+    channelState: coinState,
     refetch: refetchState,
     isLoading: isCoinStateLoading,
   } = useChannelState(contentAddress, account, true, 5_000);

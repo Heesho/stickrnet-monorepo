@@ -287,43 +287,31 @@ export function LiquidityModal({
           </div>
 
           {/* Mobile: Token Input */}
-          <div className="lg:hidden slab-inset px-3 py-4">
+          <div className="lg:hidden slab-inset px-3 py-3">
             <div className="flex items-center justify-between">
               <span className="text-[13px] text-muted-foreground font-display">You provide</span>
-              <span className="text-lg font-semibold font-mono tabular-nums">
-                {tokenAmount} {tokenSymbol}
-              </span>
-            </div>
-            <div className="flex items-center justify-between mt-1">
-              <span className="text-[11px] text-muted-foreground">{tokenSymbol}</span>
               <button
                 onClick={() => setTokenAmount(tokenBalance.toFixed(2))}
-                className="signal-hover text-[11px] text-muted-foreground font-mono tabular-nums"
+                className="signal-hover text-lg font-semibold font-mono tabular-nums"
               >
-                Balance: {tokenBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                {tokenAmount} {tokenSymbol}
               </button>
             </div>
           </div>
 
           {/* Required USDC */}
-          <div className="slab-inset mt-2 px-3 py-4">
+          <div className="slab-inset mt-2 px-3 py-3">
             <div className="flex items-center justify-between">
               <span className="text-[13px] text-muted-foreground font-display">Required USDC</span>
-              <span className="text-lg font-semibold font-mono tabular-nums">
-                {requiredUsdc.toFixed(2)} USDC
-              </span>
-            </div>
-            <div className="flex items-center justify-between mt-1">
-              <span className="text-[11px] text-muted-foreground">USDC</span>
               <button
                 onClick={() => {
                   if (tokenPrice <= 0) return;
                   const maxTokenFromUsdc = usdcBalance / tokenPrice;
                   setTokenAmount(Math.min(tokenBalance, maxTokenFromUsdc).toFixed(2));
                 }}
-                className="signal-hover text-[11px] text-muted-foreground font-mono tabular-nums"
+                className="signal-hover text-lg font-semibold font-mono tabular-nums"
               >
-                Balance: {usdcBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                {requiredUsdc.toFixed(2)} USDC
               </button>
             </div>
           </div>

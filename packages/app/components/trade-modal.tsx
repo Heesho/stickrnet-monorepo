@@ -434,9 +434,20 @@ export function TradeModal({
             <h1 className="text-2xl font-semibold font-display tracking-tight lg:text-xl">
               {isBuy ? "Buy" : "Sell"} {tokenSymbol}
             </h1>
-            <p className="text-[13px] text-muted-foreground mt-1 font-mono tabular-nums">
+            <button
+              onClick={() => {
+                if (isBuy) {
+                  const max = Number(formatUnits(userQuoteBalance, QUOTE_TOKEN_DECIMALS));
+                  setAmount(max > 0 ? max.toFixed(2) : "0");
+                } else {
+                  const max = Number(formatEther(userUnitBalance));
+                  setAmount(max > 0 ? max.toFixed(6).replace(/0+$/, "").replace(/\.$/, "") : "0");
+                }
+              }}
+              className="signal-hover text-[13px] text-muted-foreground mt-1 font-mono tabular-nums"
+            >
               {availableDisplay}
-            </p>
+            </button>
           </div>
 
           {/* Desktop: text input for amount */}

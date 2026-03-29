@@ -12,6 +12,7 @@ export function useChannelState(
   channelAddress: `0x${string}` | undefined,
   account: `0x${string}` | undefined,
   enabled: boolean = true,
+  refetchInterval: number = 5_000,
 ) {
   const multicallAddr = CONTRACT_ADDRESSES.multicall as `0x${string}`;
 
@@ -23,7 +24,7 @@ export function useChannelState(
     chainId: base.id,
     query: {
       enabled: !!channelAddress && enabled,
-      refetchInterval: 5_000,
+      refetchInterval,
     },
   });
 

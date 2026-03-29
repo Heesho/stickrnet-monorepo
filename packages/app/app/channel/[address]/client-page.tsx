@@ -1057,7 +1057,7 @@ export default function ChannelDetailPage() {
             <button onClick={() => window.history.back()} className="text-muted-foreground hover:text-foreground transition-colors">
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <TokenLogo name={tokenName} logoUrl={logoUrl} size="md" loading="eager" />
+            <TokenLogo name={tokenName} logoUrl={logoUrl} size="md" />
             <div>
               <div className="font-display text-[15px] font-semibold uppercase tracking-[-0.02em] leading-none">{tokenSymbol}</div>
               <div className="text-[12px] text-muted-foreground leading-none mt-1">{tokenName}</div>

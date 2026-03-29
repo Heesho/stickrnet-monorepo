@@ -11,10 +11,10 @@ const landingPartners = [
     logoAlt: "GlazeCorp",
   },
   {
-    label: "stickr.net",
+    label: "give.fun",
     href: "https://givefun.vercel.app/",
     logoSrc: "/media/landing-givefun-logo.png",
-    logoAlt: "stickr.net",
+    logoAlt: "give.fun",
   },
 ] as const;
 

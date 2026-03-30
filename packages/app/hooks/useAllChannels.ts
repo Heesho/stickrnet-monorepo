@@ -30,6 +30,10 @@ export type ChannelListItem = {
   totalMinted: bigint;
   lastActivityAt: number;         // Unix timestamp
   createdAt: number;
+  // Sticker data
+  contentCount: number;
+  collectVolume: number;
+  description: string | null;
 };
 
 export type SortOption = "bump" | "top" | "new";
@@ -91,6 +95,9 @@ function channelToChannelListItem(channel: SubgraphChannel): ChannelListItem {
     totalMinted: BigInt(Math.floor(totalMinted * 1e18)),
     lastActivityAt: parseInt(channel.lastSwapAt) || 0,
     createdAt: parseInt(channel.createdAt) || 0,
+    contentCount: parseInt(channel.contentCount) || 0,
+    collectVolume: parseFloat(channel.collectVolume) || 0,
+    description: channel.metadata?.description ?? null,
   };
 }
 

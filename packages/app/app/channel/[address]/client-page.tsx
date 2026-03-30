@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Loader2, CheckCircle, ImagePlus, Flame, Clock, TrendingUp, Search, X } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Loader2, CheckCircle, ImagePlus, Flame, Clock, TrendingUp, Search, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { formatEther, formatUnits, parseUnits } from "viem";
 import { CollectModal } from "@/components/collect-modal";
@@ -357,6 +357,13 @@ export default function ChannelDetailPage() {
     () => ownedContentPositions.reduce((sum, content) => sum + getContentMarketValue(content), 0),
     [ownedContentPositions, getContentMarketValue]
   );
+  const channelCollectionValue = useMemo(
+    () => channelContentPositions.reduce((sum, content) => sum + getContentMarketValue(content), 0),
+    [channelContentPositions, getContentMarketValue]
+  );
+  const channelCollectVolume = subgraphChannel?.collectVolume
+    ? parseFloat(subgraphChannel.collectVolume)
+    : 0;
   const creationStickerCount = Math.max(
     channelAccount?.contentCreated ? Number(channelAccount.contentCreated) : 0,
     createdContentPositions.length
@@ -736,49 +743,34 @@ export default function ChannelDetailPage() {
   // --- Shared About section ---
   const aboutSection = (
     <>
-      <div className="flex items-center gap-2 text-[13px] text-muted-foreground mb-2 flex-wrap">
+      <div className="flex items-center gap-2 text-[12px] text-muted-foreground/60 mt-0.5">
         <span>Deployed by</span>
         {launcherAddress ? (
-          <span className="text-foreground font-medium font-mono">
+          <span className="text-foreground/80 font-medium font-mono">
             <AddressLink address={launcherAddress} />
           </span>
         ) : (
           <span className="text-foreground font-medium">--</span>
         )}
-        <span className="text-muted-foreground/60">·</span>
-        <span className="text-muted-foreground/60">{launchDateStr}</span>
-        {channelIsModerated && (
-          <>
-            <span className="text-muted-foreground/60">·</span>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[hsl(var(--foreground)/0.08)] text-[11px] text-muted-foreground font-medium">
-              Moderated
-            </span>
-          </>
-        )}
+        <span>·</span>
+        <span>{launchDateStr}</span>
       </div>
 
-      {metadata?.description && (
-        <p className="text-[13px] text-muted-foreground leading-relaxed mb-3">
-          {metadata.description}
-        </p>
-      )}
-      {!metadata?.description && (
-        <p className="text-[13px] text-muted-foreground leading-relaxed mb-3">
-          A Stickrnet channel. Collect content stickers, earn coin rewards through staking.
-        </p>
-      )}
+      <p className="text-[13px] text-muted-foreground leading-relaxed mt-2">
+        {metadata?.description || "A Stickrnet channel. Collect content stickers, earn coin rewards through staking."}
+      </p>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-4">
         {coinAddress && (
           <a href={`https://basescan.org/token/${coinAddress}`} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius)] border border-[hsl(var(--foreground)/0.1)] text-[12px] text-muted-foreground hover:text-foreground hover:bg-[hsl(var(--foreground)/0.04)] transition-colors">
-            {tokenSymbol}
+            className="text-[12px] text-muted-foreground/70 transition-colors hover:text-foreground">
+            {tokenSymbol} <ArrowUpRight className="inline h-3 w-3" />
           </a>
         )}
         {subgraphChannel?.lpToken && (
           <a href={`https://basescan.org/address/${subgraphChannel.lpToken}`} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius)] border border-[hsl(var(--foreground)/0.1)] text-[12px] text-muted-foreground hover:text-foreground hover:bg-[hsl(var(--foreground)/0.04)] transition-colors">
-            {tokenSymbol}-USDC LP
+            className="text-[12px] text-muted-foreground/70 transition-colors hover:text-foreground">
+            {tokenSymbol}-USDC LP <ArrowUpRight className="inline h-3 w-3" />
           </a>
         )}
         {metadata?.links && metadata.links.length > 0 && metadata.links.map((link, i) => {
@@ -794,8 +786,8 @@ export default function ChannelDetailPage() {
           } catch { label = link; }
           return (
             <a key={i} href={link} target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius)] border border-[hsl(var(--foreground)/0.1)] text-[12px] text-muted-foreground hover:text-foreground hover:bg-[hsl(var(--foreground)/0.04)] transition-colors">
-              {label}
+              className="text-[12px] text-muted-foreground/70 transition-colors hover:text-foreground">
+              {label} <ArrowUpRight className="inline h-3 w-3" />
             </a>
           );
         })}
@@ -854,19 +846,11 @@ export default function ChannelDetailPage() {
             <div className="text-muted-foreground text-[12px] mb-0.5">Collect count</div>
             <div className="font-semibold text-[15px] tabular-nums font-mono">{subgraphChannel.collectCount}</div>
           </div>
-          {coinState?.minter && (
+          {subgraphChannel?.team && (
             <div>
-              <div className="text-muted-foreground text-[12px] mb-0.5">Minter</div>
+              <div className="text-muted-foreground text-[12px] mb-0.5">Team</div>
               <div className="font-semibold text-[15px] font-mono">
-                <AddressLink address={coinState.minter} />
-              </div>
-            </div>
-          )}
-          {coinState?.rewarder && (
-            <div>
-              <div className="text-muted-foreground text-[12px] mb-0.5">Rewarder</div>
-              <div className="font-semibold text-[15px] font-mono">
-                <AddressLink address={coinState.rewarder} />
+                <AddressLink address={subgraphChannel.team as `0x${string}`} />
               </div>
             </div>
           )}
@@ -1169,6 +1153,29 @@ export default function ChannelDetailPage() {
                 </div>
               </div>
 
+              {/* About section — under chart */}
+              <div className="slab-panel rounded-[var(--radius)] mb-6 px-3 py-4">
+                <div className="mb-4">
+                  <div className="font-semibold text-[18px] font-display tracking-[-0.03em]">{tokenName}</div>
+                  {aboutSection}
+                </div>
+                {/* Key stats row */}
+                <div className="grid grid-cols-3 gap-6">
+                  <div>
+                    <div className="text-muted-foreground text-[11px] font-medium tracking-[0.04em] mb-1">Collection Value</div>
+                    <div className="font-mono text-[22px] font-bold tabular-nums leading-none">${channelCollectionValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground text-[11px] font-medium tracking-[0.04em] mb-1">Collect Volume</div>
+                    <div className="font-mono text-[22px] font-bold tabular-nums leading-none">${channelCollectVolume.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground text-[11px] font-medium tracking-[0.04em] mb-1">Stickers</div>
+                    <div className="font-mono text-[22px] font-bold tabular-nums leading-none">{subgraphChannel?.contentCount ?? "0"}</div>
+                  </div>
+                </div>
+              </div>
+
               {/* Stickers section */}
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
@@ -1217,15 +1224,14 @@ export default function ChannelDetailPage() {
               {/* Position card */}
               {positionCard}
 
-              {/* About card — with action buttons inside */}
+              {/* Stats card — with action buttons */}
               <div className="slab-panel rounded-[var(--radius)] mb-4 px-4 py-4">
                 <div className="mb-3">
-                  <div className="font-semibold text-[18px] font-display">About</div>
+                  <div className="font-semibold text-[18px] font-display">Stats</div>
                 </div>
-                {aboutSection}
-                {/* Action buttons inside About */}
+                {statsGrid}
                 {isConnected && (
-                  <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-[hsl(var(--foreground)/0.1)]">
+                  <div className="grid grid-cols-2 gap-2 mt-4">
                     <button onClick={() => setShowLiquidityModal(true)} className={`h-10 text-[13px] font-semibold font-display rounded-[var(--radius)] transition-colors ${trendButtonClass}`}>Liquidity</button>
                     <button onClick={() => setShowAuctionModal(true)} className={`h-10 text-[13px] font-semibold font-display rounded-[var(--radius)] transition-colors ${trendButtonClass}`}>Auction</button>
                     {isOwner && (
@@ -1233,14 +1239,6 @@ export default function ChannelDetailPage() {
                     )}
                   </div>
                 )}
-              </div>
-
-              {/* Stats card */}
-              <div className="slab-panel rounded-[var(--radius)] mb-4 px-4 py-4">
-                <div className="mb-3">
-                  <div className="font-semibold text-[18px] font-display">Stats</div>
-                </div>
-                {statsGrid}
               </div>
             </div>
           </div>
@@ -1291,15 +1289,37 @@ export default function ChannelDetailPage() {
             {/* Position card */}
             {isConnected && positionCard}
 
-            {/* About section */}
+            {/* About section — under chart */}
+            <div className="slab-panel rounded-[var(--radius)] mb-6 px-3 py-4">
+              <div className="mb-4">
+                <div className="font-semibold text-[18px] font-display tracking-[-0.03em]">{tokenName}</div>
+                {aboutSection}
+              </div>
+              {/* Key stats row */}
+              <div className="grid grid-cols-3 gap-6">
+                <div>
+                  <div className="text-muted-foreground text-[11px] font-medium tracking-[0.04em] mb-1">Market cap</div>
+                  <div className="font-mono text-[22px] font-bold tabular-nums leading-none">{formatMarketCap(marketCapUsd)}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground text-[11px] font-medium tracking-[0.04em] mb-1">24h volume</div>
+                  <div className="font-mono text-[22px] font-bold tabular-nums leading-none">${formatNumber(volume24h)}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground text-[11px] font-medium tracking-[0.04em] mb-1">Liquidity</div>
+                  <div className="font-mono text-[22px] font-bold tabular-nums leading-none">${formatNumber(liquidityUsd)}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Stats section — with action buttons */}
             <div className="slab-panel rounded-[var(--radius)] mb-4 px-4 py-4">
               <div className="mb-3">
-                <div className="font-semibold text-[18px] font-display">About</div>
+                <div className="font-semibold text-[18px] font-display">Stats</div>
               </div>
-              {aboutSection}
-              {/* Mobile action buttons */}
+              {statsGrid}
               {isConnected && (
-                <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-[hsl(var(--foreground)/0.1)]">
+                <div className="grid grid-cols-2 gap-2 mt-4">
                   <button onClick={() => setShowLiquidityModal(true)} className={`h-10 text-[13px] font-semibold font-display rounded-[var(--radius)] transition-colors ${trendButtonClass}`}>Liquidity</button>
                   <button onClick={() => setShowAuctionModal(true)} className={`h-10 text-[13px] font-semibold font-display rounded-[var(--radius)] transition-colors ${trendButtonClass}`}>Auction</button>
                   {isOwner && (
@@ -1307,14 +1327,6 @@ export default function ChannelDetailPage() {
                   )}
                 </div>
               )}
-            </div>
-
-            {/* Stats section */}
-            <div className="slab-panel rounded-[var(--radius)] mb-4 px-4 py-4">
-              <div className="mb-3">
-                <div className="font-semibold text-[18px] font-display">Stats</div>
-              </div>
-              {statsGrid}
             </div>
 
             {/* Stickers section — sort tabs + grid, no card wrapper */}

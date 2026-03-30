@@ -165,29 +165,43 @@ function ChannelCard({ channel, sparklineData, logoUrl }: { channel: ChannelItem
         )}
       </div>
 
-      {/* Content: 2x2 grid */}
-      <div className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1.5 p-4">
-        <div className="min-w-0">
-          <div className="truncate font-display text-[18px] font-semibold uppercase leading-none tracking-[-0.03em]">
-            {channel.tokenSymbol.length > 10 ? `${channel.tokenSymbol.slice(0, 10)}...` : channel.tokenSymbol}
-          </div>
-          <div className="mt-1 truncate text-[13px] text-muted-foreground">
-            {channel.tokenName}
-          </div>
+      {/* Content */}
+      <div className="flex flex-1 flex-col p-4">
+        {/* Name as headline */}
+        <div className="truncate font-display text-[17px] font-semibold leading-tight tracking-[-0.02em]">
+          {channel.tokenName}
         </div>
-        <div className="flex items-center">
-          <Sparkline data={sparklineData} isPositive={isPositive} className="h-9 w-[100px]" />
+
+        {/* Description — always 2 lines of space */}
+        <div className="mt-1 min-h-[2.5rem]">
+          <p className="text-[13px] leading-[1.35] text-muted-foreground line-clamp-2">
+            {channel.description || `A ${channel.tokenSymbol} sticker channel`}
+          </p>
         </div>
-        <div>
-          <div className="font-mono text-[20px] font-semibold tabular-nums leading-none">
-            {channel.marketCapUsd > 0 ? formatMarketCap(channel.marketCapUsd) : "--"}
+
+        {/* Metrics pinned to bottom */}
+        <div className="mt-auto pt-3">
+          <div className="flex items-end justify-between">
+            <div>
+              <div className="font-mono text-[20px] font-semibold tabular-nums leading-none">
+                {channel.collectVolume > 0 ? formatMarketCap(channel.collectVolume) : "$0"} <span className="text-[13px] font-normal text-muted-foreground">volume</span>
+              </div>
+              <div className="mt-1 text-[12px] text-muted-foreground tabular-nums">
+                {channel.contentCount > 0 ? `${channel.contentCount.toLocaleString()} sticker${channel.contentCount !== 1 ? "s" : ""}` : "No stickers yet"}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[12px] text-muted-foreground tabular-nums font-mono">
+                {channel.marketCapUsd > 0 ? formatMarketCap(channel.marketCapUsd) : "--"} mcap
+              </div>
+              <div className={cn(
+                "text-[12px] tabular-nums font-mono",
+                isPositive ? "positive-value" : "negative-value"
+              )}>
+                {changeStr}
+              </div>
+            </div>
           </div>
-        </div>
-        <div className={cn(
-          "flex items-center justify-end font-mono text-[15px] font-semibold tabular-nums",
-          isPositive ? "positive-value" : "negative-value"
-        )}>
-          {changeStr}
         </div>
       </div>
     </Link>

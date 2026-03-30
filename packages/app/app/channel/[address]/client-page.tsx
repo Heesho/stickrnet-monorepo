@@ -357,10 +357,6 @@ export default function ChannelDetailPage() {
     () => ownedContentPositions.reduce((sum, content) => sum + getContentMarketValue(content), 0),
     [ownedContentPositions, getContentMarketValue]
   );
-  const channelCollectionValue = useMemo(
-    () => channelContentPositions.reduce((sum, content) => sum + getContentMarketValue(content), 0),
-    [channelContentPositions, getContentMarketValue]
-  );
   const channelCollectVolume = subgraphChannel?.collectVolume
     ? parseFloat(subgraphChannel.collectVolume)
     : 0;
@@ -414,6 +410,10 @@ export default function ChannelDetailPage() {
     : 0;
   const teamRevenue = subgraphChannel?.teamRevenue
     ? parseFloat(subgraphChannel.teamRevenue)
+    : 0;
+
+  const collectionValueUsd = subgraphChannel?.totalStaked
+    ? parseFloat(subgraphChannel.totalStaked) / 1e6
     : 0;
 
   // Launcher address from subgraph
@@ -1163,7 +1163,7 @@ export default function ChannelDetailPage() {
                 <div className="grid grid-cols-3 gap-6">
                   <div>
                     <div className="text-muted-foreground text-[11px] font-medium tracking-[0.04em] mb-1">Collection Value</div>
-                    <div className="font-mono text-[22px] font-bold tabular-nums leading-none">${channelCollectionValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    <div className="font-mono text-[22px] font-bold tabular-nums leading-none">{formatMarketCap(collectionValueUsd)}</div>
                   </div>
                   <div>
                     <div className="text-muted-foreground text-[11px] font-medium tracking-[0.04em] mb-1">Collect Volume</div>
@@ -1290,7 +1290,7 @@ export default function ChannelDetailPage() {
               <div className="grid grid-cols-3 gap-6">
                 <div>
                   <div className="text-muted-foreground text-[11px] font-medium tracking-[0.04em] mb-1">Collection Value</div>
-                  <div className="font-mono text-[22px] font-bold tabular-nums leading-none">${channelCollectionValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  <div className="font-mono text-[22px] font-bold tabular-nums leading-none">{formatMarketCap(collectionValueUsd)}</div>
                 </div>
                 <div>
                   <div className="text-muted-foreground text-[11px] font-medium tracking-[0.04em] mb-1">Collect Volume</div>

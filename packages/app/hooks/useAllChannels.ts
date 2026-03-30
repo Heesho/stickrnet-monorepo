@@ -33,6 +33,7 @@ export type ChannelListItem = {
   // Sticker data
   contentCount: number;
   collectVolume: number;
+  collectionValueUsd: number;
   description: string | null;
 };
 
@@ -97,6 +98,7 @@ function channelToChannelListItem(channel: SubgraphChannel): ChannelListItem {
     createdAt: parseInt(channel.createdAt) || 0,
     contentCount: parseInt(channel.contentCount) || 0,
     collectVolume: parseFloat(channel.collectVolume) || 0,
+    collectionValueUsd: (parseFloat(channel.totalStaked) || 0) / 1e6,
     description: channel.metadata?.description ?? null,
   };
 }

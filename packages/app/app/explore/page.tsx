@@ -184,7 +184,7 @@ function ChannelCard({ channel, sparklineData, logoUrl }: { channel: ChannelItem
           <div className="flex items-end justify-between">
             <div>
               <div className="font-mono text-[20px] font-semibold tabular-nums leading-none">
-                {channel.collectVolume > 0 ? formatMarketCap(channel.collectVolume) : "$0"} <span className="text-[13px] font-normal text-muted-foreground">volume</span>
+                {channel.collectionValueUsd > 0 ? formatMarketCap(channel.collectionValueUsd) : "$0"} <span className="text-[13px] font-normal text-muted-foreground">value</span>
               </div>
               <div className="mt-1 text-[12px] text-muted-foreground tabular-nums">
                 {channel.contentCount > 0 ? `${channel.contentCount.toLocaleString()} sticker${channel.contentCount !== 1 ? "s" : ""}` : "No stickers yet"}

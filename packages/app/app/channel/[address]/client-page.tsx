@@ -1280,16 +1280,7 @@ export default function ChannelDetailPage() {
               </div>
             </div>
 
-            {/* Creations card — with Create button */}
-            {creationsCard}
-
-            {/* Collection card */}
-            {collectionCard}
-
-            {/* Position card */}
-            {isConnected && positionCard}
-
-            {/* About section — under chart */}
+            {/* About section — right under chart */}
             <div className="slab-panel rounded-[var(--radius)] mb-6 px-3 py-4">
               <div className="mb-4">
                 <div className="font-semibold text-[18px] font-display tracking-[-0.03em]">{tokenName}</div>
@@ -1298,19 +1289,28 @@ export default function ChannelDetailPage() {
               {/* Key stats row */}
               <div className="grid grid-cols-3 gap-6">
                 <div>
-                  <div className="text-muted-foreground text-[11px] font-medium tracking-[0.04em] mb-1">Market cap</div>
-                  <div className="font-mono text-[22px] font-bold tabular-nums leading-none">{formatMarketCap(marketCapUsd)}</div>
+                  <div className="text-muted-foreground text-[11px] font-medium tracking-[0.04em] mb-1">Collection Value</div>
+                  <div className="font-mono text-[22px] font-bold tabular-nums leading-none">${channelCollectionValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                 </div>
                 <div>
-                  <div className="text-muted-foreground text-[11px] font-medium tracking-[0.04em] mb-1">24h volume</div>
-                  <div className="font-mono text-[22px] font-bold tabular-nums leading-none">${formatNumber(volume24h)}</div>
+                  <div className="text-muted-foreground text-[11px] font-medium tracking-[0.04em] mb-1">Collect Volume</div>
+                  <div className="font-mono text-[22px] font-bold tabular-nums leading-none">${channelCollectVolume.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                 </div>
                 <div>
-                  <div className="text-muted-foreground text-[11px] font-medium tracking-[0.04em] mb-1">Liquidity</div>
-                  <div className="font-mono text-[22px] font-bold tabular-nums leading-none">${formatNumber(liquidityUsd)}</div>
+                  <div className="text-muted-foreground text-[11px] font-medium tracking-[0.04em] mb-1">Stickers</div>
+                  <div className="font-mono text-[22px] font-bold tabular-nums leading-none">{subgraphChannel?.contentCount ?? "0"}</div>
                 </div>
               </div>
             </div>
+
+            {/* Creations card — with Create button */}
+            {creationsCard}
+
+            {/* Collection card */}
+            {collectionCard}
+
+            {/* Position card */}
+            {isConnected && positionCard}
 
             {/* Stats section — with action buttons */}
             <div className="slab-panel rounded-[var(--radius)] mb-4 px-4 py-4">

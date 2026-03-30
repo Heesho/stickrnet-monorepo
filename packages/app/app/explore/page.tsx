@@ -347,17 +347,17 @@ export default function ExplorePage() {
             {/* Mobile: channel rows */}
             <section className="overflow-hidden lg:hidden">
               {isLoading && (
-                <div>
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <SkeletonRow key={i} />
+                <div className="grid grid-cols-1 gap-5">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <SkeletonCard key={i} />
                   ))}
                 </div>
               )}
 
               {!isLoading && channels.length > 0 && (
-                <div>
+                <div className="grid grid-cols-1 gap-5">
                   <AnimatePresence initial={false}>
-                    {channels.map((channel, index) => {
+                    {channels.map((channel) => {
                       const logoUrl = channel.imageUri ? ipfsToHttp(channel.imageUri) : getLogoUrl(channel.uri);
                       return (
                         <motion.div
@@ -368,58 +368,16 @@ export default function ExplorePage() {
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 0 }}
                         >
-                          <Link
-                            href={`/channel/${channel.address}`}
-                            className={`grid grid-cols-[1.2fr_1fr_0.8fr] items-center gap-2 py-4 transition-colors duration-200 ${
-                              index > 0 ? "border-t border-[hsl(var(--foreground)/0.1)]" : ""
-                            } hover-slab`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <TokenLogo
-                                name={channel.tokenName}
-                                logoUrl={logoUrl}
-                                size="md-lg"
-                              />
-                              <div className="min-w-0">
-                                <div className="truncate font-display text-[15px] font-semibold uppercase tracking-[-0.02em]">
-                                  {channel.tokenSymbol.length > 10
-                                    ? `${channel.tokenSymbol.slice(0, 10)}...`
-                                    : channel.tokenSymbol}
-                                </div>
-                                <div className="truncate text-[13px] text-muted-foreground">
-                                  {channel.tokenName}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="flex justify-end">
-                              <Sparkline
-                                data={(() => {
-                                  const hourly = getSparkline(channel.coinAddress, channel.priceUsd);
-                                  if (hourly.length > 1) return hourly;
-                                  if (channel.sparklinePrices.length > 1) return channel.sparklinePrices;
-                                  return [channel.priceUsd, channel.priceUsd];
-                                })()}
-                                isPositive={channel.change24h >= 0}
-                              />
-                            </div>
-
-                            <div className="text-right">
-                              <div className="font-medium text-[15px] tabular-nums font-mono">
-                                {channel.marketCapUsd > 0 ? formatMarketCap(channel.marketCapUsd) : "--"}
-                              </div>
-                              <div className={cn(
-                                "text-[13px] tabular-nums font-mono",
-                                channel.marketCapUsd > 0
-                                  ? channel.change24h >= 0 ? "positive-value" : "negative-value"
-                                  : "text-muted-foreground"
-                              )}>
-                                {channel.marketCapUsd > 0
-                                  ? `${channel.change24h >= 0 ? "+" : ""}${channel.change24h.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`
-                                  : "--"}
-                              </div>
-                            </div>
-                          </Link>
+                          <ChannelCard
+                            channel={channel}
+                            sparklineData={(() => {
+                              const hourly = getSparkline(channel.coinAddress, channel.priceUsd);
+                              if (hourly.length > 1) return hourly;
+                              if (channel.sparklinePrices.length > 1) return channel.sparklinePrices;
+                              return [channel.priceUsd, channel.priceUsd];
+                            })()}
+                            logoUrl={logoUrl}
+                          />
                         </motion.div>
                       );
                     })}

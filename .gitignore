@@ -2,10 +2,6 @@ node_modules/
 .env
 .env.local
 .DS_Store
-.next/
-.playwright-mcp/
-firebase-debug.log
-package-lock.json
 
 # Hardhat
 cache/
@@ -14,15 +10,6 @@ typechain/
 typechain-types/
 coverage/
 coverage.json
-
-# Foundry
-foundry-out/
-foundry-cache/
-foundry/failures/
-foundry/snapshots/*.json
-foundry/snapshots/foundry.snapshot
-packages/hardhat/foundry/snapshots/*.json
-packages/hardhat/foundry/snapshots/foundry.snapshot
 
 # Subgraph
 build/

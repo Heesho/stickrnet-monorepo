@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { useAccount, useConnect } from "wagmi";
-import { baseSepolia } from "wagmi/chains";
+import { base } from "wagmi/chains";
 
 export type FarcasterUser = {
   fid: number;
@@ -88,7 +88,7 @@ export function useFarcaster() {
 
     connectAsync({
       connector: farcasterConnector,
-      chainId: baseSepolia.id,
+      chainId: base.id,
     }).catch(() => {});
   }, [connectAsync, isConnected, isConnecting, farcasterConnector, isInFrame]);
 
@@ -105,7 +105,7 @@ export function useFarcaster() {
     try {
       const result = await connectAsync({
         connector: primaryConnector,
-        chainId: baseSepolia.id,
+        chainId: base.id,
       });
       return result.accounts[0];
     } catch (error) {

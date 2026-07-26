@@ -33,7 +33,6 @@ contract Rewarder is ReentrancyGuard {
     address[] public rewardTokens;
     mapping(address => Reward) public tokenToRewardData;
     mapping(address => bool) public tokenToIsReward;
-    mapping(address => address) public tokenToNotifier;
 
     mapping(address => mapping(address => uint256)) public accountToTokenToLastRewardPerToken;
     mapping(address => mapping(address => uint256)) public accountToTokenToReward;
@@ -60,14 +59,10 @@ contract Rewarder is ReentrancyGuard {
     error Rewarder__ZeroAmount();
     error Rewarder__ZeroAddress();
     error Rewarder__MaxRewardTokensReached();
-    error Rewarder__NotNotifier();
-    error Rewarder__InvalidNotifier();
-    error Rewarder__IncorrectRewardAmount();
 
     /*----------  EVENTS  -----------------------------------------------*/
 
     event Rewarder__RewardAdded(address indexed rewardToken);
-    event Rewarder__RewardNotifierSet(address indexed rewardToken, address indexed notifier);
     event Rewarder__RewardNotified(address indexed rewardToken, uint256 reward);
     event Rewarder__Deposited(address indexed user, uint256 amount);
     event Rewarder__Withdrawn(address indexed user, uint256 amount);
@@ -78,19 +73,11 @@ contract Rewarder is ReentrancyGuard {
     modifier updateReward(address account) {
         for (uint256 i; i < rewardTokens.length; i++) {
             address token = rewardTokens[i];
-            Reward storage data = tokenToRewardData[token];
-            if (totalSupply == 0 && data.lastUpdateTime != 0 && data.periodFinish > data.lastUpdateTime) {
-                // Pause the stream while nobody is staked so rewards cannot become orphaned.
-                uint256 idleTime = block.timestamp - data.lastUpdateTime;
-                data.periodFinish += idleTime;
-                data.lastUpdateTime = block.timestamp;
-            } else {
-                data.rewardPerTokenStored = rewardPerToken(token);
-                data.lastUpdateTime = lastTimeRewardApplicable(token);
-            }
+            tokenToRewardData[token].rewardPerTokenStored = rewardPerToken(token);
+            tokenToRewardData[token].lastUpdateTime = lastTimeRewardApplicable(token);
             if (account != address(0)) {
                 accountToTokenToReward[account][token] = earned(account, token);
-                accountToTokenToLastRewardPerToken[account][token] = data.rewardPerTokenStored;
+                accountToTokenToLastRewardPerToken[account][token] = tokenToRewardData[token].rewardPerTokenStored;
             }
         }
         _;
@@ -113,7 +100,6 @@ contract Rewarder is ReentrancyGuard {
      * @param _content Content contract address that controls deposits/withdrawals
      */
     constructor(address _content) {
-        if (_content == address(0)) revert Rewarder__ZeroAddress();
         content = _content;
     }
 
@@ -163,16 +149,11 @@ contract Rewarder is ReentrancyGuard {
         updateReward(address(0))
     {
         if (!tokenToIsReward[token]) revert Rewarder__NotRewardToken();
-        if (msg.sender != tokenToNotifier[token]) revert Rewarder__NotNotifier();
         if (amount < DURATION) revert Rewarder__AmountSmallerThanDuration();
         uint256 leftover = left(token);
         if (amount < leftover) revert Rewarder__AmountSmallerThanLeft();
 
-        uint256 balanceBefore = IERC20(token).balanceOf(address(this));
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
-        if (IERC20(token).balanceOf(address(this)) != balanceBefore + amount) {
-            revert Rewarder__IncorrectRewardAmount();
-        }
 
         if (block.timestamp >= tokenToRewardData[token].periodFinish) {
             tokenToRewardData[token].rewardRate = amount * PRECISION / DURATION;
@@ -222,23 +203,13 @@ contract Rewarder is ReentrancyGuard {
      * @notice Add a new reward token. Only callable by Content contract.
      * @param token Reward token address to add
      */
-    function addReward(address token, address notifier) external onlyContent {
+    function addReward(address token) external onlyContent {
         if (token == address(0)) revert Rewarder__ZeroAddress();
-        if (notifier == address(0)) revert Rewarder__InvalidNotifier();
         if (rewardTokens.length >= MAX_REWARD_TOKENS) revert Rewarder__MaxRewardTokensReached();
         if (tokenToIsReward[token]) revert Rewarder__RewardTokenAlreadyAdded();
         tokenToIsReward[token] = true;
-        tokenToNotifier[token] = notifier;
         rewardTokens.push(token);
         emit Rewarder__RewardAdded(token);
-        emit Rewarder__RewardNotifierSet(token, notifier);
-    }
-
-    function setRewardNotifier(address token, address notifier) external onlyContent {
-        if (!tokenToIsReward[token]) revert Rewarder__NotRewardToken();
-        if (notifier == address(0)) revert Rewarder__InvalidNotifier();
-        tokenToNotifier[token] = notifier;
-        emit Rewarder__RewardNotifierSet(token, notifier);
     }
 
     /*----------  VIEW FUNCTIONS  ---------------------------------------*/

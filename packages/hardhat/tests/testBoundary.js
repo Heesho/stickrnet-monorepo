@@ -10,7 +10,7 @@ const AddressDead = "0x000000000000000000000000000000000000dEaD";
 async function getAuctionData(content, tokenId) {
   return {
     epochId: await content.idToEpochId(tokenId),
-    initPrice: await content.idToPremiumStart(tokenId),
+    initPrice: await content.idToInitPrice(tokenId),
     startTime: await content.idToStartTime(tokenId)
   };
 }
@@ -402,8 +402,8 @@ describe("Boundary Condition Tests", function () {
       const auctionData = await getAuctionData(content, tokenId);
       const price = await content.getPrice(tokenId);
 
-      // Total price is the reserve floor plus the starting premium.
-      expect(price).to.equal(auctionData.initPrice.mul(2));
+      // Price should be exactly initPrice at creation
+      expect(price).to.equal(auctionData.initPrice);
     });
 
     it("Should handle price at t=1 second", async function () {
@@ -416,8 +416,9 @@ describe("Boundary Condition Tests", function () {
       const auctionData = await getAuctionData(content, tokenId);
       const price = await content.getPrice(tokenId);
 
-      expect(price).to.be.lte(auctionData.initPrice.mul(2));
-      expect(price).to.be.gte(await content.nextReserveOf(tokenId));
+      // Price should be less than or equal to initPrice (may be equal due to integer truncation with small prices)
+      expect(price).to.be.lte(auctionData.initPrice);
+      expect(price).to.be.gt(0);
     });
 
     it("Should handle price at t=EPOCH_PERIOD-1", async function () {
@@ -442,8 +443,7 @@ describe("Boundary Condition Tests", function () {
       await ethers.provider.send("evm_mine");
 
       const price = await content.getPrice(tokenId);
-      expect(await content.premiumOf(tokenId)).to.equal(0);
-      expect(price).to.equal(await content.nextReserveOf(tokenId));
+      expect(price).to.equal(0);
     });
 
     it("Should handle price at t=EPOCH_PERIOD+1", async function () {
@@ -455,8 +455,7 @@ describe("Boundary Condition Tests", function () {
       await ethers.provider.send("evm_mine");
 
       const price = await content.getPrice(tokenId);
-      expect(await content.premiumOf(tokenId)).to.equal(0);
-      expect(price).to.equal(await content.nextReserveOf(tokenId));
+      expect(price).to.equal(0);
     });
 
     it("Should handle minter at exactly WEEK boundary", async function () {
@@ -572,25 +571,24 @@ describe("Boundary Condition Tests", function () {
       }
     });
 
-    it("Should preserve and accept the reserve floor after premium expiry", async function () {
+    it("Should accept maxPrice of 0 when price is 0", async function () {
       await content.connect(user1).create(user1.address, "ipfs://maxprice-zero");
       const tokenId = await content.nextTokenId();
 
-      // Wait for only the premium to decay to 0.
+      // Wait for price to decay to 0
       await ethers.provider.send("evm_increaseTime", [31 * DAY]);
       await ethers.provider.send("evm_mine");
 
       const auctionData = await getAuctionData(content, tokenId);
       const price = await content.getPrice(tokenId);
-      expect(price).to.equal(await content.nextReserveOf(tokenId));
+      expect(price).to.equal(0);
 
-      await usdc.connect(user2).approve(content.address, price);
       await content.connect(user2).collect(
         user2.address,
         tokenId,
         auctionData.epochId,
         ethers.constants.MaxUint256,
-        price
+        0 // maxPrice = 0, price = 0
       );
 
       expect(await content.ownerOf(tokenId)).to.equal(user2.address);

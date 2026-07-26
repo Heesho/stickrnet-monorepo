@@ -6,18 +6,8 @@
   ],
   "scripts": {
     "app": "yarn workspace @stickrnet/app",
-    "contracts:compile": "yarn workspace @stickrnet/hardhat contracts:compile",
     "hardhat": "yarn workspace @stickrnet/hardhat",
-    "subgraph": "yarn workspace @stickrnet/subgraph",
-    "test:hardhat": "yarn workspace @stickrnet/hardhat test:hardhat",
-    "test:foundry": "yarn workspace @stickrnet/hardhat test:foundry",
-    "test:fuzz": "yarn workspace @stickrnet/hardhat test:fuzz",
-    "test:invariant": "yarn workspace @stickrnet/hardhat test:invariant",
-    "test:differential": "yarn workspace @stickrnet/hardhat test:differential",
-    "test:coverage": "yarn workspace @stickrnet/hardhat test:coverage",
-    "test:gas": "yarn workspace @stickrnet/hardhat test:gas",
-    "verify:contract-equivalence": "yarn workspace @stickrnet/hardhat verify:contract-equivalence",
-    "test:verification": "yarn workspace @stickrnet/hardhat test:verification"
+    "subgraph": "yarn workspace @stickrnet/subgraph"
   },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }

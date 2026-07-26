@@ -10,7 +10,7 @@ const AddressDead = "0x000000000000000000000000000000000000dEaD";
 async function getAuctionData(content, tokenId) {
   return {
     epochId: await content.idToEpochId(tokenId),
-    initPrice: await content.idToPremiumStart(tokenId),
+    initPrice: await content.idToInitPrice(tokenId),
     startTime: await content.idToStartTime(tokenId)
   };
 }

@@ -19,8 +19,7 @@ interface IRewarder {
     function notifyRewardAmount(address token, uint256 amount) external;
     function deposit(address account, uint256 amount) external;
     function withdraw(address account, uint256 amount) external;
-    function addReward(address token, address notifier) external;
-    function setRewardNotifier(address token, address notifier) external;
+    function addReward(address token) external;
 
     function DURATION() external view returns (uint256);
     function MAX_REWARD_TOKENS() external view returns (uint256);
@@ -28,7 +27,6 @@ interface IRewarder {
     function rewardTokens(uint256 index) external view returns (address);
     function rewardTokensLength() external view returns (uint256);
     function tokenToIsReward(address token) external view returns (bool);
-    function tokenToNotifier(address token) external view returns (address);
     function tokenToRewardData(address token) external view returns (Reward memory);
     function totalSupply() external view returns (uint256);
     function accountToBalance(address account) external view returns (uint256);

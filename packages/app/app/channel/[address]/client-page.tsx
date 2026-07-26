@@ -26,7 +26,7 @@ import {
   type Call,
 } from "@/hooks/useBatchedTransaction";
 import { useReadContract } from "wagmi";
-import { baseSepolia } from "wagmi/chains";
+import { base } from "wagmi/chains";
 import {
   QUOTE_TOKEN_DECIMALS,
   CONTENT_ABI,
@@ -50,7 +50,7 @@ function AddressLink({ address }: { address: string | null }) {
   if (!address) return <span>None</span>;
   return (
     <a
-      href={`https://sepolia.basescan.org/address/${address}`}
+      href={`https://basescan.org/address/${address}`}
       target="_blank"
       rel="noopener noreferrer"
       className="hover:underline hover:text-white transition-colors"
@@ -63,14 +63,14 @@ function AddressLink({ address }: { address: string | null }) {
 // Dutch auction price decay (linear over 1 day)
 const CONTENT_EPOCH_PERIOD = 86400; // 1 day in seconds
 
-function getCollectionPrice(premiumStart: string, startTime: string): number {
+function getDecayedPrice(initPrice: string, startTime: string): number {
   const now = Math.floor(Date.now() / 1000);
   const timePassed = now - parseInt(startTime);
-  const reserveRequired = parseFloat(premiumStart);
-  if (timePassed >= CONTENT_EPOCH_PERIOD) return reserveRequired;
-  if (timePassed <= 0) return reserveRequired * 2;
-  const premium = reserveRequired - (reserveRequired * timePassed) / CONTENT_EPOCH_PERIOD;
-  return reserveRequired + premium;
+  // initPrice from subgraph is already in human-readable USDC (convertTokenToDecimal)
+  const init = parseFloat(initPrice);
+  if (timePassed >= CONTENT_EPOCH_PERIOD) return 0;
+  if (timePassed <= 0) return init;
+  return init - (init * timePassed) / CONTENT_EPOCH_PERIOD;
 }
 
 // Format UPS emission (per period) - BigInt string with 18 decimals
@@ -334,25 +334,21 @@ export default function ChannelDetailPage() {
   const ownedContentPositions = useMemo(
     () =>
       normalizedAccount
-        ? channelContentPositions.filter(
-            (content) => content.isActive && content.owner.id.toLowerCase() === normalizedAccount
-          )
+        ? channelContentPositions.filter((content) => content.owner.id.toLowerCase() === normalizedAccount)
         : [],
     [channelContentPositions, normalizedAccount]
   );
   const createdContentPositions = useMemo(
     () =>
       normalizedAccount
-        ? channelContentPositions.filter(
-            (content) => content.isActive && content.creator.id.toLowerCase() === normalizedAccount
-          )
+        ? channelContentPositions.filter((content) => content.creator.id.toLowerCase() === normalizedAccount)
         : [],
     [channelContentPositions, normalizedAccount]
   );
 
   const getContentMarketValue = useCallback(
     (content: SubgraphContentPosition) =>
-      content.isApproved ? getCollectionPrice(content.premiumStart, content.startTime) : 0,
+      content.isApproved ? getDecayedPrice(content.initPrice, content.startTime) : 0,
     []
   );
 
@@ -443,7 +439,7 @@ export default function ChannelDetailPage() {
     abi: CONTENT_ABI,
     functionName: "accountToIsModerator",
     args: account ? [account] : undefined,
-    chainId: baseSepolia.id,
+    chainId: base.id,
     query: {
       enabled: !!account && !!contentAddress,
     },
@@ -610,7 +606,6 @@ export default function ChannelDetailPage() {
               const desc = c.metadata?.description || metadataMap[c.uri]?.description || "";
               return desc.toLowerCase().includes(q);
             })
-            .filter((content) => content.isActive)
             .sort((a, b) => {
               if (feedSort === "bump") return parseInt(b.startTime) - parseInt(a.startTime);
               if (feedSort === "top") return parseFloat(b.collectVolume) - parseFloat(a.collectVolume);
@@ -624,7 +619,7 @@ export default function ChannelDetailPage() {
               const description = content.metadata?.description || fallbackMeta?.description || null;
               const hasText = !!description && !imageUrl;
 
-              const livePrice = getCollectionPrice(content.premiumStart, content.startTime);
+              const livePrice = getDecayedPrice(content.initPrice, content.startTime);
 
               return (
                 <button
@@ -767,13 +762,13 @@ export default function ChannelDetailPage() {
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-4">
         {coinAddress && (
-          <a href={`https://sepolia.basescan.org/token/${coinAddress}`} target="_blank" rel="noopener noreferrer"
+          <a href={`https://basescan.org/token/${coinAddress}`} target="_blank" rel="noopener noreferrer"
             className="text-[12px] text-muted-foreground/70 transition-colors hover:text-foreground">
             {tokenSymbol} <ArrowUpRight className="inline h-3 w-3" />
           </a>
         )}
         {subgraphChannel?.lpToken && (
-          <a href={`https://sepolia.basescan.org/address/${subgraphChannel.lpToken}`} target="_blank" rel="noopener noreferrer"
+          <a href={`https://basescan.org/address/${subgraphChannel.lpToken}`} target="_blank" rel="noopener noreferrer"
             className="text-[12px] text-muted-foreground/70 transition-colors hover:text-foreground">
             {tokenSymbol}-USDC LP <ArrowUpRight className="inline h-3 w-3" />
           </a>
@@ -895,7 +890,7 @@ export default function ChannelDetailPage() {
     <div className="slab-panel rounded-[var(--radius)] mb-4 px-4 py-4">
       <div className="mb-3">
         <div className="font-semibold text-[18px] font-display">Your Collection</div>
-        <div className="text-[12px] text-muted-foreground mt-0.5">Stickers you hold, their refundable reserves, and the tokens they are mining</div>
+        <div className="text-[12px] text-muted-foreground mt-0.5">Stickers you hold, their stake, and the tokens they are mining</div>
       </div>
 
       <div className="grid grid-cols-2 gap-y-4 gap-x-8">

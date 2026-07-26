@@ -9,7 +9,6 @@ import {IRewarder} from "./interfaces/IRewarder.sol";
 import {IAuction} from "./interfaces/IAuction.sol";
 import {ICore} from "./interfaces/ICore.sol";
 import {ICoin} from "./interfaces/ICoin.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 /**
  * @title Multicall
@@ -17,12 +16,11 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.
  * @notice Helper contract for batched operations and aggregated view functions.
  * @dev Provides convenience functions for content collection and comprehensive state queries.
  */
-contract Multicall is ReentrancyGuard {
+contract Multicall {
     using SafeERC20 for IERC20;
 
     error Multicall__ZeroAddress();
     error Multicall__InvalidContent();
-    error Multicall__IncorrectPayment();
 
     /*----------  IMMUTABLES  -------------------------------------------*/
 
@@ -68,11 +66,7 @@ contract Multicall is ReentrancyGuard {
         uint256 startTime;
         uint256 initPrice;
         uint256 stake;
-        uint256 reserve;
-        uint256 nextReserve;
-        uint256 premium;
         uint256 price;
-        uint256 rewardWeight;
         uint256 rewardForDuration;
         address creator;
         address owner;
@@ -126,7 +120,7 @@ contract Multicall is ReentrancyGuard {
         uint256 epochId,
         uint256 deadline,
         uint256 maxPrice
-    ) external nonReentrant {
+    ) external {
         if (!ICore(core).isDeployedContent(content)) revert Multicall__InvalidContent();
 
         // Trigger weekly emission if a new period is due
@@ -136,15 +130,10 @@ contract Multicall is ReentrancyGuard {
         // Get previous owner before collect
         address prevOwner = IContent(content).ownerOf(tokenId);
 
-        uint256 quoteBalanceBefore = IERC20(quote).balanceOf(address(this));
         IERC20(quote).safeTransferFrom(msg.sender, address(this), maxPrice);
-        if (IERC20(quote).balanceOf(address(this)) != quoteBalanceBefore + maxPrice) {
-            revert Multicall__IncorrectPayment();
-        }
         IERC20(quote).safeApprove(content, 0);
         IERC20(quote).safeApprove(content, maxPrice);
         IContent(content).collect(msg.sender, tokenId, epochId, deadline, maxPrice);
-        IERC20(quote).safeApprove(content, 0);
 
         // Claim for previous owner (try/catch in case they're blacklisted)
         try IContent(content).claim(prevOwner) {} catch {}
@@ -153,15 +142,10 @@ contract Multicall is ReentrancyGuard {
         address creator = IContent(content).idToCreator(tokenId);
         try IContent(content).claim(creator) {} catch {}
 
-        // Best-effort payout delivery cannot block collection; unpaid amounts stay claimable.
-        try IContent(content).claim(IContent(content).treasury()) {} catch {}
-        try IContent(content).claim(IContent(content).team()) {} catch {}
-        try IContent(content).claim(ICore(core).protocolFeeAddress()) {} catch {}
-
-        // Refund only this call's unused quote; pre-existing balances are never exposed.
-        uint256 quoteBalanceAfter = IERC20(quote).balanceOf(address(this));
-        if (quoteBalanceAfter > quoteBalanceBefore) {
-            IERC20(quote).safeTransfer(msg.sender, quoteBalanceAfter - quoteBalanceBefore);
+        // Refund unused quote
+        uint256 quoteBalance = IERC20(quote).balanceOf(address(this));
+        if (quoteBalance > 0) {
+            IERC20(quote).safeTransfer(msg.sender, quoteBalance);
         }
     }
 
@@ -173,11 +157,7 @@ contract Multicall is ReentrancyGuard {
      * @param deadline Transaction deadline
      * @param maxPaymentTokenAmount Maximum LP tokens willing to pay
      */
-    function buy(address content, uint256 epochId, uint256 deadline, uint256 maxPaymentTokenAmount)
-        external
-        nonReentrant
-    {
-        if (!ICore(core).isDeployedContent(content)) revert Multicall__InvalidContent();
+    function buy(address content, uint256 epochId, uint256 deadline, uint256 maxPaymentTokenAmount) external {
         address auction = ICore(core).contentToAuction(content);
         address paymentToken = IAuction(auction).paymentToken();
         uint256 price = IAuction(auction).getPrice();
@@ -188,7 +168,6 @@ contract Multicall is ReentrancyGuard {
         IERC20(paymentToken).safeApprove(auction, 0);
         IERC20(paymentToken).safeApprove(auction, price);
         IAuction(auction).buy(assets, msg.sender, epochId, deadline, maxPaymentTokenAmount);
-        IERC20(paymentToken).safeApprove(auction, 0);
     }
 
     /**
@@ -198,7 +177,6 @@ contract Multicall is ReentrancyGuard {
      */
     function launch(ICore.LaunchParams calldata params)
         external
-        nonReentrant
         returns (
             address coin,
             address content,
@@ -208,12 +186,8 @@ contract Multicall is ReentrancyGuard {
             address lpToken
         )
     {
-        uint256 quoteBalanceBefore = IERC20(quote).balanceOf(address(this));
         // Transfer quote from user
         IERC20(quote).safeTransferFrom(msg.sender, address(this), params.quoteAmount);
-        if (IERC20(quote).balanceOf(address(this)) != quoteBalanceBefore + params.quoteAmount) {
-            revert Multicall__IncorrectPayment();
-        }
         IERC20(quote).safeApprove(core, 0);
         IERC20(quote).safeApprove(core, params.quoteAmount);
 
@@ -236,22 +210,14 @@ contract Multicall is ReentrancyGuard {
             auctionMinInitPrice: params.auctionMinInitPrice
         });
 
-        (coin, content, minter, rewarder, auction, lpToken) = ICore(core).launch(launchParams);
-        IERC20(quote).safeApprove(core, 0);
-
-        uint256 quoteBalanceAfter = IERC20(quote).balanceOf(address(this));
-        if (quoteBalanceAfter > quoteBalanceBefore) {
-            IERC20(quote).safeTransfer(msg.sender, quoteBalanceAfter - quoteBalanceBefore);
-        }
-        return (coin, content, minter, rewarder, auction, lpToken);
+        return ICore(core).launch(launchParams);
     }
 
     /**
      * @notice Update the minter period (trigger weekly emission).
      * @param content Content contract address
      */
-    function updateMinterPeriod(address content) external nonReentrant {
-        if (!ICore(core).isDeployedContent(content)) revert Multicall__InvalidContent();
+    function updateMinterPeriod(address content) external {
         address minter = ICoin(IContent(content).coin()).minter();
         IMinter(minter).updatePeriod();
     }
@@ -260,8 +226,7 @@ contract Multicall is ReentrancyGuard {
      * @notice Claim all rewards (Coin from rewarder + fees from content).
      * @param content Content contract address
      */
-    function claimRewards(address content) external nonReentrant {
-        if (!ICore(core).isDeployedContent(content)) revert Multicall__InvalidContent();
+    function claimRewards(address content) external {
         address rewarder = IContent(content).rewarder();
         IRewarder(rewarder).getReward(msg.sender);
         try IContent(content).claim(msg.sender) {} catch {}
@@ -276,7 +241,6 @@ contract Multicall is ReentrancyGuard {
      * @return state Aggregated coin state
      */
     function getCoinState(address content, address account) external view returns (CoinState memory state) {
-        if (!ICore(core).isDeployedContent(content)) revert Multicall__InvalidContent();
         // Core registry data
         state.index = ICore(core).contentToIndex(content);
         state.coin = IContent(content).coin();
@@ -329,20 +293,15 @@ contract Multicall is ReentrancyGuard {
      * @return state Content token state
      */
     function getContentState(address content, uint256 tokenId) external view returns (ContentState memory state) {
-        if (!ICore(core).isDeployedContent(content)) revert Multicall__InvalidContent();
         address rewarder = IContent(content).rewarder();
         address coinToken = IContent(content).coin();
 
         state.tokenId = tokenId;
         state.epochId = IContent(content).idToEpochId(tokenId);
         state.startTime = IContent(content).idToStartTime(tokenId);
-        state.initPrice = IContent(content).idToPremiumStart(tokenId);
-        state.reserve = IContent(content).reserveOf(tokenId);
-        state.nextReserve = IContent(content).nextReserveOf(tokenId);
-        state.premium = IContent(content).premiumOf(tokenId);
+        state.initPrice = IContent(content).idToInitPrice(tokenId);
+        state.stake = IContent(content).idToStake(tokenId);
         state.price = IContent(content).getPrice(tokenId);
-        state.rewardWeight = state.reserve;
-        state.stake = state.reserve;
         state.creator = IContent(content).idToCreator(tokenId);
         state.owner = IContent(content).ownerOf(tokenId);
         state.uri = IContent(content).tokenURI(tokenId);
@@ -351,8 +310,7 @@ contract Multicall is ReentrancyGuard {
         // Calculate this content's share of weekly rewards
         uint256 totalStaked = IRewarder(rewarder).totalSupply();
         uint256 totalRewardForDuration = IRewarder(rewarder).getRewardForDuration(coinToken);
-        state.rewardForDuration =
-            totalStaked == 0 ? 0 : totalRewardForDuration * state.rewardWeight / totalStaked;
+        state.rewardForDuration = totalStaked == 0 ? 0 : totalRewardForDuration * state.stake / totalStaked;
 
         return state;
     }
@@ -364,7 +322,6 @@ contract Multicall is ReentrancyGuard {
      * @return state Auction state
      */
     function getAuctionState(address content, address account) external view returns (AuctionState memory state) {
-        if (!ICore(core).isDeployedContent(content)) revert Multicall__InvalidContent();
         address auction = ICore(core).contentToAuction(content);
 
         state.epochId = IAuction(auction).epochId();

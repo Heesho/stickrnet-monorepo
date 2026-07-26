@@ -15,7 +15,6 @@ interface IContent {
         uint256 deadline,
         uint256 maxPrice
     ) external returns (uint256 price);
-    function surrender(uint256 tokenId) external;
     function claim(address account) external;
     function setUri(string memory _uri) external;
     function setTreasury(address _treasury) external;
@@ -24,7 +23,6 @@ interface IContent {
     function setModerators(address[] calldata accounts, bool _accountToIsModerator) external;
     function approveContents(uint256[] calldata tokenIds) external;
     function addReward(address rewardToken) external;
-    function setRewardNotifier(address rewardToken, address notifier) external;
     function transferOwnership(address newOwner) external;
 
     function rewarder() external view returns (address);
@@ -37,19 +35,13 @@ interface IContent {
     function uri() external view returns (string memory);
     function isModerated() external view returns (bool);
     function nextTokenId() external view returns (uint256);
-    function idToReserve(uint256 tokenId) external view returns (uint256);
-    function idToPremiumStart(uint256 tokenId) external view returns (uint256);
-    function idToLastCollectedAt(uint256 tokenId) external view returns (uint256);
+    function idToStake(uint256 tokenId) external view returns (uint256);
     function idToCreator(uint256 tokenId) external view returns (address);
     function idToApproved(uint256 tokenId) external view returns (bool);
     function idToEpochId(uint256 tokenId) external view returns (uint256);
+    function idToInitPrice(uint256 tokenId) external view returns (uint256);
     function idToStartTime(uint256 tokenId) external view returns (uint256);
-    function reserveOf(uint256 tokenId) external view returns (uint256);
-    function premiumOf(uint256 tokenId) external view returns (uint256);
-    function nextReserveOf(uint256 tokenId) external view returns (uint256);
     function getPrice(uint256 tokenId) external view returns (uint256);
-    function totalReserved() external view returns (uint256);
-    function totalClaimable() external view returns (uint256);
     function ownerOf(uint256 tokenId) external view returns (address);
     function tokenURI(uint256 tokenId) external view returns (string memory);
     function totalSupply() external view returns (uint256);

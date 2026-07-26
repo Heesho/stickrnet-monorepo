@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useReadContract } from "wagmi";
-import { baseSepolia } from "wagmi/chains";
+import { base } from "wagmi/chains";
 import { CONTRACT_ADDRESSES, CORE_ABI } from "@/lib/contracts";
 
 export type DexScreenerPair = {
@@ -110,7 +110,7 @@ export function useDexScreener(
     abi: CORE_ABI,
     functionName: "contentToLP",
     args: channelAddress ? [channelAddress] : undefined,
-    chainId: baseSepolia.id,
+    chainId: base.id,
     query: {
       enabled: !!channelAddress,
     },

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { ArrowLeft } from "lucide-react";
 
 const menuItems = [
   { href: "/explore", label: "Explore" },
@@ -33,6 +34,11 @@ export function GlobalNav() {
   const isChannel = isChannelPage(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
   const pageName = getPageName(pathname);
+
+  // Close menu on route change
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   // Listen for "open-nav-menu" custom event (used by landing page Enter App)
   useEffect(() => {

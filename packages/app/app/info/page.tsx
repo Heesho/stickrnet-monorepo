@@ -15,35 +15,35 @@ const INFO_SECTIONS = [
   {
     title: "Stickers",
     content:
-      "Every post is a single NFT backed by a refundable USDC reserve. The collection price is the next reserve plus a speculative premium. Only the premium decays over 24 hours; the price never falls below the reserve required for the next owner.",
+      "Every post is a single NFT. One post, one owner. Priced in USDC. A sticker can always be collected from the current owner at the current price. Price 2x's after each collection, then decays toward $0 over 24 hours.",
     bullets: [
       "Everything is always collectible — just a matter of when the price is right",
-      "The reserve grows 10% on each collection",
-      "The premium decays to $0 while refundable backing remains intact",
+      "Posts nobody cares about drift to $0",
+      "Posts people fight over keep getting collected and repriced",
       "The feed sorts itself through market dynamics",
     ],
   },
   {
     title: "Curation Mining",
     content:
-      "Owning stickers is how you mine the community coin. Your mining weight equals the refundable USDC reserve locked behind your Sticker — never the speculative premium or fees.",
+      "Owning stickers is how you mine the community coin. Your mining weight equals the price you paid to collect. Find good posts early, collect them before they get expensive, hold them to mine.",
     bullets: [
-      "Collecting locks the new reserve and creates equal mining power",
-      "You can surrender a Sticker after 24 hours and recover its full reserve",
-      "If someone collects yours, you recover the full old reserve plus 40% of the premium",
+      "Collecting a sticker automatically stakes it in the mining pool",
+      "More valuable stickers mine at a higher rate",
+      "If someone wants yours, they pay to take it — you get 80% of the price",
       "Curators are the miners — taste is hashpower",
     ],
   },
   {
     title: "Collection Split",
     content:
-      "The refundable reserve remains locked. Only the speculative premium is split across five recipients.",
+      "When a sticker gets collected, the USDC paid splits across five recipients. Creators get paid every time their post changes hands. Make stuff people want, get paid for it.",
     bullets: [
-      "40% of premium → previous owner",
-      "30% of premium → treasury (defaults to LP buyback/burns)",
-      "20% of premium → creator",
-      "5% of premium → team (channel launcher)",
-      "5% of premium → protocol",
+      "80% → previous owner",
+      "15% → treasury (defaults to LP buyback/burns)",
+      "3% → creator (paid on every collection, forever)",
+      "1% → team (channel launcher)",
+      "1% → protocol",
     ],
   },
   {
@@ -62,10 +62,10 @@ const INFO_SECTIONS = [
     content:
       "Treasury fees accumulate as USDC from collection fees. Buyable through a Dutch auction by paying with LP tokens, which get permanently burned — deepening liquidity for everyone.",
     bullets: [
-      "Dutch auction — price decays to the configured floor",
+      "Dutch auction — price decays over time",
       "Buy when the price makes it profitable",
-      "LP tokens used to pay are locked at the dead address",
-      "New auction epoch starts at the configured multiplier of the last price",
+      "LP tokens used to pay get burned — liquidity only grows",
+      "New auction epoch starts after each purchase at 1.2x the last price",
     ],
   },
 ];

@@ -10,25 +10,27 @@ const divDec = (amount, decimals = 18) => amount / 10 ** decimals;
 // CONFIGURATION - UPDATE THESE FOR YOUR DEPLOYMENT
 // =============================================================================
 
-// Base Sepolia addresses must be explicitly supplied and independently reviewed.
-let USDC_ADDRESS = process.env.USDC_ADDRESS || "";
-const UNISWAP_V2_FACTORY = process.env.UNISWAP_V2_FACTORY || "";
-const UNISWAP_V2_ROUTER = process.env.UNISWAP_V2_ROUTER || "";
+// Base Mainnet addresses
+// For testing: leave addresses empty to deploy mocks
+// For mainnet: set to real token addresses
+let USDC_ADDRESS = "0xe90495BE187d434e23A9B1FeC0B6Ce039700870e"; // MockUSDC already deployed
+const UNISWAP_V2_FACTORY = "0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6";
+const UNISWAP_V2_ROUTER = "0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24";
 
 // Protocol settings
-const PROTOCOL_FEE_ADDRESS = process.env.PROTOCOL_FEE_ADDRESS || "";
-const MULTISIG_ADDRESS = process.env.MULTISIG_ADDRESS || "";
+const PROTOCOL_FEE_ADDRESS = "0xbA366c82815983fF130C23CED78bD95E1F2c18EA"; // TODO: Set protocol fee recipient
+const MULTISIG_ADDRESS = "0xeE0CB49D2805DA6bC0A979ddAd87bb793fbB765E";
 const MIN_QUOTE_FOR_LAUNCH = convert("1", 6); // 1 USDC minimum
 
 // Deployed Contract Addresses (paste after deployment)
-const MOCK_USDC = process.env.MOCK_USDC || "";
-const COIN_FACTORY = process.env.COIN_FACTORY || "";
-const CONTENT_FACTORY = process.env.CONTENT_FACTORY || "";
-const MINTER_FACTORY = process.env.MINTER_FACTORY || "";
-const REWARDER_FACTORY = process.env.REWARDER_FACTORY || "";
-const AUCTION_FACTORY = process.env.AUCTION_FACTORY || "";
-const CORE = process.env.CORE || "";
-const MULTICALL = process.env.MULTICALL || "";
+const MOCK_USDC = "0xe90495BE187d434e23A9B1FeC0B6Ce039700870e";
+const COIN_FACTORY = "0xd6127d8fFb103508e2992bF7eD3e42612A1e646A";
+const CONTENT_FACTORY = "0x83B10085Ba26Cc56026FD44E62d8a5EdB6BDD984";
+const MINTER_FACTORY = "0x802A6F4d2Ff28B8bC052861Bf1DD84fEbDA1dc3b";
+const REWARDER_FACTORY = "0x308612C2547E171c58988c4D57C442e4803523ae";
+const AUCTION_FACTORY = "0xE58D1bd1DC5841dA7AeA1269460a9396C7cec680";
+const CORE = "0xf1fc02884D1D701fca31b8f90B309b726597424A";
+const MULTICALL = "0xF1C7682591c9b4330ad311acc446F7a190a11cff";
 
 // =============================================================================
 // STICKR CHANNEL LAUNCH PARAMETERS
@@ -46,10 +48,10 @@ const STICKR_LAUNCH_PARAMS = {
   halvingPeriod: 2592000, // 30 days in seconds
   contentMinInitPrice: convert("1", 6), // 1 USDC minimum content price
   contentIsModerated: false,
-  auctionInitPrice: convert("100", 18), // 100 LP tokens (the Auction payment token)
+  auctionInitPrice: convert("100", 6), // 100 USDC auction starting price
   auctionEpochPeriod: 604800, // 7 days in seconds
   auctionPriceMultiplier: convert("1.5", 18), // 1.5x price multiplier
-  auctionMinInitPrice: convert("1", 18), // 1 LP token floor
+  auctionMinInitPrice: convert("1", 6), // 1 USDC auction min price
 };
 
 // Contract Variables
@@ -594,12 +596,6 @@ async function verifyAuctionByContentIndex(contentIndex) {
 
 async function deploySystem() {
   console.log("========== DEPLOYING SYSTEM CONTRACTS ==========\n");
-  console.log(
-    "Reserve economics testnet deployment: performing a clean system cutover."
-  );
-  console.log(
-    "This run deploys a new ContentFactory, Core, and Multicall; replace app addresses and reindex the subgraph after verification.\n"
-  );
 
   // 1. USDC already deployed, skip MockUSDC deployment
   // await deployMockUSDC();
@@ -826,20 +822,6 @@ async function printContentInfo(contentIndex) {
 // =============================================================================
 
 async function main() {
-  if (hre.network.config.chainId !== 84532) {
-    throw new Error(`Refusing deployment on chain ${hre.network.config.chainId}; expected Base Sepolia (84532)`);
-  }
-  for (const [name, value] of Object.entries({
-    USDC_ADDRESS,
-    UNISWAP_V2_FACTORY,
-    UNISWAP_V2_ROUTER,
-    PROTOCOL_FEE_ADDRESS,
-    MULTISIG_ADDRESS,
-  })) {
-    if (!ethers.utils.isAddress(value) || value === ethers.constants.AddressZero) {
-      throw new Error(`${name} must be an explicit nonzero Base Sepolia address`);
-    }
-  }
   const [wallet] = await ethers.getSigners();
   console.log("Using wallet:", wallet.address);
   console.log(

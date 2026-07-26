@@ -1,9 +1,9 @@
 export const CONTRACT_ADDRESSES = {
-  core: process.env.NEXT_PUBLIC_CORE_ADDRESS || "0x0000000000000000000000000000000000000000",
-  multicall: process.env.NEXT_PUBLIC_MULTICALL_ADDRESS || "0x0000000000000000000000000000000000000000",
-  usdc: process.env.NEXT_PUBLIC_USDC_ADDRESS || "0x0000000000000000000000000000000000000000",
-  uniV2Router: process.env.NEXT_PUBLIC_UNISWAP_V2_ROUTER || "0x0000000000000000000000000000000000000000",
-  uniV2Factory: process.env.NEXT_PUBLIC_UNISWAP_V2_FACTORY || "0x0000000000000000000000000000000000000000",
+  core: "0xf1fc02884D1D701fca31b8f90B309b726597424A",
+  multicall: "0xF1C7682591c9b4330ad311acc446F7a190a11cff",
+  usdc: "0xe90495BE187d434e23A9B1FeC0B6Ce039700870e",
+  uniV2Router: "0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24",
+  uniV2Factory: "0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6",
 } as const;
 
 // Native ETH placeholder address used by 0x API
@@ -148,11 +148,7 @@ export const MULTICALL_ABI = [
           { internalType: "uint256", name: "startTime", type: "uint256" },
           { internalType: "uint256", name: "initPrice", type: "uint256" },
           { internalType: "uint256", name: "stake", type: "uint256" },
-          { internalType: "uint256", name: "reserve", type: "uint256" },
-          { internalType: "uint256", name: "nextReserve", type: "uint256" },
-          { internalType: "uint256", name: "premium", type: "uint256" },
           { internalType: "uint256", name: "price", type: "uint256" },
-          { internalType: "uint256", name: "rewardWeight", type: "uint256" },
           { internalType: "uint256", name: "rewardForDuration", type: "uint256" },
           { internalType: "address", name: "creator", type: "address" },
           { internalType: "address", name: "owner", type: "address" },
@@ -452,34 +448,6 @@ export const CONTENT_ABI = [
   },
   {
     inputs: [{ internalType: "uint256", name: "tokenId", type: "uint256" }],
-    name: "reserveOf",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "uint256", name: "tokenId", type: "uint256" }],
-    name: "premiumOf",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "uint256", name: "tokenId", type: "uint256" }],
-    name: "nextReserveOf",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "totalReserved",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "uint256", name: "tokenId", type: "uint256" }],
     name: "idToCreator",
     outputs: [{ internalType: "address", name: "", type: "address" }],
     stateMutability: "view",
@@ -501,6 +469,13 @@ export const CONTENT_ABI = [
   },
   {
     inputs: [{ internalType: "uint256", name: "tokenId", type: "uint256" }],
+    name: "idToStake",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "tokenId", type: "uint256" }],
     name: "idToEpochId",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
@@ -509,6 +484,13 @@ export const CONTENT_ABI = [
   {
     inputs: [{ internalType: "uint256", name: "tokenId", type: "uint256" }],
     name: "idToStartTime",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "tokenId", type: "uint256" }],
+    name: "idToInitPrice",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
@@ -555,13 +537,6 @@ export const CONTENT_ABI = [
   {
     inputs: [{ internalType: "address", name: "account", type: "address" }],
     name: "claim",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "uint256", name: "tokenId", type: "uint256" }],
-    name: "surrender",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -732,11 +707,7 @@ export type ContentState = {
   startTime: bigint;
   initPrice: bigint;
   stake: bigint;
-  reserve: bigint;
-  nextReserve: bigint;
-  premium: bigint;
   price: bigint;
-  rewardWeight: bigint;
   rewardForDuration: bigint;
   creator: `0x${string}`;
   owner: `0x${string}`;

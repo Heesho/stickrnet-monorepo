@@ -1,5 +1,5 @@
 import { useReadContract, useReadContracts } from "wagmi";
-import { baseSepolia } from "wagmi/chains";
+import { base } from "wagmi/chains";
 import { zeroAddress } from "viem";
 import {
   CONTRACT_ADDRESSES,
@@ -16,7 +16,7 @@ export function useAuctionState(
     abi: MULTICALL_ABI,
     functionName: "getAuctionState",
     args: channelAddress ? [channelAddress, account ?? zeroAddress] : undefined,
-    chainId: baseSepolia.id,
+    chainId: base.id,
     query: {
       enabled: !!channelAddress,
       refetchInterval: 15_000,
@@ -51,7 +51,7 @@ export function useAllAuctionStates(
     abi: MULTICALL_ABI,
     functionName: "getAuctionState" as const,
     args: [address, account ?? zeroAddress] as const,
-    chainId: baseSepolia.id,
+    chainId: base.id,
   }));
 
   const { data: states, isLoading, error, refetch } = useReadContracts({

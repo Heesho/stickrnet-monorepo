@@ -10,7 +10,7 @@ const AddressDead = "0x000000000000000000000000000000000000dEaD";
 async function getAuctionData(content, tokenId) {
   return {
     epochId: await content.idToEpochId(tokenId),
-    initPrice: await content.idToPremiumStart(tokenId),
+    initPrice: await content.idToInitPrice(tokenId),
     startTime: await content.idToStartTime(tokenId)
   };
 }
@@ -511,7 +511,7 @@ describe("Security Audit Tests", function () {
           price.mul(2)
         );
 
-        const stake = await content.idToReserve(tokenId);
+        const stake = await content.idToStake(tokenId);
         const rewarderBalance = await rewarder.accountToBalance(user2.address);
 
         // User's rewarder balance should include their stake
@@ -547,41 +547,40 @@ describe("Security Audit Tests", function () {
   });
 
   describe("9. Edge Case Tests", function () {
-    it("Zero premium collection preserves reserve backing", async function () {
+    it("Zero price collection works correctly", async function () {
       await content.connect(user1).create(user1.address, "ipfs://zero-price");
       const tokenId = await content.nextTokenId();
 
-      // Wait for the premium to decay to 0.
+      // Wait for price to decay to 0
       await ethers.provider.send("evm_increaseTime", [31 * DAY]);
       await ethers.provider.send("evm_mine");
 
       const price = await content.getPrice(tokenId);
-      expect(await content.premiumOf(tokenId)).to.equal(0);
-      expect(price).to.equal(await content.nextReserveOf(tokenId));
+      expect(price).to.equal(0);
 
       const auctionData = await getAuctionData(content, tokenId);
 
-      await usdc.connect(user2).approve(content.address, price);
+      // Should be able to collect for free
       await content.connect(user2).collect(
         user2.address,
         tokenId,
         auctionData.epochId,
         ethers.constants.MaxUint256,
-        price
+        0
       );
 
       expect(await content.ownerOf(tokenId)).to.equal(user2.address);
 
-      // Stake is exactly the funded reserve.
-      const stake = await content.idToReserve(tokenId);
-      expect(stake).to.equal(await content.minInitPrice());
+      // Stake should be set to new minInitPrice (since price was 0)
+      const stake = await content.idToStake(tokenId);
+      expect(stake).to.equal(0);
     });
 
     it("First collection has no previous stake to withdraw", async function () {
       await content.connect(user1).create(user1.address, "ipfs://first-collect");
       const tokenId = await content.nextTokenId();
 
-      const prevStake = await content.idToReserve(tokenId);
+      const prevStake = await content.idToStake(tokenId);
       expect(prevStake).to.equal(0);
 
       // Collection should work even with 0 previous stake

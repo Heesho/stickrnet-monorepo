@@ -38,9 +38,6 @@ contract Core is Ownable, ReentrancyGuard {
 
     address public constant DEAD_ADDRESS = 0x000000000000000000000000000000000000dEaD;
     uint256 public constant LP_DEADLINE_BUFFER = 20 minutes;
-    uint256 public constant MAX_TOKEN_NAME_LENGTH = 64;
-    uint256 public constant MAX_TOKEN_SYMBOL_LENGTH = 16;
-    uint256 public constant MAX_URI_LENGTH = 2_048;
 
     /*----------  IMMUTABLES  -------------------------------------------*/
 
@@ -95,12 +92,6 @@ contract Core is Ownable, ReentrancyGuard {
     error Core__EmptyTokenSymbol();
     error Core__InvalidCoinAmount();
     error Core__ZeroAddress();
-    error Core__InvalidContract();
-    error Core__RouterFactoryMismatch();
-    error Core__IncorrectQuoteReceived();
-    error Core__LiquidityMismatch();
-    error Core__InvalidPair();
-    error Core__MetadataTooLong();
 
     /*----------  EVENTS  -----------------------------------------------*/
 
@@ -164,15 +155,6 @@ contract Core is Ownable, ReentrancyGuard {
         ) {
             revert Core__ZeroAddress();
         }
-        if (
-            _quote.code.length == 0 || _uniswapV2Factory.code.length == 0
-                || _uniswapV2Router.code.length == 0 || _coinFactory.code.length == 0
-                || _contentFactory.code.length == 0 || _minterFactory.code.length == 0
-                || _auctionFactory.code.length == 0 || _rewarderFactory.code.length == 0
-        ) revert Core__InvalidContract();
-        if (IUniswapV2Router(_uniswapV2Router).factory() != _uniswapV2Factory) {
-            revert Core__RouterFactoryMismatch();
-        }
 
         quote = _quote;
         uniswapV2Factory = _uniswapV2Factory;
@@ -216,19 +198,10 @@ contract Core is Ownable, ReentrancyGuard {
         if (params.quoteAmount < minQuoteForLaunch) revert Core__InsufficientQuote();
         if (bytes(params.tokenName).length == 0) revert Core__EmptyTokenName();
         if (bytes(params.tokenSymbol).length == 0) revert Core__EmptyTokenSymbol();
-        if (
-            bytes(params.tokenName).length > MAX_TOKEN_NAME_LENGTH
-                || bytes(params.tokenSymbol).length > MAX_TOKEN_SYMBOL_LENGTH
-                || bytes(params.uri).length > MAX_URI_LENGTH
-        ) revert Core__MetadataTooLong();
         if (params.coinAmount == 0) revert Core__InvalidCoinAmount();
 
         // Transfer quote from launcher
-        uint256 quoteBalanceBefore = IERC20(quote).balanceOf(address(this));
         IERC20(quote).safeTransferFrom(msg.sender, address(this), params.quoteAmount);
-        if (IERC20(quote).balanceOf(address(this)) != quoteBalanceBefore + params.quoteAmount) {
-            revert Core__IncorrectQuoteReceived();
-        }
 
         // Deploy Coin token via factory (Core becomes initial minter)
         coin = ICoinFactory(coinFactory).deploy(params.tokenName, params.tokenSymbol);
@@ -242,8 +215,7 @@ contract Core is Ownable, ReentrancyGuard {
         IERC20(quote).safeApprove(uniswapV2Router, 0);
         IERC20(quote).safeApprove(uniswapV2Router, params.quoteAmount);
 
-        (uint256 amountCoin, uint256 amountQuote, uint256 liquidity) =
-            IUniswapV2Router(uniswapV2Router).addLiquidity(
+        (,, uint256 liquidity) = IUniswapV2Router(uniswapV2Router).addLiquidity(
             coin,
             quote,
             params.coinAmount,
@@ -253,17 +225,9 @@ contract Core is Ownable, ReentrancyGuard {
             address(this),
             block.timestamp + LP_DEADLINE_BUFFER
         );
-        IERC20(coin).safeApprove(uniswapV2Router, 0);
-        IERC20(quote).safeApprove(uniswapV2Router, 0);
-        if (
-            amountCoin != params.coinAmount || amountQuote != params.quoteAmount || liquidity == 0
-                || IERC20(coin).balanceOf(address(this)) != 0
-                || IERC20(quote).balanceOf(address(this)) != quoteBalanceBefore
-        ) revert Core__LiquidityMismatch();
 
         // Get LP token address and burn initial liquidity
         lpToken = IUniswapV2Factory(uniswapV2Factory).getPair(coin, quote);
-        if (lpToken == address(0) || lpToken.code.length == 0) revert Core__InvalidPair();
         IERC20(lpToken).safeTransfer(DEAD_ADDRESS, liquidity);
 
         // Deploy Auction with LP as payment token (receives treasury fees, burns LP)
@@ -302,9 +266,6 @@ contract Core is Ownable, ReentrancyGuard {
             params.tailUps,
             params.halvingPeriod
         );
-
-        // Only the immutable Minter may schedule the primary Coin reward.
-        IContent(content).setRewardNotifier(coin, minter);
 
         // Transfer Coin minting rights to Minter (permanently locked since Minter has no setMinter function)
         ICoin(coin).setMinter(minter);

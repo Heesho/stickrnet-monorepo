@@ -14,7 +14,7 @@ const EPOCH_PERIOD = 1 * DAY;
 async function getAuctionData(content, tokenId) {
   return {
     epochId: await content.idToEpochId(tokenId),
-    initPrice: await content.idToPremiumStart(tokenId),
+    initPrice: await content.idToInitPrice(tokenId),
     startTime: await content.idToStartTime(tokenId)
   };
 }
@@ -119,60 +119,63 @@ describe("STRESS TESTS - Professional Audit", function () {
     it("1.1 Fee distribution with minimum price (1 USDC)", async function () {
       console.log("\n--- Testing 1 USDC fee distribution ---");
 
+      // Creator creates content, then DIFFERENT user collects
+      // This way creator != prevOwner and we can verify separate fee paths
       await content.connect(creator1).create(creator1.address, "ipfs://min-price-test");
       const tokenId = await content.nextTokenId();
-      const price = await content.getPrice(tokenId);
-      expect(price).to.equal(convert("2", 6));
 
+      const price = await content.getPrice(tokenId);
+      expect(price).to.equal(convert("1", 6)); // 1 USDC = 1,000,000
+
+      // First collection: creator1 is BOTH prevOwner and creator
+      // So creator1 receives: 80% (prevOwner) + 3% (creator) = 83%
+      const expectedCreatorAsPrevOwnerAndCreator = price.mul(8300).div(10000);
+      const expectedTeam = price.mul(100).div(10000);
+      const expectedProtocol = price.mul(100).div(10000);
+      const expectedTreasury = price.sub(expectedCreatorAsPrevOwnerAndCreator).sub(expectedTeam).sub(expectedProtocol);
+
+      console.log("Price:", divDec6(price), "USDC");
+      console.log("Expected creator (80%+3%):", divDec6(expectedCreatorAsPrevOwnerAndCreator));
+      console.log("Expected treasury (15%):", divDec6(expectedTreasury));
+      console.log("Expected team (1%):", divDec6(expectedTeam));
+      console.log("Expected protocol (1%):", divDec6(expectedProtocol));
+
+      // Verify total = price (no dust loss)
+      const totalFees = expectedCreatorAsPrevOwnerAndCreator.add(expectedTreasury).add(expectedTeam).add(expectedProtocol);
+      expect(totalFees).to.equal(price);
+      console.log("Total fees equal price: PASS");
+
+      // Execute collection
       const creatorBalBefore = await usdc.balanceOf(creator1.address);
       const creatorClaimableBefore = await content.accountToClaimable(creator1.address);
-      const auctionBalBefore = await content.accountToClaimable(auction.address);
-      const protocolBalBefore = await content.accountToClaimable(protocol.address);
+      const auctionBalBefore = await usdc.balanceOf(auction.address);
+      const protocolBalBefore = await usdc.balanceOf(protocol.address);
       const teamAddress = await content.team();
-      const teamBalBefore = await content.accountToClaimable(teamAddress);
+      const teamBalBefore = await usdc.balanceOf(teamAddress);
 
       await usdc.connect(user1).approve(content.address, price);
       const auctionData = await getAuctionData(content, tokenId);
       const block = await ethers.provider.getBlock("latest");
-      const tx = await content.connect(user1).collect(
-        user1.address,
-        tokenId,
-        auctionData.epochId,
-        block.timestamp + 3600,
-        price
-      );
-      const collected = (await tx.wait()).events.find(
-        (event) => event.event === "Content__Collected"
-      ).args;
+      await content.connect(user1).collect(user1.address, tokenId, auctionData.epochId, block.timestamp + 3600, price);
 
+      // Verify actual distribution
+      // Note: prevOwner fee (80%) goes to claimable, creator fee (3%) may also go to claimable
+      // when creator == prevOwner (H-01 audit fix: pull-based fees)
       const creatorDirectReceived = (await usdc.balanceOf(creator1.address)).sub(creatorBalBefore);
       const creatorClaimableReceived = (await content.accountToClaimable(creator1.address)).sub(creatorClaimableBefore);
       const creatorTotalReceived = creatorDirectReceived.add(creatorClaimableReceived);
-      const auctionReceived = (await content.accountToClaimable(auction.address)).sub(auctionBalBefore);
-      const protocolReceived = (await content.accountToClaimable(protocol.address)).sub(protocolBalBefore);
-      const teamReceived = (await content.accountToClaimable(teamAddress)).sub(teamBalBefore);
+      const auctionReceived = (await usdc.balanceOf(auction.address)).sub(auctionBalBefore);
+      const protocolReceived = (await usdc.balanceOf(protocol.address)).sub(protocolBalBefore);
+      const teamReceived = (await usdc.balanceOf(teamAddress)).sub(teamBalBefore);
 
-      const ownerPremium = collected.premium.mul(4000).div(10000);
-      const creatorPremium = collected.premium.mul(2000).div(10000);
-      const expectedTeam = collected.premium.mul(500).div(10000);
-      const expectedProtocol = collected.premium.mul(500).div(10000);
-      const expectedTreasury = collected.premium
-        .sub(ownerPremium)
-        .sub(creatorPremium)
-        .sub(expectedTeam)
-        .sub(expectedProtocol);
+      // Creator (who is also prevOwner) gets 80% + 3% = 83% total (direct + claimable)
+      const expectedCreatorTotal = price.mul(8300).div(10000);
 
-      expect(creatorTotalReceived).to.equal(ownerPremium.add(creatorPremium));
-      expect(auctionReceived).to.equal(expectedTreasury);
-      expect(protocolReceived).to.equal(expectedProtocol);
-      expect(teamReceived).to.equal(expectedTeam);
-      expect(
-        creatorTotalReceived
-          .add(auctionReceived)
-          .add(protocolReceived)
-          .add(teamReceived)
-          .add(collected.newReserve)
-      ).to.equal(collected.price);
+      // Allow small tolerance for price decay during transaction (1-day epoch = fast decay)
+      expect(creatorTotalReceived).to.be.closeTo(expectedCreatorTotal, 100);
+      expect(auctionReceived).to.be.closeTo(expectedTreasury, 100);
+      expect(protocolReceived).to.be.closeTo(expectedProtocol, 100);
+      expect(teamReceived).to.be.closeTo(expectedTeam, 100);
       console.log("All fee distributions correct: PASS");
     });
 
@@ -194,9 +197,9 @@ describe("STRESS TESTS - Professional Audit", function () {
       let block = await ethers.provider.getBlock("latest");
       await content.connect(user1).collect(user1.address, tokenId, auctionData.epochId, block.timestamp + 3600, currentPrice);
 
-      // New reserve and fresh premium each start at 1.1 USDC.
+      // Now price should be ~2x minInitPrice = 2 USDC (allow tolerance for decay)
       currentPrice = await content.getPrice(tokenId);
-      expect(currentPrice).to.be.closeTo(convert("2.2", 6), 100);
+      expect(currentPrice).to.be.closeTo(convert("2", 6), 100);
 
       // Collect again
       await usdc.connect(user2).approve(content.address, currentPrice);
@@ -204,20 +207,21 @@ describe("STRESS TESTS - Professional Audit", function () {
       block = await ethers.provider.getBlock("latest");
       await content.connect(user2).collect(user2.address, tokenId, auctionData.epochId, block.timestamp + 3600, currentPrice);
 
-      // Reserve and premium start both grow by another 10%.
+      // Price should be ~4 USDC (allow tolerance for decay between txs)
       currentPrice = await content.getPrice(tokenId);
-      expect(currentPrice).to.be.closeTo(convert("2.42", 6), 500);
-      console.log("Reserve growth mechanism: PASS");
+      expect(currentPrice).to.be.closeTo(convert("4", 6), 500);
+      console.log("Price doubling mechanism: PASS");
 
-      const premium = await content.premiumOf(tokenId);
-      const prevOwnerAmount = premium.mul(4000).div(10000);
-      const creatorAmount = premium.mul(2000).div(10000);
-      const teamAmount = premium.mul(500).div(10000);
-      const protocolAmount = premium.mul(500).div(10000);
-      const treasuryAmount = premium.sub(prevOwnerAmount).sub(creatorAmount).sub(teamAmount).sub(protocolAmount);
+      // Verify fee math at 4 USDC
+      const price = currentPrice;
+      const prevOwnerAmount = price.mul(8000).div(10000);
+      const creatorAmount = price.mul(300).div(10000);
+      const teamAmount = price.mul(100).div(10000);
+      const protocolAmount = price.mul(100).div(10000);
+      const treasuryAmount = price.sub(prevOwnerAmount).sub(creatorAmount).sub(teamAmount).sub(protocolAmount);
 
-      expect(prevOwnerAmount.add(creatorAmount).add(teamAmount).add(protocolAmount).add(treasuryAmount)).to.equal(premium);
-      console.log("Premium fee math: PASS");
+      expect(prevOwnerAmount.add(creatorAmount).add(teamAmount).add(protocolAmount).add(treasuryAmount)).to.equal(price);
+      console.log("Fee math at 4 USDC: PASS");
     });
 
     it("1.3 Price decay precision over 24 hours", async function () {
@@ -227,7 +231,6 @@ describe("STRESS TESTS - Professional Audit", function () {
       const tokenId = await content.nextTokenId();
 
       const initPrice = await content.getPrice(tokenId);
-      const reserveFloor = await content.nextReserveOf(tokenId);
       console.log("Initial price:", divDec6(initPrice), "USDC");
 
       // Test at various time points (hours within 24-hour EPOCH_PERIOD)
@@ -248,19 +251,17 @@ describe("STRESS TESTS - Professional Audit", function () {
         await network.provider.send("evm_mine");
 
         const decayedPrice = await content.getPrice(freshTokenId);
-        const expectedPrice = reserveFloor.add(
-          reserveFloor.mul(24 - point.hours).div(24)
-        );
+        const expectedPrice = initPrice.mul(24 - point.hours).div(24);
 
-        // Allow a few micro-USDC for per-block timestamp increments in instrumented runs.
-        expect(decayedPrice).to.be.closeTo(expectedPrice, 20);
+        // Allow 1 wei tolerance for rounding
+        expect(decayedPrice).to.be.closeTo(expectedPrice, 1);
         console.log(`Hour ${point.hours}: ${divDec6(decayedPrice)} USDC (expected ~${divDec6(expectedPrice)})`);
       }
       console.log("Price decay precision: PASS");
     });
 
-    it("1.4 Collection at reserve floor after full premium decay", async function () {
-      console.log("\n--- Testing reserve-floor collection ---");
+    it("1.4 Collection at price = 0 (after full decay)", async function () {
+      console.log("\n--- Testing zero price collection ---");
 
       await content.connect(creator1).create(creator1.address, "ipfs://zero-price");
       const tokenId = await content.nextTokenId();
@@ -270,32 +271,26 @@ describe("STRESS TESTS - Professional Audit", function () {
       await network.provider.send("evm_mine");
 
       const price = await content.getPrice(tokenId);
-      expect(await content.premiumOf(tokenId)).to.equal(0);
-      expect(price).to.equal(await content.nextReserveOf(tokenId));
+      expect(price).to.equal(0);
       console.log("Price after 2 days:", divDec6(price), "USDC");
 
       // Collect at zero price
       const auctionData = await getAuctionData(content, tokenId);
       const block = await ethers.provider.getBlock("latest");
 
-      await usdc.connect(user1).approve(content.address, price);
-      await content.connect(user1).collect(
-        user1.address,
-        tokenId,
-        auctionData.epochId,
-        block.timestamp + 3600,
-        price
-      );
+      // Should succeed - no payment needed
+      await content.connect(user1).collect(user1.address, tokenId, auctionData.epochId, block.timestamp + 3600, 0);
 
       // Verify ownership transferred
       expect(await content.ownerOf(tokenId)).to.equal(user1.address);
 
-      expect(await content.idToReserve(tokenId)).to.equal(convert("1", 6));
+      // Verify no stake recorded (price was 0)
+      expect(await content.idToStake(tokenId)).to.equal(0);
 
-      // The next reserve and fresh premium each start at 1.1 USDC.
+      // But new price should be minInitPrice
       const newPrice = await content.getPrice(tokenId);
-      expect(newPrice).to.equal(convert("2.2", 6));
-      console.log("Reserve-floor collection: PASS");
+      expect(newPrice).to.equal(convert("1", 6));
+      console.log("Zero price collection: PASS");
     });
   });
 
@@ -317,7 +312,7 @@ describe("STRESS TESTS - Professional Audit", function () {
         const block = await ethers.provider.getBlock("latest");
         await content.connect(user1).collect(user1.address, tokenId, auctionData.epochId, block.timestamp + 3600, price);
 
-        stakes[tokenId.toString()] = await content.reserveOf(tokenId);
+        stakes[tokenId.toString()] = price;
       }
 
       // Verify user1's total stake
@@ -345,11 +340,11 @@ describe("STRESS TESTS - Professional Audit", function () {
       let auctionData = await getAuctionData(content, tokenId);
       let block = await ethers.provider.getBlock("latest");
       await content.connect(user1).collect(user1.address, tokenId, auctionData.epochId, block.timestamp + 3600, price);
-      await content.claim(auction.address);
 
       const user1StakeAfterCollect = await rewarder.accountToBalance(user1.address);
-      const stake1 = await content.idToReserve(tokenId);
-      expect(stake1).to.equal(await content.reserveOf(tokenId));
+      const stake1 = await content.idToStake(tokenId);
+      // Allow tolerance for price decay during transaction
+      expect(stake1).to.be.closeTo(price, 100);
       console.log("User1 stake after collect:", divDec6(stake1));
 
       // User2 re-collects (steals)
@@ -364,11 +359,11 @@ describe("STRESS TESTS - Professional Audit", function () {
 
       const user1StakeAfter = await rewarder.accountToBalance(user1.address);
       const user2StakeAfter = await rewarder.accountToBalance(user2.address);
-      const stake2 = await content.reserveOf(tokenId);
 
       // User1 should have lost stake1
       expect(user1StakeAfter).to.equal(user1StakeBefore.sub(stake1));
-      expect(user2StakeAfter).to.equal(user2StakeBefore.add(stake2));
+      // User2 should have gained new stake (allow tolerance for price decay)
+      expect(user2StakeAfter).to.be.closeTo(user2StakeBefore.add(price), 500);
       console.log("Stake transfer on re-collection: PASS");
     });
 
@@ -433,16 +428,7 @@ describe("STRESS TESTS - Professional Audit", function () {
       await usdc.connect(creator1).approve(content.address, price);
       const auctionData = await getAuctionData(content, tokenId);
       const block = await ethers.provider.getBlock("latest");
-      const tx = await content.connect(creator1).collect(
-        creator1.address,
-        tokenId,
-        auctionData.epochId,
-        block.timestamp + 3600,
-        price
-      );
-      const collected = (await tx.wait()).events.find(
-        (event) => event.event === "Content__Collected"
-      ).args;
+      await content.connect(creator1).collect(creator1.address, tokenId, auctionData.epochId, block.timestamp + 3600, price);
 
       // Creator pays price but receives 3% direct (creator) + 80% claimable (prev owner) = 83% total
       const creator1BalAfter = await usdc.balanceOf(creator1.address);
@@ -451,17 +437,12 @@ describe("STRESS TESTS - Professional Audit", function () {
 
       // Direct balance change = paid - 3% creator fee
       const directCost = creator1BalBefore.sub(creator1BalAfter);
-      // Net cost is the locked reserve plus premium that leaves this address.
+      // With claimable, net cost should be ~17% (treasury + team + protocol)
       const netCost = directCost.sub(claimableGained);
 
-      const ownerPremium = collected.premium.mul(4000).div(10000);
-      const creatorPremium = collected.premium.mul(2000).div(10000);
-      const expectedNetCost = collected.newReserve
-        .add(collected.premium)
-        .sub(ownerPremium)
-        .sub(creatorPremium);
-      expect(netCost).to.equal(expectedNetCost);
-      console.log("Self-collection net cost:", divDec6(netCost), "USDC");
+      const expected17Percent = price.mul(1700).div(10000);
+      expect(netCost).to.be.closeTo(expected17Percent, 100);
+      console.log("Self-collection net cost:", divDec6(netCost), "USDC (~17%)");
       console.log("Self-collection: PASS");
     });
 
@@ -508,37 +489,24 @@ describe("STRESS TESTS - Professional Audit", function () {
 
       const price = await content.getPrice(tokenId);
       const launcherBalBefore = await usdc.balanceOf(launcher.address);
-      const launcherClaimableBefore = await content.accountToClaimable(launcher.address);
 
       // User1 collects - launcher gets 80% (prevOwner claimable) + 3% (creator direct) + 1% (team direct) = 84%
       await usdc.connect(user1).approve(content.address, price);
       const auctionData = await getAuctionData(content, tokenId);
       const block = await ethers.provider.getBlock("latest");
-      const tx = await content.connect(user1).collect(
-        user1.address,
-        tokenId,
-        auctionData.epochId,
-        block.timestamp + 3600,
-        price
-      );
-      const collected = (await tx.wait()).events.find(
-        (event) => event.event === "Content__Collected"
-      ).args;
+      await content.connect(user1).collect(user1.address, tokenId, auctionData.epochId, block.timestamp + 3600, price);
 
       const launcherBalAfter = await usdc.balanceOf(launcher.address);
       const launcherReceived = launcherBalAfter.sub(launcherBalBefore);
-      const launcherClaimable = (await content.accountToClaimable(launcher.address)).sub(
-        launcherClaimableBefore
-      );
+      const launcherClaimable = await content.accountToClaimable(launcher.address);
       const launcherTotal = launcherReceived.add(launcherClaimable);
 
-      const expectedLauncher = collected.premium
-        .mul(4000 + 2000 + 500)
-        .div(10000);
-      expect(launcherTotal).to.be.closeTo(expectedLauncher, 2);
-      console.log("Launcher received direct:", divDec6(launcherReceived), "USDC");
-      console.log("Launcher claimable:", divDec6(launcherClaimable), "USDC");
-      console.log("Launcher total:", divDec6(launcherTotal), "USDC");
+      // Should receive ~84% total (4% direct + 80% claimable)
+      const expected84Percent = price.mul(8400).div(10000);
+      expect(launcherTotal).to.be.closeTo(expected84Percent, 100);
+      console.log("Launcher received direct:", divDec6(launcherReceived), "USDC (4%)");
+      console.log("Launcher claimable:", divDec6(launcherClaimable), "USDC (80%)");
+      console.log("Launcher total:", divDec6(launcherTotal), "USDC (84%)");
       console.log("Fee overlap handling: PASS");
     });
 
@@ -685,9 +653,6 @@ describe("STRESS TESTS - Professional Audit", function () {
     it("5.1 USDC accumulates in Auction", async function () {
       console.log("\n--- Testing treasury accumulation ---");
 
-      if ((await content.accountToClaimable(auction.address)).gt(0)) {
-        await content.claim(auction.address);
-      }
       const auctionBalBefore = await usdc.balanceOf(auction.address);
 
       // Create and collect content to generate treasury fees
@@ -699,7 +664,6 @@ describe("STRESS TESTS - Professional Audit", function () {
       const auctionData = await getAuctionData(content, tokenId);
       const block = await ethers.provider.getBlock("latest");
       await content.connect(user1).collect(user1.address, tokenId, auctionData.epochId, block.timestamp + 3600, price);
-      await content.claim(auction.address);
 
       const auctionBalAfter = await usdc.balanceOf(auction.address);
       const treasuryFee = auctionBalAfter.sub(auctionBalBefore);
@@ -757,13 +721,14 @@ describe("STRESS TESTS - Professional Audit", function () {
         console.log(`Collection ${i + 1}: ${divDec6(price)} USDC by ${collector.address.slice(0, 8)}...`);
       }
 
-      // Reserve and premium start grow by 10% each collection.
+      // Verify price approximately doubled each time
+      // Allow tolerance for price decay during transactions (1-day epoch = fast decay)
       for (let i = 1; i < prices.length; i++) {
-        const expected = prices[i - 1].mul(11000).div(10000);
+        const expected = prices[i - 1].mul(2);
         const tolerance = Math.max(100, expected.div(10000).toNumber()); // 0.01% or 100 wei
         expect(prices[i]).to.be.closeTo(expected, tolerance);
       }
-      console.log("Reserve growth verified");
+      console.log("Price doubling verified");
 
       // Trigger rewards
       await network.provider.send("evm_increaseTime", [WEEK]);

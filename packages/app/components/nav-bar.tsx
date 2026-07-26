@@ -313,7 +313,7 @@ export function NavBar({
                       Protocol
                     </div>
                     <div className="flex flex-col gap-2.5">
-                      <a href="https://sepolia.basescan.org" target="_blank" rel="noopener noreferrer" className="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
+                      <a href="https://basescan.org" target="_blank" rel="noopener noreferrer" className="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
                         Contracts
                       </a>
                       <a href="https://warpcast.com" target="_blank" rel="noopener noreferrer" className="text-[13px] text-muted-foreground transition-colors hover:text-foreground">

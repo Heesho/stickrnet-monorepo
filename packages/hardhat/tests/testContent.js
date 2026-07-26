@@ -11,7 +11,7 @@ const AddressDead = "0x000000000000000000000000000000000000dEaD";
 async function getAuctionData(content, tokenId) {
   return {
     epochId: await content.idToEpochId(tokenId),
-    initPrice: await content.idToPremiumStart(tokenId),
+    initPrice: await content.idToInitPrice(tokenId),
     startTime: await content.idToStartTime(tokenId)
   };
 }
@@ -165,7 +165,7 @@ describe("Content Tests", function () {
   });
 
   describe("Dutch Auction Pricing", function () {
-    it("Initial price is reserve plus starting premium", async function () {
+    it("Initial price is minInitPrice", async function () {
       console.log("******************************************************");
       const contentContract = await ethers.getContractAt("Content", content);
 
@@ -175,10 +175,7 @@ describe("Content Tests", function () {
 
       const price = await contentContract.getPrice(newTokenId);
       const minInitPrice = await contentContract.minInitPrice();
-      expect(await contentContract.reserveOf(newTokenId)).to.equal(0);
-      expect(await contentContract.nextReserveOf(newTokenId)).to.equal(minInitPrice);
-      expect(await contentContract.premiumOf(newTokenId)).to.be.closeTo(minInitPrice, 100);
-      expect(price).to.be.closeTo(minInitPrice.mul(2), 100);
+      expect(price).to.equal(minInitPrice);
       console.log("Initial price:", divDec6(price), "USDC");
     });
 
@@ -197,11 +194,11 @@ describe("Content Tests", function () {
       console.log("Price after 12 hours:", divDec6(priceAfter), "USDC");
 
       expect(priceAfter).to.be.lt(priceBefore);
-      // The reserve floor remains while only the premium halves.
-      expect(priceAfter).to.be.closeTo(priceBefore.mul(3).div(4), priceBefore.div(100));
+      // Should be approximately half
+      expect(priceAfter).to.be.closeTo(priceBefore.div(2), priceBefore.div(100));
     });
 
-    it("Premium reaches 0 but price remains at the reserve floor", async function () {
+    it("Price reaches 0 after EPOCH_PERIOD", async function () {
       console.log("******************************************************");
       const contentContract = await ethers.getContractAt("Content", content);
 
@@ -210,8 +207,7 @@ describe("Content Tests", function () {
       await network.provider.send("evm_mine");
 
       const price = await contentContract.getPrice(1);
-      expect(await contentContract.premiumOf(1)).to.equal(0);
-      expect(price).to.equal(await contentContract.nextReserveOf(1));
+      expect(price).to.equal(0);
       console.log("Price after 1+ day:", divDec6(price), "USDC");
     });
   });
@@ -249,7 +245,7 @@ describe("Content Tests", function () {
       console.log("Content #3 collected by user1");
     });
 
-    it("New price is next reserve plus a fresh premium", async function () {
+    it("New price is 2x the paid price or minInitPrice", async function () {
       console.log("******************************************************");
       const contentContract = await ethers.getContractAt("Content", content);
 
@@ -257,13 +253,14 @@ describe("Content Tests", function () {
       const newPrice = await contentContract.getPrice(tokenId);
       const minInitPrice = await contentContract.minInitPrice();
 
-      const nextReserve = await contentContract.nextReserveOf(tokenId);
-      expect(newPrice).to.be.closeTo(nextReserve.mul(2), 100);
-      expect(nextReserve).to.be.gte(minInitPrice);
+      // If previous price was 0 (decayed), new price is minInitPrice
+      // Otherwise new price is 2x the previous price
+      // In either case, new price should be at least minInitPrice
+      expect(newPrice).to.be.gte(minInitPrice);
       console.log("New price after collection:", divDec6(newPrice), "USDC");
     });
 
-    it("Only premium is split 40/20/30/5/5 and old reserve is refunded", async function () {
+    it("Fee distribution is correct (80/15/3/1/1)", async function () {
       console.log("******************************************************");
       const contentContract = await ethers.getContractAt("Content", content);
 
@@ -273,72 +270,45 @@ describe("Content Tests", function () {
       const teamAddress = await contentContract.team();
 
       // Get balances before
-      const prevOwnerClaimableBefore = await contentContract.accountToClaimable(user1.address);
-      const treasuryClaimableBefore = await contentContract.accountToClaimable(auction);
-      const creatorClaimableBefore = await contentContract.accountToClaimable(creator1.address);
-      const teamClaimableBefore = await contentContract.accountToClaimable(teamAddress);
-      const protocolClaimableBefore = await contentContract.accountToClaimable(protocol.address);
+      const user1UsdcBefore = await usdc.balanceOf(user1.address);
+      const auctionUsdcBefore = await usdc.balanceOf(auction);
+      const creatorUsdcBefore = await usdc.balanceOf(creator1.address);
+      const teamUsdcBefore = await usdc.balanceOf(teamAddress);
+      const protocolUsdcBefore = await usdc.balanceOf(protocol.address);
 
       // User2 collects from user1
       await usdc.connect(user2).approve(content, price);
       const block = await ethers.provider.getBlock("latest");
       const deadline = block.timestamp + 3600;
-      const tx = await contentContract.connect(user2).collect(
-        user2.address,
-        tokenId,
-        auctionData.epochId,
-        deadline,
-        price
-      );
-      const receipt = await tx.wait();
-      const collected = receipt.events.find((event) => event.event === "Content__Collected");
-      const premium = collected.args.premium;
-      const oldReserve = collected.args.oldReserve;
+      await contentContract.connect(user2).collect(user2.address, tokenId, auctionData.epochId, deadline, price);
 
       // Get balances after
-      const prevOwnerClaimable = (await contentContract.accountToClaimable(user1.address)).sub(
-        prevOwnerClaimableBefore
-      );
-      const treasuryClaimable = (await contentContract.accountToClaimable(auction)).sub(
-        treasuryClaimableBefore
-      );
-      const creatorClaimable = (await contentContract.accountToClaimable(creator1.address)).sub(
-        creatorClaimableBefore
-      );
-      const teamClaimable = (await contentContract.accountToClaimable(teamAddress)).sub(
-        teamClaimableBefore
-      );
-      const protocolClaimable = (await contentContract.accountToClaimable(protocol.address)).sub(
-        protocolClaimableBefore
-      );
+      const prevOwnerClaimable = await contentContract.accountToClaimable(user1.address);
+      const auctionUsdcAfter = await usdc.balanceOf(auction);
+      const creatorClaimable = await contentContract.accountToClaimable(creator1.address);
+      const teamUsdcAfter = await usdc.balanceOf(teamAddress);
+      const protocolUsdcAfter = await usdc.balanceOf(protocol.address);
 
       // Calculate received amounts
-      const treasuryReceived = treasuryClaimable;
+      const treasuryReceived = auctionUsdcAfter.sub(auctionUsdcBefore);
       const creatorReceived = creatorClaimable;
-      const teamReceived = teamClaimable;
-      const protocolReceived = protocolClaimable;
+      const teamReceived = teamUsdcAfter.sub(teamUsdcBefore);
+      const protocolReceived = protocolUsdcAfter.sub(protocolUsdcBefore);
 
       console.log("Price paid:", divDec6(price));
-      console.log("Previous owner reserve + 40% premium:", divDec6(prevOwnerClaimable));
-      console.log("Treasury (30% premium):", divDec6(treasuryReceived));
-      console.log("Creator (20% premium):", divDec6(creatorReceived));
-      console.log("Team (5% premium):", divDec6(teamReceived));
-      console.log("Protocol (5% premium):", divDec6(protocolReceived));
+      console.log("Previous owner claimable (80%):", divDec6(prevOwnerClaimable));
+      console.log("Treasury (15%):", divDec6(treasuryReceived));
+      console.log("Creator (3%):", divDec6(creatorReceived));
+      console.log("Team (1%):", divDec6(teamReceived));
+      console.log("Protocol (1%):", divDec6(protocolReceived));
 
-      const ownerPremium = premium.mul(4000).div(10000);
-      const expectedCreator = premium.mul(2000).div(10000);
-      const expectedTeam = premium.mul(500).div(10000);
-      const expectedProtocol = premium.mul(500).div(10000);
-      const expectedTreasury = premium
-        .sub(ownerPremium)
-        .sub(expectedCreator)
-        .sub(expectedTeam)
-        .sub(expectedProtocol);
-      expect(prevOwnerClaimable).to.equal(oldReserve.add(ownerPremium));
-      expect(treasuryReceived).to.equal(expectedTreasury);
-      expect(creatorReceived).to.equal(expectedCreator);
-      expect(teamReceived).to.equal(expectedTeam);
-      expect(protocolReceived).to.equal(expectedProtocol);
+      // Verify percentages
+      const tolerance = price.div(100); // 1% tolerance
+      expect(prevOwnerClaimable).to.be.closeTo(price.mul(8000).div(10000), tolerance);
+      expect(treasuryReceived).to.be.closeTo(price.mul(1500).div(10000), tolerance);
+      expect(creatorReceived).to.be.closeTo(price.mul(300).div(10000), tolerance);
+      expect(teamReceived).to.be.closeTo(price.mul(100).div(10000), tolerance);
+      expect(protocolReceived).to.be.closeTo(price.mul(100).div(10000), tolerance);
     });
 
     it("Stake is recorded in rewarder", async function () {

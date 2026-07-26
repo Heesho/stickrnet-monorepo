@@ -1,5 +1,5 @@
 import { useReadContract } from "wagmi";
-import { baseSepolia } from "wagmi/chains";
+import { base } from "wagmi/chains";
 import { CONTRACT_ADDRESSES, MULTICALL_ABI, type ContentState } from "@/lib/contracts";
 
 export function useContentState(
@@ -11,7 +11,7 @@ export function useContentState(
     abi: MULTICALL_ABI,
     functionName: "getContentState",
     args: contentAddress && tokenId !== undefined ? [contentAddress, tokenId] : undefined,
-    chainId: baseSepolia.id,
+    chainId: base.id,
     query: {
       enabled: !!contentAddress && tokenId !== undefined,
       refetchInterval: 5_000,

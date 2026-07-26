@@ -7,7 +7,6 @@ type Directory @entity(immutable: false) {
   collectVolume: BigDecimal!
   totalStaked: BigDecimal!
   totalMinted: BigDecimal!
-  protocolFeeAddress: Bytes!
   # Fee revenue totals
   creatorRevenue: BigDecimal!
   ownerRevenue: BigDecimal!
@@ -158,10 +157,6 @@ type ContentPosition @entity(immutable: false) {
   startTime: BigInt!
   initPrice: BigDecimal!
   stake: BigDecimal!
-  reserve: BigDecimal!
-  premiumStart: BigDecimal!
-  isActive: Boolean!
-  surrenderedAt: BigInt
 
   # Stats
   collectCount: BigInt!
@@ -259,9 +254,6 @@ type Collect @entity(immutable: true) {
   tokenId: BigInt!
   epochId: BigInt!
   price: BigDecimal!
-  oldReserve: BigDecimal!
-  newReserve: BigDecimal!
-  premium: BigDecimal!
 
   # Fee breakdown
   ownerFee: BigDecimal!

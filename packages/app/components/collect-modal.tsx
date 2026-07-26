@@ -25,7 +25,7 @@ import {
   QUOTE_TOKEN_DECIMALS,
 } from "@/lib/contracts";
 import { DEADLINE_BUFFER_SECONDS } from "@/lib/constants";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, truncateAddress } from "@/lib/format";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -78,7 +78,6 @@ export function CollectModal({
 }: CollectModalProps) {
   const { address: account } = useFarcaster();
   const { execute, status, error: txError, reset } = useBatchedTransaction();
-  const [pendingAction, setPendingAction] = useState<"collect" | "approve" | "surrender">("collect");
 
   // Fetch live on-chain state for this sticker
   const { contentState } = useContentState(
@@ -113,7 +112,6 @@ export function CollectModal({
   // Reset on open
   useEffect(() => {
     if (isOpen) reset();
-    if (isOpen) setPendingAction("collect");
   }, [isOpen, reset]);
 
   // Auto-reset on error
@@ -129,10 +127,6 @@ export function CollectModal({
   // Use live on-chain values when available, fall back to props
   const livePrice = contentState?.price ?? currentPrice;
   const liveEpochId = contentState?.epochId ?? epochId;
-  const currentReserve = contentState?.reserve ?? 0n;
-  const nextReserve = contentState?.nextReserve ?? livePrice;
-  const currentPremium = contentState?.premium ?? 0n;
-  const isOwner = !!account && !!liveOwner && account.toLowerCase() === liveOwner.toLowerCase();
 
   // Max price = live price (no slippage needed — Dutch auction only decays down)
   const maxPrice = livePrice;
@@ -140,9 +134,6 @@ export function CollectModal({
   const currentPriceDisplay = Number(
     formatUnits(livePrice, QUOTE_TOKEN_DECIMALS)
   );
-  const reserveDisplay = Number(formatUnits(nextReserve, QUOTE_TOKEN_DECIMALS));
-  const premiumDisplay = Number(formatUnits(currentPremium, QUOTE_TOKEN_DECIMALS));
-  const currentReserveDisplay = Number(formatUnits(currentReserve, QUOTE_TOKEN_DECIMALS));
 
   // User USDC balance
   const { data: usdcBalance } = useReadContract({
@@ -166,7 +157,6 @@ export function CollectModal({
   // Execute approve (for moderators approving pending content)
   const handleApprove = useCallback(async () => {
     if (!contentAddress || tokenId === undefined) return;
-    setPendingAction("approve");
     const data = encodeFunctionData({
       abi: CONTENT_ABI,
       functionName: "approveContents",
@@ -178,7 +168,6 @@ export function CollectModal({
   // Execute collect
   const handleConfirm = useCallback(async () => {
     if (!account || status === "pending") return;
-    setPendingAction("collect");
 
     const deadline = BigInt(
       Math.floor(Date.now() / 1000) + DEADLINE_BUFFER_SECONDS
@@ -221,17 +210,6 @@ export function CollectModal({
     currentAllowance,
     multicallAddr,
   ]);
-
-  const handleSurrender = useCallback(async () => {
-    if (!account || !isOwner || currentReserve === 0n || status === "pending") return;
-    setPendingAction("surrender");
-    const data = encodeFunctionData({
-      abi: CONTENT_ABI,
-      functionName: "surrender",
-      args: [tokenId],
-    });
-    await execute([{ to: contentAddress, data, value: 0n }]);
-  }, [account, isOwner, currentReserve, status, tokenId, contentAddress, execute]);
 
   // Notify parent on success
   useEffect(() => {
@@ -339,30 +317,6 @@ export function CollectModal({
           {/* Stats grid */}
           <div className="px-4 py-3 grid grid-cols-2 gap-y-4 gap-x-8">
             <div>
-              <div className="text-muted-foreground text-[12px] mb-0.5">Collection price</div>
-              <div className="font-semibold text-[15px] tabular-nums font-mono">
-                ${formatNumber(currentPriceDisplay)}
-              </div>
-            </div>
-            <div>
-              <div className="text-muted-foreground text-[12px] mb-0.5">Refundable reserve</div>
-              <div className="font-semibold text-[15px] tabular-nums font-mono">
-                ${formatNumber(reserveDisplay)}
-              </div>
-            </div>
-            <div>
-              <div className="text-muted-foreground text-[12px] mb-0.5">Current premium</div>
-              <div className="font-semibold text-[15px] tabular-nums font-mono">
-                ${formatNumber(premiumDisplay)}
-              </div>
-            </div>
-            <div>
-              <div className="text-muted-foreground text-[12px] mb-0.5">Mining power</div>
-              <div className="font-semibold text-[15px] tabular-nums font-mono">
-                ${formatNumber(reserveDisplay)}
-              </div>
-            </div>
-            <div>
               <div className="text-muted-foreground text-[12px] mb-0.5">Mining Rate</div>
               <div className="font-semibold text-[15px] tabular-nums font-mono flex items-center gap-1.5">
                 <TokenLogo name={tokenSymbol} logoUrl={channelLogoUrl} size="sm" variant="circle" />
@@ -460,7 +414,7 @@ export function CollectModal({
               >
                 {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
                 {isSuccess && <CheckCircle className="w-4 h-4" />}
-                {isPending && pendingAction === "approve" ? "Approving..." : isSuccess && pendingAction === "approve" ? "Approved!" : status === "error" && pendingAction === "approve" ? "Try Again" : "Approve"}
+                {isPending ? "Approving..." : isSuccess ? "Approved!" : status === "error" ? "Try Again" : "Approve"}
               </button>
             ) : (
               <button
@@ -474,36 +428,18 @@ export function CollectModal({
                       : accentButtonClass
                 }`}
               >
-                {isPending && pendingAction === "collect" && <Loader2 className="w-4 h-4 animate-spin" />}
-                {isSuccess && pendingAction === "collect" && <CheckCircle className="w-4 h-4" />}
-                {isPending && pendingAction === "collect"
+                {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                {isSuccess && <CheckCircle className="w-4 h-4" />}
+                {isPending
                   ? "Collecting..."
-                  : isSuccess && pendingAction === "collect"
+                  : isSuccess
                     ? "Collected!"
-                    : status === "error" && pendingAction === "collect"
+                    : status === "error"
                       ? "Try Again"
                       : "Collect"}
               </button>
             )}
           </div>
-          {isOwner && currentReserve > 0n && !isPendingApproval && (
-            <div className="mt-3">
-              <button
-                disabled={isPending}
-                onClick={handleSurrender}
-                className="w-full h-9 rounded-[var(--radius)] border border-foreground/15 text-[13px] font-semibold hover:bg-foreground/5 disabled:opacity-50"
-              >
-                {isPending && pendingAction === "surrender"
-                  ? "Surrendering..."
-                  : isSuccess && pendingAction === "surrender"
-                    ? "Reserve recovered"
-                    : "Surrender Sticker"}
-              </button>
-              <p className="mt-1.5 text-[11px] text-muted-foreground text-center">
-                Burn this Sticker and recover its ${formatNumber(currentReserveDisplay)} refundable reserve after the 24-hour cooldown.
-              </p>
-            </div>
-          )}
         </div>
       </div>
     </div>

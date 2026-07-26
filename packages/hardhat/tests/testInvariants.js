@@ -10,7 +10,7 @@ const AddressDead = "0x000000000000000000000000000000000000dEaD";
 async function getAuctionData(content, tokenId) {
   return {
     epochId: await content.idToEpochId(tokenId),
-    initPrice: await content.idToInitPrice(tokenId),
+    initPrice: await content.idToPremiumStart(tokenId),
     startTime: await content.idToStartTime(tokenId)
   };
 }
@@ -95,17 +95,17 @@ describe("Invariant Tests", function () {
 
   describe("Content Invariants", function () {
     it("INVARIANT: Total fees always equal 100%", async function () {
-      const PREVIOUS_OWNER_FEE = 8000;
-      const TREASURY_FEE = 1500;
-      const CREATOR_FEE = 300;
-      const TEAM_FEE = 100;
-      const PROTOCOL_FEE = 100;
+      const PREVIOUS_OWNER_FEE = 4000;
+      const TREASURY_FEE = 3000;
+      const CREATOR_FEE = 2000;
+      const TEAM_FEE = 500;
+      const PROTOCOL_FEE = 500;
       const DIVISOR = 10000;
 
       expect(PREVIOUS_OWNER_FEE + TREASURY_FEE + CREATOR_FEE + TEAM_FEE + PROTOCOL_FEE).to.equal(DIVISOR);
     });
 
-    it("INVARIANT: Price never exceeds initPrice", async function () {
+    it("INVARIANT: Price stays between next reserve and reserve plus premium start", async function () {
       await content.connect(user1).create(user1.address, "ipfs://invariant-price");
       const tokenId = await content.nextTokenId();
 
@@ -114,7 +114,9 @@ describe("Invariant Tests", function () {
       // Check at multiple time points
       for (let i = 0; i <= 30; i++) {
         const price = await content.getPrice(tokenId);
-        expect(price).to.be.lte(auctionData.initPrice);
+        const nextReserve = await content.nextReserveOf(tokenId);
+        expect(price).to.be.gte(nextReserve);
+        expect(price).to.be.lte(nextReserve.add(auctionData.initPrice));
 
         await ethers.provider.send("evm_increaseTime", [DAY]);
         await ethers.provider.send("evm_mine");
@@ -175,38 +177,22 @@ describe("Invariant Tests", function () {
         expect(auctionData.initPrice).to.be.gte(minInitPrice);
 
         const price = await content.getPrice(tokenId);
-        if (price.gt(0)) {
-          const collector = [user2, user3][i % 2];
-          await usdc.connect(collector).approve(content.address, price);
-          await content.connect(collector).collect(
-            collector.address,
-            tokenId,
-            auctionData.epochId,
-            ethers.constants.MaxUint256,
-            price
-          );
-        } else {
-          // Wait for price decay and collect free
-          await ethers.provider.send("evm_increaseTime", [31 * DAY]);
-          await ethers.provider.send("evm_mine");
-
-          const newAuction = await getAuctionData(content, tokenId);
-          const collector = [user2, user3][i % 2];
-          await content.connect(collector).collect(
-            collector.address,
-            tokenId,
-            newAuction.epochId,
-            ethers.constants.MaxUint256,
-            0
-          );
-        }
+        const collector = [user2, user3][i % 2];
+        await usdc.connect(collector).approve(content.address, price);
+        await content.connect(collector).collect(
+          collector.address,
+          tokenId,
+          auctionData.epochId,
+          ethers.constants.MaxUint256,
+          price
+        );
       }
 
       const finalAuction = await getAuctionData(content, tokenId);
       expect(finalAuction.initPrice).to.be.gte(minInitPrice);
     });
 
-    it("INVARIANT: Stake equals price paid", async function () {
+    it("INVARIANT: Stake equals refundable reserve, not price paid", async function () {
       await content.connect(user1).create(user1.address, "ipfs://invariant-stake");
       const tokenId = await content.nextTokenId();
 
@@ -224,10 +210,11 @@ describe("Invariant Tests", function () {
 
       // Stake is set to the price at the moment of collection
       // Due to block time passing, actual price paid may differ slightly
-      const stake = await content.idToStake(tokenId);
-      // Stake should be close to the price we approved (within 1% due to block time)
-      expect(stake).to.be.lte(priceBefore);
-      expect(stake).to.be.gt(0);
+      const stake = await content.idToReserve(tokenId);
+      const reserve = await content.reserveOf(tokenId);
+      expect(stake).to.equal(reserve);
+      expect(await rewarder.totalSupply()).to.equal(await content.totalReserved());
+      expect(stake).to.be.lt(priceBefore);
     });
 
     it("INVARIANT: Owner changes after successful collection", async function () {
@@ -358,7 +345,7 @@ describe("Invariant Tests", function () {
         );
 
         // Price at collection may be slightly less due to block time
-        const stake = await content.idToStake(tokenId);
+        const stake = await content.idToReserve(tokenId);
         const totalSupplyAfter = await rewarder.totalSupply();
         // Verify increase matches the actual stake recorded
         expect(totalSupplyAfter.sub(totalSupplyBefore)).to.equal(stake);
@@ -463,13 +450,17 @@ describe("Invariant Tests", function () {
 
         const epochId = await auction.epochId();
         expect(epochId).to.be.gte(prevEpochId);
+        const price = await auction.getPrice();
+        const lp = await ethers.getContractAt("MockLP", lpToken.address);
+        await lp.mint(user2.address, price);
+        await lp.connect(user2).approve(auction.address, price);
 
         await auction.connect(user2).buy(
           [usdc.address],
           user2.address,
           epochId,
           ethers.constants.MaxUint256,
-          0
+          price
         );
 
         const newEpochId = await auction.epochId();

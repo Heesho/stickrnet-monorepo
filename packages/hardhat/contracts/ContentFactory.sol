@@ -16,7 +16,7 @@ contract ContentFactory {
      * @param _symbol Token symbol
      * @param _uri Metadata URI
      * @param _coin Coin token address
-     * @param _quote Quote token (WETH) address
+     * @param _quote Quote token (USDC) address
      * @param _treasury Treasury (Auction) address
      * @param _team Team address for fee collection
      * @param _core Core contract address

@@ -12,7 +12,18 @@
     "solmate": "^6.8.0"
   },
   "scripts": {
-    "deploy": "hardhat run ./scripts/deploy.js --network base"
+    "contracts:compile": "hardhat compile --force",
+    "deploy": "hardhat run ./scripts/deploy.js --network baseSepolia",
+    "test:hardhat": "hardhat test",
+    "test:foundry": "forge test --match-path 'foundry/test/unit/*.t.sol'",
+    "test:fuzz": "FOUNDRY_PROFILE=ci forge test --match-path 'foundry/test/fuzz/*.t.sol'",
+    "test:invariant": "FOUNDRY_PROFILE=ci forge test --match-path 'foundry/test/invariant/*.t.sol'",
+    "test:differential": "hardhat run scripts/differential-hardhat.js && forge test --match-contract DifferentialScenarioTest && node scripts/compare-differential.js",
+    "test:coverage": "node scripts/hardhat-coverage.js",
+    "test:coverage:foundry": "node scripts/foundry-coverage.js",
+    "test:gas": "forge snapshot --match-contract GasSnapshotTest --snap foundry/snapshots/gas.snap",
+    "verify:contract-equivalence": "hardhat compile --force && forge build --force --skip test --deny-warnings && node scripts/verify-contract-equivalence.js",
+    "test:verification": "yarn contracts:compile && yarn test:hardhat && yarn test:foundry && yarn test:fuzz && yarn test:invariant && yarn test:differential && yarn verify:contract-equivalence"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^1.0.3",

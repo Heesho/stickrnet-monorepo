@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
-import {ERC721, ERC721Enumerable, IERC721} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import {ERC721, IERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC721URIStorage} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -14,27 +14,29 @@ import {ICore} from "./interfaces/ICore.sol";
 /**
  * @title Content
  * @author heesho
- * @notice NFT collection where collectors can "steal" content by paying a dutch auction price.
- *         The purchase price determines the owner's stake in the Rewarder, earning them Coin rewards.
- * @dev Each content has a dutch auction that resets after collection with a 2x price multiplier.
- *      Fees: 80% to previous owner, 15% to treasury, 3% to creator, 1% to team, 1% to protocol.
+ * @notice NFT collection where collectors can "steal" content by funding a refundable reserve
+ *         plus a Dutch-auction premium. Only the reserve determines Rewarder mining power.
+ * @dev The reserve grows by 10% on each collection. The premium decays to zero over one day.
+ *      Premium split: 40% previous owner, 20% creator, 30% treasury, 5% team, 5% protocol.
  *      Fee-on-transfer and rebase tokens are NOT supported. The quote token must be a standard
  *      ERC20 token without transfer fees or rebasing mechanics.
  */
-contract Content is ERC721, ERC721Enumerable, ERC721URIStorage, ReentrancyGuard, Ownable {
+contract Content is ERC721, ERC721URIStorage, ReentrancyGuard, Ownable {
     using SafeERC20 for IERC20;
 
     /*----------  CONSTANTS  --------------------------------------------*/
 
-    uint256 public constant PREVIOUS_OWNER_FEE = 8_000; // 80% to previous owner
-    uint256 public constant CREATOR_FEE = 300; // 3% to creator
-    uint256 public constant TEAM_FEE = 100; // 1% to team
-    uint256 public constant PROTOCOL_FEE = 100; // 1% to protocol
+    uint256 public constant PREVIOUS_OWNER_PREMIUM_FEE = 4_000;
+    uint256 public constant CREATOR_PREMIUM_FEE = 2_000;
+    uint256 public constant TREASURY_PREMIUM_FEE = 3_000;
+    uint256 public constant TEAM_PREMIUM_FEE = 500;
+    uint256 public constant PROTOCOL_PREMIUM_FEE = 500;
     uint256 public constant DIVISOR = 10_000;
-    uint256 public constant PRECISION = 1e18;
+    uint256 public constant RESERVE_MULTIPLIER = 11_000;
     uint256 public constant EPOCH_PERIOD = 1 days;
-    uint256 public constant PRICE_MULTIPLIER = 2e18;
-    uint256 public constant ABS_MAX_INIT_PRICE = type(uint192).max;
+    uint256 public constant SURRENDER_COOLDOWN = 1 days;
+    uint256 public constant MAX_URI_LENGTH = 2_048;
+    uint256 public constant MAX_TOKEN_URI_LENGTH = 4_096;
 
     /*----------  IMMUTABLES  -------------------------------------------*/
 
@@ -54,15 +56,19 @@ contract Content is ERC721, ERC721Enumerable, ERC721URIStorage, ReentrancyGuard,
     mapping(address => bool) public accountToIsModerator;
 
     uint256 public nextTokenId;
+    uint256 public totalSupply;
 
     mapping(uint256 => bool) public idToApproved;
     mapping(uint256 => address) public idToCreator;
     mapping(uint256 => uint256) public idToEpochId;
-    mapping(uint256 => uint256) public idToInitPrice;
+    mapping(uint256 => uint256) public idToReserve;
+    mapping(uint256 => uint256) public idToPremiumStart;
     mapping(uint256 => uint256) public idToStartTime;
-    mapping(uint256 => uint256) public idToStake;
+    mapping(uint256 => uint256) public idToLastCollectedAt;
 
     mapping(address => uint256) public accountToClaimable;
+    uint256 public totalReserved;
+    uint256 public totalClaimable;
 
     /*----------  ERRORS  -----------------------------------------------*/
 
@@ -81,6 +87,14 @@ contract Content is ERC721, ERC721Enumerable, ERC721URIStorage, ReentrancyGuard,
     error Content__InvalidCoin();
     error Content__InvalidQuote();
     error Content__NothingToClaim();
+    error Content__NotTokenOwner();
+    error Content__NoReserve();
+    error Content__SurrenderCooldown();
+    error Content__ReserveGrowthOverflow();
+    error Content__IncorrectPayment();
+    error Content__RewarderReserveMismatch();
+    error Content__Insolvent();
+    error Content__UriTooLong();
 
     /*----------  EVENTS  -----------------------------------------------*/
 
@@ -90,8 +104,12 @@ contract Content is ERC721, ERC721Enumerable, ERC721URIStorage, ReentrancyGuard,
         address indexed to,
         uint256 indexed tokenId,
         uint256 epochId,
-        uint256 price
+        uint256 price,
+        uint256 oldReserve,
+        uint256 newReserve,
+        uint256 premium
     );
+    event Content__Surrendered(address indexed owner, uint256 indexed tokenId, uint256 reserve);
     event Content__UriSet(string uri);
     event Content__TreasurySet(address indexed treasury);
     event Content__TeamSet(address indexed team);
@@ -99,6 +117,7 @@ contract Content is ERC721, ERC721Enumerable, ERC721URIStorage, ReentrancyGuard,
     event Content__ModeratorsSet(address indexed account, bool accountToIsModerator);
     event Content__Approved(address indexed moderator, uint256 indexed tokenId);
     event Content__RewardAdded(address indexed rewardToken);
+    event Content__RewardNotifierSet(address indexed rewardToken, address indexed notifier);
     event Content__Claimed(address indexed account, uint256 amount);
 
     /*----------  CONSTRUCTOR  ------------------------------------------*/
@@ -109,7 +128,7 @@ contract Content is ERC721, ERC721Enumerable, ERC721URIStorage, ReentrancyGuard,
      * @param _symbol Token symbol
      * @param _uri Metadata URI
      * @param _coin Coin token address
-     * @param _quote Quote token (WETH) address
+     * @param _quote Quote token (USDC) address
      * @param _treasury Treasury (Auction) address for fee collection
      * @param _team Team address for fee collection
      * @param _core Core contract address
@@ -132,6 +151,7 @@ contract Content is ERC721, ERC721Enumerable, ERC721URIStorage, ReentrancyGuard,
     ) ERC721(_name, _symbol) {
         if (_minInitPrice == 0) revert Content__ZeroMinPrice();
         if (bytes(_uri).length == 0) revert Content__ZeroLengthUri();
+        if (bytes(_uri).length > MAX_URI_LENGTH) revert Content__UriTooLong();
         if (_coin == address(0)) revert Content__InvalidCoin();
         if (_quote == address(0)) revert Content__InvalidQuote();
         if (_treasury == address(0)) revert Content__InvalidTreasury();
@@ -147,7 +167,7 @@ contract Content is ERC721, ERC721Enumerable, ERC721URIStorage, ReentrancyGuard,
         isModerated = _isModerated;
 
         rewarder = IRewarderFactory(_rewarderFactory).deploy(address(this));
-        IRewarder(rewarder).addReward(_coin);
+        IRewarder(rewarder).addReward(_coin, address(this));
     }
 
     /*----------  EXTERNAL FUNCTIONS  -----------------------------------*/
@@ -161,12 +181,14 @@ contract Content is ERC721, ERC721Enumerable, ERC721URIStorage, ReentrancyGuard,
     function create(address to, string memory tokenUri) external nonReentrant returns (uint256 tokenId) {
         if (to == address(0)) revert Content__ZeroTo();
         if (bytes(tokenUri).length == 0) revert Content__ZeroLengthUri();
+        if (bytes(tokenUri).length > MAX_TOKEN_URI_LENGTH) revert Content__UriTooLong();
 
         tokenId = ++nextTokenId;
+        totalSupply++;
         idToCreator[tokenId] = to;
         if (!isModerated) idToApproved[tokenId] = true;
 
-        idToInitPrice[tokenId] = minInitPrice;
+        idToPremiumStart[tokenId] = minInitPrice;
         idToStartTime[tokenId] = block.timestamp;
 
         _safeMint(to, tokenId);
@@ -201,63 +223,90 @@ contract Content is ERC721, ERC721Enumerable, ERC721URIStorage, ReentrancyGuard,
 
         address creator = idToCreator[tokenId];
         address prevOwner = ownerOf(tokenId);
-        uint256 prevStake = idToStake[tokenId];
+        uint256 oldReserve = idToReserve[tokenId];
+        uint256 newReserve = _nextReserve(oldReserve);
+        uint256 premium = premiumOf(tokenId);
 
-        // Calculate next epoch's starting price
-        uint256 newInitPrice = price * PRICE_MULTIPLIER / PRECISION;
-        if (newInitPrice > ABS_MAX_INIT_PRICE) {
-            newInitPrice = ABS_MAX_INIT_PRICE;
-        } else if (newInitPrice < minInitPrice) {
-            newInitPrice = minInitPrice;
+        uint256 balanceBefore = IERC20(quote).balanceOf(address(this));
+        IERC20(quote).safeTransferFrom(msg.sender, address(this), price);
+        if (IERC20(quote).balanceOf(address(this)) != balanceBefore + price) {
+            revert Content__IncorrectPayment();
         }
 
-        // Update auction state
+        address protocol = ICore(core).protocolFeeAddress();
+        uint256 prevOwnerPremium = premium * PREVIOUS_OWNER_PREMIUM_FEE / DIVISOR;
+        uint256 creatorPremium = premium * CREATOR_PREMIUM_FEE / DIVISOR;
+        uint256 teamPremium = team == address(0) ? 0 : premium * TEAM_PREMIUM_FEE / DIVISOR;
+        uint256 protocolPremium =
+            protocol == address(0) ? 0 : premium * PROTOCOL_PREMIUM_FEE / DIVISOR;
+        uint256 treasuryPremium = premium * TREASURY_PREMIUM_FEE / DIVISOR;
+        // Treasury also receives rounding dust and disabled team/protocol shares.
+        treasuryPremium += premium
+            - prevOwnerPremium
+            - creatorPremium
+            - treasuryPremium
+            - teamPremium
+            - protocolPremium;
+
+        // Effects: reserve liabilities and Rewarder stake are always changed in lockstep.
         unchecked {
             idToEpochId[tokenId]++;
         }
-        idToInitPrice[tokenId] = newInitPrice;
+        idToReserve[tokenId] = newReserve;
+        idToPremiumStart[tokenId] = _nextReserve(newReserve);
         idToStartTime[tokenId] = block.timestamp;
-        idToStake[tokenId] = price;
+        idToLastCollectedAt[tokenId] = block.timestamp;
+        totalReserved = totalReserved - oldReserve + newReserve;
 
-        // Transfer NFT
-        _transfer(prevOwner, to, tokenId);
+        uint256 prevOwnerClaimable = oldReserve + prevOwnerPremium;
+        _accrueClaimable(prevOwner, prevOwnerClaimable);
+        _accrueClaimable(creator, creatorPremium);
+        _accrueClaimable(treasury, treasuryPremium);
+        if (teamPremium > 0) _accrueClaimable(team, teamPremium);
+        if (protocolPremium > 0) _accrueClaimable(protocol, protocolPremium);
 
-        // Handle payments
-        if (price > 0) {
-            IERC20(quote).safeTransferFrom(msg.sender, address(this), price);
-
-            // Calculate fees
-            address protocol = ICore(core).protocolFeeAddress();
-            uint256 prevOwnerAmount = price * PREVIOUS_OWNER_FEE / DIVISOR;
-            uint256 creatorAmount = price * CREATOR_FEE / DIVISOR;
-            uint256 teamAmount = team != address(0) ? price * TEAM_FEE / DIVISOR : 0;
-            uint256 protocolAmount = protocol != address(0) ? price * PROTOCOL_FEE / DIVISOR : 0;
-            uint256 treasuryAmount = price - prevOwnerAmount - creatorAmount - teamAmount - protocolAmount; // remainder collects dust
-
-            // Distribute fees
-            accountToClaimable[prevOwner] += prevOwnerAmount;
-            accountToClaimable[creator] += creatorAmount;
-            IERC20(quote).safeTransfer(treasury, treasuryAmount);
-
-            if (teamAmount > 0) {
-                IERC20(quote).safeTransfer(team, teamAmount);
-            }
-            if (protocolAmount > 0) {
-                IERC20(quote).safeTransfer(protocol, protocolAmount);
-            }
-
-            // Update stake in rewarder
-            IRewarder(rewarder).deposit(to, price);
+        // Interactions: every reserve refund and premium share uses pull accounting.
+        if (oldReserve > 0) {
+            IRewarder(rewarder).withdraw(prevOwner, oldReserve);
         }
+        IRewarder(rewarder).deposit(to, newReserve);
 
-        // Withdraw previous owner's stake
-        if (prevStake > 0) {
-            IRewarder(rewarder).withdraw(prevOwner, prevStake);
-        }
+        _assertSolvent();
 
-        emit Content__Collected(msg.sender, to, tokenId, epochId, price);
+        // Receiver callback runs only after reserve and reward accounting is synchronized.
+        _safeTransfer(prevOwner, to, tokenId, "");
+
+        emit Content__Collected(msg.sender, to, tokenId, epochId, price, oldReserve, newReserve, premium);
 
         return price;
+    }
+
+    /**
+     * @notice Burn a collected Sticker and recover its complete refundable reserve.
+     * @param tokenId Token ID to surrender
+     */
+    function surrender(uint256 tokenId) external nonReentrant {
+        if (ownerOf(tokenId) != msg.sender) revert Content__NotTokenOwner();
+
+        uint256 reserve = idToReserve[tokenId];
+        if (reserve == 0) revert Content__NoReserve();
+        if (block.timestamp < idToLastCollectedAt[tokenId] + SURRENDER_COOLDOWN) {
+            revert Content__SurrenderCooldown();
+        }
+
+        totalReserved -= reserve;
+        idToReserve[tokenId] = 0;
+        idToPremiumStart[tokenId] = 0;
+        idToApproved[tokenId] = false;
+        totalSupply--;
+
+        IRewarder(rewarder).withdraw(msg.sender, reserve);
+        _burn(tokenId);
+        IERC20(quote).safeTransfer(msg.sender, reserve);
+
+        _assertSolvent();
+
+        emit Content__Surrendered(msg.sender, tokenId, reserve);
     }
 
     /**
@@ -270,8 +319,11 @@ contract Content is ERC721, ERC721Enumerable, ERC721URIStorage, ReentrancyGuard,
         if (amount == 0) revert Content__NothingToClaim();
 
         accountToClaimable[account] = 0;
+        totalClaimable -= amount;
 
         IERC20(quote).safeTransfer(account, amount);
+
+        _assertSolvent();
 
         emit Content__Claimed(account, amount);
     }
@@ -305,6 +357,8 @@ contract Content is ERC721, ERC721Enumerable, ERC721URIStorage, ReentrancyGuard,
      * @param _uri New metadata URI
      */
     function setUri(string memory _uri) external onlyOwner {
+        if (bytes(_uri).length == 0) revert Content__ZeroLengthUri();
+        if (bytes(_uri).length > MAX_URI_LENGTH) revert Content__UriTooLong();
         uri = _uri;
         emit Content__UriSet(_uri);
     }
@@ -368,29 +422,52 @@ contract Content is ERC721, ERC721Enumerable, ERC721URIStorage, ReentrancyGuard,
      * @param rewardToken Reward token address
      */
     function addReward(address rewardToken) external onlyOwner {
-        IRewarder(rewarder).addReward(rewardToken);
+        IRewarder(rewarder).addReward(rewardToken, msg.sender);
         emit Content__RewardAdded(rewardToken);
+        emit Content__RewardNotifierSet(rewardToken, msg.sender);
+    }
+
+    /**
+     * @notice Set the only account allowed to notify a registered reward token.
+     */
+    function setRewardNotifier(address rewardToken, address notifier) external onlyOwner {
+        IRewarder(rewarder).setRewardNotifier(rewardToken, notifier);
+        emit Content__RewardNotifierSet(rewardToken, notifier);
     }
 
     /*----------  INTERNAL OVERRIDES  -----------------------------------*/
-
-    function _beforeTokenTransfer(
-        address from,
-        address to,
-        uint256 firstTokenId,
-        uint256 batchSize
-    ) internal override(ERC721, ERC721Enumerable) {
-        super._beforeTokenTransfer(from, to, firstTokenId, batchSize);
-    }
 
     function _burn(uint256 tokenId) internal override(ERC721, ERC721URIStorage) {
         super._burn(tokenId);
     }
 
+    function _accrueClaimable(address account, uint256 amount) internal {
+        if (amount == 0) return;
+        accountToClaimable[account] += amount;
+        totalClaimable += amount;
+    }
+
+    function _nextReserve(uint256 currentReserve) internal view returns (uint256) {
+        if (currentReserve == 0) return minInitPrice;
+        if (currentReserve > type(uint256).max / RESERVE_MULTIPLIER) {
+            revert Content__ReserveGrowthOverflow();
+        }
+        return currentReserve * RESERVE_MULTIPLIER / DIVISOR;
+    }
+
+    function _assertSolvent() internal view {
+        if (IRewarder(rewarder).totalSupply() != totalReserved) {
+            revert Content__RewarderReserveMismatch();
+        }
+        if (IERC20(quote).balanceOf(address(this)) < totalReserved + totalClaimable) {
+            revert Content__Insolvent();
+        }
+    }
+
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        override(ERC721, ERC721Enumerable, ERC721URIStorage)
+        override(ERC721, ERC721URIStorage)
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
@@ -408,14 +485,38 @@ contract Content is ERC721, ERC721Enumerable, ERC721URIStorage, ReentrancyGuard,
     /*----------  VIEW FUNCTIONS  ---------------------------------------*/
 
     /**
-     * @notice Get the current price for a token.
+     * @notice Get the refundable reserve locked behind a token.
+     */
+    function reserveOf(uint256 tokenId) public view returns (uint256) {
+        return idToReserve[tokenId];
+    }
+
+    /**
+     * @notice Get the current decaying speculative premium for a token.
+     */
+    function premiumOf(uint256 tokenId) public view returns (uint256) {
+        if (!_exists(tokenId)) return 0;
+        uint256 timePassed = block.timestamp - idToStartTime[tokenId];
+        if (timePassed >= EPOCH_PERIOD) return 0;
+        uint256 premiumStart = idToPremiumStart[tokenId];
+        return premiumStart - premiumStart * timePassed / EPOCH_PERIOD;
+    }
+
+    /**
+     * @notice Get the reserve the next collector must fund.
+     */
+    function nextReserveOf(uint256 tokenId) public view returns (uint256) {
+        if (!_exists(tokenId)) return 0;
+        return _nextReserve(idToReserve[tokenId]);
+    }
+
+    /**
+     * @notice Get the total collection price: next reserve plus current premium.
      * @param tokenId Token ID
-     * @return Current dutch auction price
+     * @return Current total collection price
      */
     function getPrice(uint256 tokenId) public view returns (uint256) {
-        uint256 timePassed = block.timestamp - idToStartTime[tokenId];
-        if (timePassed > EPOCH_PERIOD) return 0;
-        uint256 initPrice = idToInitPrice[tokenId];
-        return initPrice - initPrice * timePassed / EPOCH_PERIOD;
+        if (!_exists(tokenId)) return 0;
+        return _nextReserve(idToReserve[tokenId]) + premiumOf(tokenId);
     }
 }

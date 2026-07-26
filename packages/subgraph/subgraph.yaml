@@ -6,11 +6,11 @@ schema:
 dataSources:
   - kind: ethereum
     name: Core
-    network: base
+    network: base-sepolia
     source:
-      address: "0xf1fc02884D1D701fca31b8f90B309b726597424A"
+      address: "0x0000000000000000000000000000000000000000"
       abi: Core
-      startBlock: 43233025
+      startBlock: 0
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.9
@@ -35,11 +35,13 @@ dataSources:
       eventHandlers:
         - event: Core__Launched(indexed address,indexed address,indexed address,address,address,address,address,string,string,string,uint256,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)
           handler: handleCoreLaunched
+        - event: Core__ProtocolFeeAddressSet(address)
+          handler: handleCoreProtocolFeeAddressSet
       file: ./src/core.ts
 templates:
   - kind: ethereum
     name: Content
-    network: base
+    network: base-sepolia
     source:
       abi: Content
     mapping:
@@ -64,8 +66,10 @@ templates:
       eventHandlers:
         - event: Content__Created(indexed address,indexed address,indexed uint256,string)
           handler: handleContentCreated
-        - event: Content__Collected(indexed address,indexed address,indexed uint256,uint256,uint256)
+        - event: Content__Collected(indexed address,indexed address,indexed uint256,uint256,uint256,uint256,uint256,uint256)
           handler: handleContentCollected
+        - event: Content__Surrendered(indexed address,indexed uint256,uint256)
+          handler: handleContentSurrendered
         - event: Content__Approved(indexed address,indexed uint256)
           handler: handleContentApproved
         - event: Content__IsModeratedSet(bool)
@@ -81,7 +85,7 @@ templates:
       file: ./src/content.ts
   - kind: ethereum
     name: Rewarder
-    network: base
+    network: base-sepolia
     source:
       abi: Rewarder
     mapping:
@@ -109,7 +113,7 @@ templates:
       file: ./src/rewarder.ts
   - kind: ethereum
     name: Minter
-    network: base
+    network: base-sepolia
     source:
       abi: Minter
     mapping:
@@ -129,7 +133,7 @@ templates:
       file: ./src/minter.ts
   - kind: ethereum
     name: UniswapV2Pair
-    network: base
+    network: base-sepolia
     source:
       abi: UniswapV2Pair
     mapping:

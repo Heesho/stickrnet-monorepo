@@ -77,6 +77,16 @@
   },
   {
     "inputs": [],
+    "name": "Content__IncorrectPayment",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Content__Insolvent",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "Content__InvalidCoin",
     "type": "error"
   },
@@ -102,6 +112,11 @@
   },
   {
     "inputs": [],
+    "name": "Content__NoReserve",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "Content__NotApproved",
     "type": "error"
   },
@@ -112,12 +127,37 @@
   },
   {
     "inputs": [],
+    "name": "Content__NotTokenOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "Content__NothingToClaim",
     "type": "error"
   },
   {
     "inputs": [],
+    "name": "Content__ReserveGrowthOverflow",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Content__RewarderReserveMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Content__SurrenderCooldown",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "Content__TransferDisabled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Content__UriTooLong",
     "type": "error"
   },
   {
@@ -274,6 +314,24 @@
         "internalType": "uint256",
         "name": "price",
         "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "oldReserve",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newReserve",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "premium",
+        "type": "uint256"
       }
     ],
     "name": "Content__Collected",
@@ -353,6 +411,50 @@
       }
     ],
     "name": "Content__RewardAdded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "rewardToken",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "notifier",
+        "type": "address"
+      }
+    ],
+    "name": "Content__RewardNotifierSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "reserve",
+        "type": "uint256"
+      }
+    ],
+    "name": "Content__Surrendered",
     "type": "event"
   },
   {
@@ -453,20 +555,7 @@
   },
   {
     "inputs": [],
-    "name": "ABS_MAX_INIT_PRICE",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "CREATOR_FEE",
+    "name": "CREATOR_PREMIUM_FEE",
     "outputs": [
       {
         "internalType": "uint256",
@@ -505,7 +594,7 @@
   },
   {
     "inputs": [],
-    "name": "PRECISION",
+    "name": "MAX_TOKEN_URI_LENGTH",
     "outputs": [
       {
         "internalType": "uint256",
@@ -518,7 +607,7 @@
   },
   {
     "inputs": [],
-    "name": "PREVIOUS_OWNER_FEE",
+    "name": "MAX_URI_LENGTH",
     "outputs": [
       {
         "internalType": "uint256",
@@ -531,7 +620,7 @@
   },
   {
     "inputs": [],
-    "name": "PRICE_MULTIPLIER",
+    "name": "PREVIOUS_OWNER_PREMIUM_FEE",
     "outputs": [
       {
         "internalType": "uint256",
@@ -544,7 +633,7 @@
   },
   {
     "inputs": [],
-    "name": "PROTOCOL_FEE",
+    "name": "PROTOCOL_PREMIUM_FEE",
     "outputs": [
       {
         "internalType": "uint256",
@@ -557,7 +646,46 @@
   },
   {
     "inputs": [],
-    "name": "TEAM_FEE",
+    "name": "RESERVE_MULTIPLIER",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "SURRENDER_COOLDOWN",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "TEAM_PREMIUM_FEE",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "TREASURY_PREMIUM_FEE",
     "outputs": [
       {
         "internalType": "uint256",
@@ -874,7 +1002,7 @@
         "type": "uint256"
       }
     ],
-    "name": "idToInitPrice",
+    "name": "idToLastCollectedAt",
     "outputs": [
       {
         "internalType": "uint256",
@@ -893,7 +1021,26 @@
         "type": "uint256"
       }
     ],
-    "name": "idToStake",
+    "name": "idToPremiumStart",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "idToReserve",
     "outputs": [
       {
         "internalType": "uint256",
@@ -987,6 +1134,25 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "nextReserveOf",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "nextTokenId",
     "outputs": [
@@ -1032,6 +1198,25 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "premiumOf",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "quote",
     "outputs": [
@@ -1049,6 +1234,25 @@
     "name": "renounceOwnership",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "reserveOf",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -1168,6 +1372,24 @@
     "inputs": [
       {
         "internalType": "address",
+        "name": "rewardToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "notifier",
+        "type": "address"
+      }
+    ],
+    "name": "setRewardNotifier",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
         "name": "_team",
         "type": "address"
       }
@@ -1223,6 +1445,19 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "surrender",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "symbol",
     "outputs": [
@@ -1252,49 +1487,6 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "index",
-        "type": "uint256"
-      }
-    ],
-    "name": "tokenByIndex",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "owner",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "index",
-        "type": "uint256"
-      }
-    ],
-    "name": "tokenOfOwnerByIndex",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
         "name": "tokenId",
         "type": "uint256"
       }
@@ -1305,6 +1497,32 @@
         "internalType": "string",
         "name": "",
         "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "totalClaimable",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "totalReserved",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",

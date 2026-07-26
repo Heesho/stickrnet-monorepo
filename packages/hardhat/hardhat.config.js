@@ -4,51 +4,69 @@ require("@nomiclabs/hardhat-waffle");
 require("@nomicfoundation/hardhat-verify");
 require("solidity-coverage");
 
-const CHAIN_ID = 8453; // base chain id
+const CHAIN_ID = 84532; // Base Sepolia
 
 config();
-const PRIVATE_KEY = process.env.PRIVATE_KEY || "0x0000000000000000000000000000000000000000000000000000000000000001";
+const PRIVATE_KEY = process.env.PRIVATE_KEY || "";
 const SCAN_API_KEY = process.env.SCAN_API_KEY || "";
-const RPC_URL = process.env.RPC_URL || "https://mainnet.base.org";
+const RPC_URL = process.env.RPC_URL || "https://sepolia.base.org";
 
 module.exports = {
   solidity: {
     version: "0.8.19",
     settings: {
+      evmVersion: "paris",
       optimizer: {
         enabled: true,
         runs: 200,
       },
       viaIR: true,
+      metadata: {
+        bytecodeHash: "ipfs",
+        useLiteralContent: false,
+      },
+      outputSelection: {
+        "*": {
+          "*": [
+            "abi",
+            "evm.bytecode",
+            "evm.deployedBytecode",
+            "evm.methodIdentifiers",
+            "metadata",
+            "storageLayout",
+          ],
+          "": ["ast"],
+        },
+      },
     },
   },
   networks: {
-    base: {
+    baseSepolia: {
       url: RPC_URL,
       chainId: CHAIN_ID,
-      accounts: [PRIVATE_KEY],
+      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
     },
     hardhat: {
+      allowBlocksWithSameTimestamp: true,
       accounts: {
         count: 20,
         accountsBalance: "100000000000000000000000", // 100000 ETH per account
       },
       gas: 30000000,
       blockGasLimit: 30000000,
-      allowUnlimitedContractSize: true,
     },
   },
   etherscan: {
     apiKey: {
-      base: SCAN_API_KEY,
+        baseSepolia: SCAN_API_KEY,
     },
     customChains: [
       {
-        network: "base",
-        chainId: 8453,
+          network: "baseSepolia",
+          chainId: 84532,
         urls: {
-          apiURL: "https://api.etherscan.io/v2/api?chainid=8453",
-          browserURL: "https://basescan.org/",
+          apiURL: "https://api.etherscan.io/v2/api?chainid=84532",
+          browserURL: "https://sepolia.basescan.org/",
         },
       },
     ],

@@ -1,0 +1,86 @@
+name: Contracts verification
+
+on:
+  pull_request:
+    paths:
+      - "packages/hardhat/**"
+      - ".github/workflows/contracts-verification.yml"
+      - "package.json"
+      - "yarn.lock"
+  push:
+    branches: [main]
+    paths:
+      - "packages/hardhat/**"
+      - ".github/workflows/contracts-verification.yml"
+      - "package.json"
+      - "yarn.lock"
+  schedule:
+    - cron: "17 8 * * *"
+  workflow_dispatch:
+    inputs:
+      deep:
+        description: "Run the deep fuzz/invariant profile"
+        type: boolean
+        default: true
+
+concurrency:
+  group: contracts-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pull-request-verification:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.2.3
+      - run: corepack enable && yarn install --frozen-lockfile
+      - run: yarn contracts:compile
+      - run: yarn test:hardhat
+      - run: yarn test:foundry
+      - run: yarn test:fuzz
+      - run: yarn test:invariant
+      - run: yarn test:differential
+      - run: yarn verify:contract-equivalence
+      - run: forge fmt --check foundry contracts/mocks/MockAdversarialERC20.sol
+        working-directory: packages/hardhat
+
+  deep-verification:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.2.3
+      - run: corepack enable && yarn install --frozen-lockfile
+      - run: yarn contracts:compile
+      - run: yarn test:hardhat
+      - run: FOUNDRY_PROFILE=deep forge test --match-path 'foundry/test/fuzz/*.t.sol'
+        working-directory: packages/hardhat
+      - run: FOUNDRY_PROFILE=deep forge test --match-path 'foundry/test/invariant/*.t.sol'
+        working-directory: packages/hardhat
+      - run: yarn test:differential
+      - run: yarn verify:contract-equivalence
+      - run: yarn test:coverage
+      - run: yarn workspace @stickrnet/hardhat test:coverage:foundry
+      - run: yarn test:gas
+      - uses: actions/upload-artifact@v4
+        with:
+          name: contract-coverage-and-gas
+          path: |
+            packages/hardhat/coverage/
+            packages/hardhat/coverage.json
+            packages/hardhat/foundry/snapshots/gas.snap

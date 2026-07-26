@@ -2,6 +2,7 @@ import { BigInt } from "@graphprotocol/graph-ts";
 import {
   Content__Created as ContentCreatedEvent,
   Content__Collected as ContentCollectedEvent,
+  Content__Surrendered as ContentSurrenderedEvent,
   Content__Approved as ContentApprovedEvent,
   Content__IsModeratedSet as ContentIsModeratedSetEvent,
   Content__ModeratorsSet as ContentModeratorsSetEvent,
@@ -32,6 +33,9 @@ import {
   CREATOR_FEE,
   TEAM_FEE,
   PROTOCOL_FEE,
+  DIVISOR,
+  RESERVE_MULTIPLIER,
+  ADDRESS_ZERO,
 } from "./constants";
 import {
   convertTokenToDecimal,
@@ -117,6 +121,9 @@ export function handleContentCreated(event: ContentCreatedEvent): void {
   content.startTime = event.block.timestamp;
   content.initPrice = channel.minInitPrice;
   content.stake = ZERO_BD;
+  content.reserve = ZERO_BD;
+  content.premiumStart = channel.minInitPrice;
+  content.isActive = true;
   content.collectCount = ZERO_BI;
   content.collectVolume = ZERO_BD;
   content.createdAt = event.block.timestamp;
@@ -145,6 +152,9 @@ export function handleContentCollected(event: ContentCollectedEvent): void {
   let tokenId = event.params.tokenId;
   let epochId = event.params.epochId;
   let price = convertTokenToDecimal(event.params.price, BI_6);
+  let oldReserve = convertTokenToDecimal(event.params.oldReserve, BI_6);
+  let newReserve = convertTokenToDecimal(event.params.newReserve, BI_6);
+  let premium = convertTokenToDecimal(event.params.premium, BI_6);
 
   let contentId = getContentPositionId(channelAddress, tokenId);
   let content = ContentPosition.load(contentId);
@@ -159,11 +169,19 @@ export function handleContentCollected(event: ContentCollectedEvent): void {
   collector.save();
 
   // Calculate fees
-  let ownerFee = calculateFee(price, OWNER_FEE);
-  let creatorFee = calculateFee(price, CREATOR_FEE);
-  let teamFee = calculateFee(price, TEAM_FEE);
-  let protocolFee = calculateFee(price, PROTOCOL_FEE);
-  let treasuryFee = price.minus(ownerFee).minus(creatorFee).minus(teamFee).minus(protocolFee);
+  let ownerFee = calculateFee(premium, OWNER_FEE);
+  let creatorFee = calculateFee(premium, CREATOR_FEE);
+  let teamFee =
+    channel.team.toHexString() == ADDRESS_ZERO
+      ? ZERO_BD
+      : calculateFee(premium, TEAM_FEE);
+  let directoryForFees = Directory.load(DIRECTORY_ID);
+  let protocolFee =
+    directoryForFees != null &&
+    directoryForFees.protocolFeeAddress.toHexString() != ADDRESS_ZERO
+      ? calculateFee(premium, PROTOCOL_FEE)
+      : ZERO_BD;
+  let treasuryFee = premium.minus(ownerFee).minus(creatorFee).minus(teamFee).minus(protocolFee);
 
   // Update previous owner earnings
   getOrCreateAccount(prevOwnerAddress);
@@ -194,6 +212,9 @@ export function handleContentCollected(event: ContentCollectedEvent): void {
   collect.tokenId = tokenId;
   collect.epochId = epochId;
   collect.price = price;
+  collect.oldReserve = oldReserve;
+  collect.newReserve = newReserve;
+  collect.premium = premium;
   collect.ownerFee = ownerFee;
   collect.creatorFee = creatorFee;
   collect.treasuryFee = treasuryFee;
@@ -207,13 +228,13 @@ export function handleContentCollected(event: ContentCollectedEvent): void {
   // Update content state
   content.owner = collectorAddress;
   content.epochId = epochId.plus(ONE_BI);
-  content.stake = price;
+  content.stake = newReserve;
+  content.reserve = newReserve;
   content.startTime = event.block.timestamp;
-  let newInitPrice = price.times(BigInt.fromI32(2).toBigDecimal());
-  if (newInitPrice.lt(channel.minInitPrice)) {
-    newInitPrice = channel.minInitPrice;
-  }
-  content.initPrice = newInitPrice;
+  let nextReserveRaw = event.params.newReserve.times(RESERVE_MULTIPLIER).div(DIVISOR);
+  let premiumStart = convertTokenToDecimal(nextReserveRaw, BI_6);
+  content.initPrice = premiumStart;
+  content.premiumStart = premiumStart;
   content.collectCount = content.collectCount.plus(ONE_BI);
   content.collectVolume = content.collectVolume.plus(price);
   content.save();
@@ -313,6 +334,21 @@ export function handleContentCollected(event: ContentCollectedEvent): void {
   minuteData.collectCount = minuteData.collectCount.plus(ONE_BI);
   minuteData.collectVolume = minuteData.collectVolume.plus(price);
   minuteData.save();
+}
+
+export function handleContentSurrendered(event: ContentSurrenderedEvent): void {
+  let channelAddress = event.address.toHexString();
+  let contentId = getContentPositionId(channelAddress, event.params.tokenId);
+  let content = ContentPosition.load(contentId);
+  if (content == null) return;
+
+  content.stake = ZERO_BD;
+  content.reserve = ZERO_BD;
+  content.initPrice = ZERO_BD;
+  content.premiumStart = ZERO_BD;
+  content.isActive = false;
+  content.surrenderedAt = event.block.timestamp;
+  content.save();
 }
 
 export function handleContentApproved(event: ContentApprovedEvent): void {

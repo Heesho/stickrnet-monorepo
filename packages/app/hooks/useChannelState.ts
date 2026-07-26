@@ -1,5 +1,5 @@
 import { useReadContract } from "wagmi";
-import { base } from "wagmi/chains";
+import { baseSepolia } from "wagmi/chains";
 import { zeroAddress } from "viem";
 import {
   CONTRACT_ADDRESSES,
@@ -18,7 +18,7 @@ export function useChannelState(
     abi: MULTICALL_ABI,
     functionName: "getCoinState",
     args: channelAddress ? [channelAddress, account ?? zeroAddress] : undefined,
-    chainId: base.id,
+    chainId: baseSepolia.id,
     query: {
       enabled: !!channelAddress && enabled,
       refetchInterval,

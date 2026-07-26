@@ -9,7 +9,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.
  * @title Auction
  * @author heesho
  * @notice A Dutch auction contract for selling accumulated assets in exchange for LP tokens.
- *         The price decays linearly from initPrice to 0 over each epoch. When purchased,
+ *         The price decays linearly from initPrice to the configured floor over each epoch. When purchased,
  *         all accumulated assets are transferred to the buyer, LP tokens are burned,
  *         and a new auction begins with a price based on the previous sale.
  * @dev Forked and modified from Euler Fee Flow.
@@ -57,6 +57,9 @@ contract Auction is ReentrancyGuard {
     error Auction__PriceMultiplierExceedsMax();
     error Auction__MinInitPriceBelowMin();
     error Auction__MinInitPriceExceedsAbsMaxInitPrice();
+    error Auction__InvalidAssetsReceiver();
+    error Auction__InvalidAsset();
+    error Auction__IncorrectPayment();
 
     /*----------  EVENTS  -----------------------------------------------*/
 
@@ -124,20 +127,24 @@ contract Auction is ReentrancyGuard {
     ) external nonReentrant returns (uint256 paymentAmount) {
         if (block.timestamp > deadline) revert Auction__DeadlinePassed();
         if (assets.length == 0) revert Auction__EmptyAssets();
+        if (assetsReceiver == address(0)) revert Auction__InvalidAssetsReceiver();
         if (_epochId != epochId) revert Auction__EpochIdMismatch();
 
         paymentAmount = getPrice();
         if (paymentAmount > maxPaymentTokenAmount) revert Auction__MaxPaymentAmountExceeded();
 
-        // Transfer LP tokens to receiver (burn address)
-        if (paymentAmount > 0) {
-            IERC20(paymentToken).safeTransferFrom(msg.sender, paymentReceiver, paymentAmount);
+        // Transfer the exact LP payment to the configured receiver (normally the dead address).
+        uint256 paymentBalanceBefore = IERC20(paymentToken).balanceOf(paymentReceiver);
+        IERC20(paymentToken).safeTransferFrom(msg.sender, paymentReceiver, paymentAmount);
+        if (IERC20(paymentToken).balanceOf(paymentReceiver) != paymentBalanceBefore + paymentAmount) {
+            revert Auction__IncorrectPayment();
         }
 
         // Transfer all accumulated assets to buyer
         for (uint256 i = 0; i < assets.length; i++) {
+            if (assets[i] == address(0) || assets[i].code.length == 0) revert Auction__InvalidAsset();
             uint256 balance = IERC20(assets[i]).balanceOf(address(this));
-            IERC20(assets[i]).safeTransfer(assetsReceiver, balance);
+            if (balance > 0) IERC20(assets[i]).safeTransfer(assetsReceiver, balance);
         }
 
         // Calculate next epoch's starting price
@@ -165,11 +172,12 @@ contract Auction is ReentrancyGuard {
 
     /**
      * @notice Get the current Dutch auction price.
-     * @return Current price (linearly decays from initPrice to 0 over epochPeriod)
+     * @return Current price (linearly decays from initPrice to minInitPrice over epochPeriod)
      */
     function getPrice() public view returns (uint256) {
         uint256 timePassed = block.timestamp - startTime;
-        if (timePassed > epochPeriod) return 0;
-        return initPrice - initPrice * timePassed / epochPeriod;
+        if (timePassed >= epochPeriod) return minInitPrice;
+        uint256 price = initPrice - initPrice * timePassed / epochPeriod;
+        return price < minInitPrice ? minInitPrice : price;
     }
 }

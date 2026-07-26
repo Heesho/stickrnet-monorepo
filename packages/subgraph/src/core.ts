@@ -1,5 +1,9 @@
 import { BigInt } from "@graphprotocol/graph-ts";
-import { Core__Launched as CoreLaunchedEvent } from "../generated/Core/Core";
+import {
+  Core,
+  Core__Launched as CoreLaunchedEvent,
+  Core__ProtocolFeeAddressSet as CoreProtocolFeeAddressSetEvent,
+} from "../generated/Core/Core";
 import { Content as ContentTemplate, Rewarder as RewarderTemplate, Minter as MinterTemplate, UniswapV2Pair as UniswapV2PairTemplate, IpfsMetadata as IpfsMetadataTemplate } from "../generated/templates";
 import { Directory, Channel, Account, ContractToChannel } from "../generated/schema";
 import { ZERO_BD, ZERO_BI, ONE_BI, DIRECTORY_ID, BI_18, BI_6 } from "./constants";
@@ -16,6 +20,7 @@ export function handleCoreLaunched(event: CoreLaunchedEvent): void {
     directory.collectVolume = ZERO_BD;
     directory.totalStaked = ZERO_BD;
     directory.totalMinted = ZERO_BD;
+    directory.protocolFeeAddress = Core.bind(event.address).protocolFeeAddress();
     directory.creatorRevenue = ZERO_BD;
     directory.ownerRevenue = ZERO_BD;
     directory.treasuryRevenue = ZERO_BD;
@@ -127,4 +132,13 @@ export function handleCoreLaunched(event: CoreLaunchedEvent): void {
   RewarderTemplate.create(event.params.rewarder);
   MinterTemplate.create(event.params.minter);
   UniswapV2PairTemplate.create(event.params.lpToken);
+}
+
+export function handleCoreProtocolFeeAddressSet(
+  event: CoreProtocolFeeAddressSetEvent
+): void {
+  let directory = Directory.load(DIRECTORY_ID);
+  if (directory == null) return;
+  directory.protocolFeeAddress = event.params.protocolFeeAddress;
+  directory.save();
 }

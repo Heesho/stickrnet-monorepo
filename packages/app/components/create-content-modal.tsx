@@ -258,7 +258,7 @@ export function CreateContentModal({
               </button>
               {txHash && (
                 <a
-                  href={`https://basescan.org/tx/${txHash}`}
+                  href={`https://sepolia.basescan.org/tx/${txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block w-full py-3.5 px-4 bg-[hsl(var(--surface-container-high))] text-foreground font-semibold font-display text-[15px] rounded-[var(--radius)] hover:bg-[hsl(var(--foreground)/0.08)] transition-colors"

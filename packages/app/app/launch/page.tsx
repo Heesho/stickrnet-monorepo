@@ -623,7 +623,7 @@ export default function LaunchPage() {
                   View Channel
                 </Link>
                 <a
-                  href={`https://basescan.org/tx/${txHash}`}
+                  href={`https://sepolia.basescan.org/tx/${txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="slab-button-ghost block w-full px-4 py-3.5 text-[11px]"

@@ -1,4 +1,4 @@
-import { base } from "wagmi/chains";
+import { baseSepolia } from "wagmi/chains";
 
 // Timing constants
 export const PRICE_CACHE_TTL_MS = 60_000; // 1 minute
@@ -17,7 +17,7 @@ export const DEADLINE_BUFFER_SECONDS = 15 * 60; // 15 minutes
 export const TOKEN_DECIMALS = 18;
 
 // Chain configuration
-export const DEFAULT_CHAIN_ID = base.id;
+export const DEFAULT_CHAIN_ID = baseSepolia.id;
 
 // Default price fallbacks (USD)
 export const DEFAULT_ETH_PRICE_USD = 3500;
@@ -48,4 +48,3 @@ export const HIDDEN_CHANNELS: string[] = [
 
 // File upload limits
 export const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
-

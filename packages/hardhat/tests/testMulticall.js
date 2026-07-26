@@ -10,7 +10,7 @@ const AddressDead = "0x000000000000000000000000000000000000dEaD";
 async function getAuctionData(content, tokenId) {
   return {
     epochId: await content.idToEpochId(tokenId),
-    initPrice: await content.idToInitPrice(tokenId),
+    initPrice: await content.idToPremiumStart(tokenId),
     startTime: await content.idToStartTime(tokenId)
   };
 }
@@ -233,6 +233,10 @@ describe("Multicall Tests", function () {
       expect(state.creator).to.equal(user1.address);
       expect(state.isApproved).to.be.true;
       expect(state.stake).to.equal(0);
+      expect(state.reserve).to.equal(0);
+      expect(state.rewardWeight).to.equal(state.reserve);
+      expect(state.nextReserve).to.equal(await content.minInitPrice());
+      expect(state.price).to.equal(state.nextReserve.add(state.premium));
       expect(state.epochId).to.equal(0);
       expect(state.uri).to.equal("ipfs://token1");
     });
@@ -253,7 +257,10 @@ describe("Multicall Tests", function () {
 
       expect(state.owner).to.equal(user2.address);
       expect(state.creator).to.equal(user1.address);
-      expect(state.stake).to.be.gt(0); // Stake recorded (exact value may differ due to price decay)
+      expect(state.reserve).to.equal(await content.reserveOf(tokenId));
+      expect(state.stake).to.equal(state.reserve);
+      expect(state.rewardWeight).to.equal(state.reserve);
+      expect(state.price).to.equal(state.nextReserve.add(state.premium));
       expect(state.epochId).to.equal(1);
     });
 

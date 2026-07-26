@@ -3,7 +3,7 @@ import { GraphQLClient, gql } from "graphql-request";
 // Subgraph URL (Goldsky)
 export const LAUNCHPAD_SUBGRAPH_URL =
   process.env.NEXT_PUBLIC_LAUNCHPAD_SUBGRAPH_URL ||
-  "https://api.goldsky.com/api/public/project_cmgscxhw81j5601xmhgd42rej/subgraphs/stickrnet/1.0.0/gn";
+  "http://127.0.0.1:8000/subgraphs/name/stickrnet";
 
 const client = new GraphQLClient(LAUNCHPAD_SUBGRAPH_URL);
 
@@ -99,6 +99,9 @@ export type SubgraphCollect = {
   tokenId: string;
   epochId: string;
   price: string;
+  oldReserve: string;
+  newReserve: string;
+  premium: string;
   ownerFee: string;
   creatorFee: string;
   treasuryFee: string;
@@ -122,6 +125,10 @@ export type SubgraphContentPosition = {
   startTime: string;
   initPrice: string;
   stake: string;
+  reserve: string;
+  premiumStart: string;
+  isActive: boolean;
+  surrenderedAt?: string | null;
   collectCount: string;
   collectVolume: string;
   createdAt: string;
@@ -240,6 +247,9 @@ const COLLECT_FIELDS = `
   tokenId
   epochId
   price
+  oldReserve
+  newReserve
+  premium
   ownerFee
   creatorFee
   treasuryFee
@@ -272,6 +282,10 @@ const CONTENT_POSITION_FIELDS = `
   startTime
   initPrice
   stake
+  reserve
+  premiumStart
+  isActive
+  surrenderedAt
   collectCount
   collectVolume
   createdAt

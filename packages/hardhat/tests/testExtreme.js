@@ -10,7 +10,7 @@ const AddressDead = "0x000000000000000000000000000000000000dEaD";
 async function getAuctionData(content, tokenId) {
   return {
     epochId: await content.idToEpochId(tokenId),
-    initPrice: await content.idToInitPrice(tokenId),
+    initPrice: await content.idToPremiumStart(tokenId),
     startTime: await content.idToStartTime(tokenId)
   };
 }
@@ -169,21 +169,23 @@ describe("EXTREME Stress Tests", function () {
       await ethers.provider.send("evm_mine");
 
       const price = await content.getPrice(tokenId);
-      expect(price).to.equal(0);
+      const minInitPrice = await content.minInitPrice();
+      expect(price).to.equal(minInitPrice);
 
       const auctionData = await getAuctionData(content, tokenId);
+      await usdc.connect(user2).approve(content.address, price);
       await content.connect(user2).collect(
         user2.address,
         tokenId,
         auctionData.epochId,
         ethers.constants.MaxUint256,
-        0
+        price
       );
 
-      // After free collection, new price should be minInitPrice
+      // The first collection locks minInitPrice; the next reserve grows by 10%.
       const newAuction = await getAuctionData(content, tokenId);
-      const minInitPrice = await content.minInitPrice();
-      expect(newAuction.initPrice).to.equal(minInitPrice);
+      expect(await content.reserveOf(tokenId)).to.equal(minInitPrice);
+      expect(newAuction.initPrice).to.equal(minInitPrice.mul(11000).div(10000));
     });
 
     it("Should handle very high prices correctly", async function () {
@@ -225,7 +227,8 @@ describe("EXTREME Stress Tests", function () {
       await ethers.provider.send("evm_mine");
 
       const price = await content.getPrice(tokenId);
-      expect(price).to.equal(0);
+      expect(await content.premiumOf(tokenId)).to.equal(0);
+      expect(price).to.equal(await content.nextReserveOf(tokenId));
     });
 
     it("Should handle price 1 second before epoch ends", async function () {
@@ -370,27 +373,31 @@ describe("EXTREME Stress Tests", function () {
   });
 
   describe("Auction Edge Cases", function () {
-    it("Should handle auction at price = 0", async function () {
-      // Wait for auction price to decay to 0
+    it("Should enforce the auction price floor after expiry", async function () {
+      // Wait for auction price to decay to its configured floor
       const epochPeriod = await auction.epochPeriod();
       await ethers.provider.send("evm_increaseTime", [epochPeriod.toNumber() + 1]);
       await ethers.provider.send("evm_mine");
 
       const price = await auction.getPrice();
-      expect(price).to.equal(0);
+      expect(price).to.equal(await auction.minInitPrice());
 
       // Send some USDC to auction
       await usdc.connect(user1).transfer(auction.address, convert("1", 6));
 
       const epochId = await auction.epochId();
 
-      // Should be able to buy for free
+      const lpAddress = await core.contentToLP(content.address);
+      const lp = await ethers.getContractAt("MockLP", lpAddress);
+      await lp.mint(user2.address, price);
+      await lp.connect(user2).approve(auction.address, price);
+
       await auction.connect(user2).buy(
         [usdc.address],
         user2.address,
         epochId,
         ethers.constants.MaxUint256,
-        0
+        price
       );
 
       // User2 should have received the USDC
@@ -408,12 +415,17 @@ describe("EXTREME Stress Tests", function () {
       // Also send some USDC
       await usdc.connect(user1).transfer(auction.address, convert("5", 6));
 
-      // Wait for price to be 0
+      // Wait for price to reach the floor
       const epochPeriod = await auction.epochPeriod();
       await ethers.provider.send("evm_increaseTime", [epochPeriod.toNumber() + 1]);
       await ethers.provider.send("evm_mine");
 
       const epochId = await auction.epochId();
+      const price = await auction.getPrice();
+      const lpAddress = await core.contentToLP(content.address);
+      const lp = await ethers.getContractAt("MockLP", lpAddress);
+      await lp.mint(user3.address, price);
+      await lp.connect(user3).approve(auction.address, price);
 
       const user3UsdcBefore = await usdc.balanceOf(user3.address);
       const user3MockBefore = await mockToken.balanceOf(user3.address);
@@ -423,7 +435,7 @@ describe("EXTREME Stress Tests", function () {
         user3.address,
         epochId,
         ethers.constants.MaxUint256,
-        0
+        price
       );
 
       const user3UsdcAfter = await usdc.balanceOf(user3.address);
@@ -501,16 +513,18 @@ describe("EXTREME Stress Tests", function () {
         const protocolBefore = await usdc.balanceOf(protocolFee);
 
         await usdc.connect(user2).approve(content.address, maxPrice);
-        await content.connect(user2).collect(
+        const tx = await content.connect(user2).collect(
           user2.address,
           tokenId,
           auctionData.epochId,
           ethers.constants.MaxUint256,
           maxPrice
         );
+        const collected = (await tx.wait()).events.find(
+          (event) => event.event === "Content__Collected"
+        ).args;
 
-        // Get actual price paid from stake
-        const actualPrice = await content.idToStake(tokenId);
+        const actualPrice = collected.price;
 
         const prevOwnerAfter = await usdc.balanceOf(prevOwner);
         const prevOwnerClaimableAfter = await content.accountToClaimable(prevOwner);
@@ -526,9 +540,9 @@ describe("EXTREME Stress Tests", function () {
         const teamFee = teamAfter.sub(teamBefore);
         const protocolFeeAmt = protocolAfter.sub(protocolBefore);
 
-        // Total should equal actual price paid
+        // Premium payouts plus the newly locked reserve equal the total price.
         const totalFees = prevOwnerTotalFee.add(treasuryFee).add(teamFee).add(protocolFeeAmt);
-        expect(totalFees).to.equal(actualPrice);
+        expect(totalFees.add(collected.newReserve)).to.equal(actualPrice);
 
         console.log(`Actual Price: ${divDec6(actualPrice)}`);
         console.log(`PrevOwner+Creator direct+claimable (83%): ${divDec6(prevOwnerTotalFee)}`);
@@ -618,7 +632,7 @@ describe("EXTREME Stress Tests", function () {
 
       const auctionBefore = await getAuctionData(content, tokenId);
       const ownerBefore = await content.ownerOf(tokenId);
-      const stakeBefore = await content.idToStake(tokenId);
+      const stakeBefore = await content.idToReserve(tokenId);
 
       // Try to collect with wrong epochId (should fail)
       const price = await content.getPrice(tokenId);
@@ -637,7 +651,7 @@ describe("EXTREME Stress Tests", function () {
       // State should be unchanged
       const auctionAfter = await getAuctionData(content, tokenId);
       const ownerAfter = await content.ownerOf(tokenId);
-      const stakeAfter = await content.idToStake(tokenId);
+      const stakeAfter = await content.idToReserve(tokenId);
 
       expect(auctionAfter.epochId).to.equal(auctionBefore.epochId);
       expect(ownerAfter).to.equal(ownerBefore);
@@ -880,7 +894,7 @@ describe("EXTREME Attack Vector Tests", function () {
     });
 
     it("Should handle zero values correctly throughout", async function () {
-      // Zero price collection
+      // Zero premium still requires a fully funded reserve.
       await content.connect(user1).create(user1.address, "ipfs://zero-value-test");
       const tokenId = await content.nextTokenId();
 
@@ -888,20 +902,22 @@ describe("EXTREME Attack Vector Tests", function () {
       await ethers.provider.send("evm_mine");
 
       const price = await content.getPrice(tokenId);
-      expect(price).to.equal(0);
+      expect(await content.premiumOf(tokenId)).to.equal(0);
+      expect(price).to.equal(await content.nextReserveOf(tokenId));
 
       const auctionData = await getAuctionData(content, tokenId);
+      await usdc.connect(user2).approve(content.address, price);
       await content.connect(user2).collect(
         user2.address,
         tokenId,
         auctionData.epochId,
         ethers.constants.MaxUint256,
-        0
+        price
       );
 
-      // Stake should be 0
-      const stake = await content.idToStake(tokenId);
-      expect(stake).to.equal(0);
+      // Stake equals the funded reserve.
+      const stake = await content.idToReserve(tokenId);
+      expect(stake).to.equal(await content.minInitPrice());
     });
   });
 });
@@ -1030,22 +1046,24 @@ describe("EXTREME Integration Tests", function () {
       await rewarder.connect(user3)['getReward(address)'](user3.address);
       console.log("6. Rewards claimed");
 
-      // 6. Let price decay and collect for free
+      // 6. Let the premium decay and collect at the reserve floor.
       await ethers.provider.send("evm_increaseTime", [31 * DAY]);
       await ethers.provider.send("evm_mine");
 
       auctionData = await getAuctionData(content, tokenId);
       price = await content.getPrice(tokenId);
-      expect(price).to.equal(0);
+      expect(await content.premiumOf(tokenId)).to.equal(0);
+      expect(price).to.equal(await content.nextReserveOf(tokenId));
 
+      await usdc.connect(user4).approve(content.address, price);
       await content.connect(user4).collect(
         user4.address,
         tokenId,
         auctionData.epochId,
         ethers.constants.MaxUint256,
-        0
+        price
       );
-      console.log("7. Free collection after decay");
+      console.log("7. Reserve-floor collection after premium decay");
 
       // Verify final state
       expect(await content.ownerOf(tokenId)).to.equal(user4.address);
@@ -1062,16 +1080,20 @@ describe("EXTREME Integration Tests", function () {
       await ethers.provider.send("evm_increaseTime", [epochPeriod.toNumber() + 1]);
       await ethers.provider.send("evm_mine");
 
-      // 3. Buy at 0 price
+      // 3. Buy at the configured floor
       const epochId = await auction.epochId();
+      const auctionPrice = await auction.getPrice();
       const user5UsdcBefore = await usdc.balanceOf(user5.address);
+      const lp = await ethers.getContractAt("MockLP", await core.contentToLP(content.address));
+      await lp.mint(user5.address, auctionPrice);
+      await lp.connect(user5).approve(auction.address, auctionPrice);
 
       await auction.connect(user5).buy(
         [usdc.address],
         user5.address,
         epochId,
         ethers.constants.MaxUint256,
-        0
+        auctionPrice
       );
 
       const user5UsdcAfter = await usdc.balanceOf(user5.address);
